@@ -41,11 +41,12 @@ int main()
   tcsetattr(fd,TCSANOW,&newtio);                                          
                                                                           
   for(;;) {
-    res = read(fd, buf, 255);
+    res = read(fd, buf, 25);
     if(res < 0)
       break;
     for(int n=0; n < res; ++n)
       printf("%c", buf[n]);
+    fflush(stdout);
   }                                                                       
   tcsetattr(fd,TCSANOW,&oldtio);                                          
 }                                                                         
