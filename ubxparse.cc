@@ -199,8 +199,8 @@ WinKeeper::WinKeeper()
   initscr();
   getmaxyx(stdscr, d_h, d_w);
 
-  int winwidth = d_w / 6;
-  for(int n=0; n < 5 ; ++n) {
+  int winwidth = d_w / 7;
+  for(int n=0; n < 8 ; ++n) {
     d_windows.push_back({
         newwin(3, winwidth, 0, n*(winwidth+2)),
         newwin(d_h-3, winwidth, 3, n*(winwidth+2)),
@@ -295,6 +295,12 @@ try
     }
 
     if(ubxClass == 2 && ubxType == 89) { // SAR
+      string hexstring;
+      for(int n = 0; n < 15; ++n)
+        hexstring+=fmt::format("%x", (int)getbitu(msg.c_str(), 36 + 4*n, 4));
+      
+      int sv = (int)msg[2];
+      wk.emitLine(sv, "SAR "+hexstring);
       //      cout<<"SAR: sv = "<< (int)msg[2] <<" ";
       //      for(int n=4; n < 12; ++n)
       //        fmt::printf("%02x", (int)msg[n]);
@@ -352,17 +358,43 @@ try
         if(wtype == 1 && tow) {
           int t0e = 60*getbitu(&inav[0], 16, 14);
           int age = (tow - t0e)/60;
-          wk.emitLine(sv, "Eph" +std::to_string(wtype)+", iod=" + to_string(iod)+", age="+to_string(age)+"m" );
+          uint32_t e = getbitu(&inav[0], 6+10+14+32, 32);
+          wk.emitLine(sv, "Eph" +std::to_string(wtype)+", e=" + to_string(e)+", age="+to_string(age)+"m" );
+        }
+        else if(wtype == 3) {
+          unsigned int sisa = getbitu(&inav[0], 120, 8);
+          wk.emitLine(sv, "Eph3, iod="+to_string(iod)+", sisa="+to_string(sisa));
         }
         else
           wk.emitLine(sv, "Eph" +std::to_string(wtype)+", iod=" + to_string(iod));
       }
-      else
-        wk.emitLine(sv, "Word "+std::to_string(wtype));
-      if(wtype == 5) {
+      else if(!wtype)
+        wk.emitLine(sv, ".");
+      else if(wtype == 5) {
+        wk.emitLine(sv, "IonoBGDHealth5");
         wk.setStatus(sv, "Health: "+std::to_string(getbitu(&inav[0], 67, 2)));
         tow = getbitu(&inav[0], 85, 20);
       }
+      else if(wtype == 6) {
+        int a0 = getbits(&inav[0], 6, 32);
+        int a1 = getbits(&inav[0], 38, 24);
+        wk.emitLine(sv, "GST-UTC6, a0="+to_string(a0)+", a1="+to_string(a1));
+      }
+      else if(wtype == 7) {
+        wk.emitLine(sv, "Alm7");
+      }
+      else if(wtype == 8) {
+        wk.emitLine(sv, "Alm8");
+      }
+      else if(wtype == 9) {
+        wk.emitLine(sv, "Alm9");
+      }
+      else if(wtype == 10) {
+        wk.emitLine(sv, "Alm10");
+      }
+      
+      else
+        wk.emitLine(sv, "Word "+std::to_string(wtype));
 
       //        time_t t = 935280000 + wn * 7*86400 + tow;
       /*
