@@ -1,0 +1,3 @@
+[submodule "ext/powerblog"]
+	path = ext/powerblog
+	url = https://github.com/ahupowerdns/powerblog.git
