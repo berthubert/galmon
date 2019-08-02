@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+text {
+  font: 12px sans-serif;
+}
+
+
+th, td {
+padding-left: 8px;
+padding-right: 8px;
+padding-top: 1px;
+padding-bottom: 1px;
+font-family: monospace;
+}
+tr:nth-child(even) {background: #CCC}
+tr:nth-child(odd) {background: #FFF}
+</style>
+<body>
+  Live:<br/>
+  <table id="svs"></table>
+  <hr>
+  Stale:<br/>
+  <table id="svsstale"></table>
+  <p>
+    This table shows live output from a Galileo receiver hosted in Nootdorp, The Netherlands.
+    It is very much a work in progress, and will not be available at all times. Extremely rough code is on
+    <a href="https://github.com/ahuPowerDNS/galmon">GitHub</a>.
+
+    Some technical detail behind this setup can be found in <a href="https://ds9a.nl/articles/posts/galileo-notes/">this post</a>.
+
+    For updates, follow <a href="https://twitter.com/GalileoSats">@GalileoSats</a> on Twitter.
+    
+    The meaning of the fields is as follows:
+    <table>
+      <tr valign="top"><td>sv</td><td>Satellite Vehicle, an identifier for a Galileo satellite. Not the actual name of the satellite, other satellites could take over this number in case of failures</td></tr>
+      <tr valign="top"><td>iod</td><td>Issue of Data. Satellites periodically get sent updates on their orbit &amp; other details, each update has a new IOD number. It is coincidence that all SVs currently receive the same IOD numbers, this is by no means guaranteed. Currently however, if an SV has a lower IOD, it has not received new updates recently.</td></tr>
+      <tr valign="top"><td>eph‑age‑m</td><td>Age of ephemeris in minutes. Denotes how old the current set of orbit data is. Could be very old if SV is out of sight (see below). An acceptable limit is 4 hours (240 minutes).</td></tr>
+      <tr valign="top"><td>sisa</td><td>Signal In Space Accuracy, how well the position of an SV is known.</td></tr>
+      <tr valign="top"><td>e1bhs, e1bdvs, e5bhs, e5bdvs</td><td>Health flags for E1 (common) and E5 (uncommon) frequencies.</td></tr>
+      <tr valign="top"><td>a0, a1</td><td>Offset of the Galileo Standard Time to UTC. a0 is (more or less) the offset in nanoseconds, a1 is a measure of the rate of change</td></tr>
+      <tr valign="top"><td>elev</td><td>Elevation of an SV over my horizon (90 is straight up), reported by receiver</td></tr>
+      <tr valign="top"><td>calc-elev</td><td>Elevation of an SV over or under my horizon (90 is straight up), calculated by this website</td></tr>
+      <tr valign="top"><td>db</td><td>A measure of signal to noise ratio (in unknown units, 40 is good)</td></tr>
+      <tr valign="top"><td>last‑seen‑s</td><td>Number of seconds since we've last received from this SV. A satellite can be out of sight for a long time</td></tr>
+    </table>
+  </p>
+  <p>
+    The official Galileo constellation status can be found on the <a href="https://www.gsc-europa.eu/system-status/Constellation-Information">European GNSS Service Centre page</a>, which also lists "NAGUs", <a href="https://www.gsc-europa.eu/system-status/user-notifications">notifications about outages or changes</a>.
+  </p>
+  <p>
+    Feedback is very welcome on bert@hubertnet.nl or <a href="https://twitter.com/PowerDNS_Bert">@PowerDNS_Bert</a>.
+    <script src="d3.v4.min.js"></script>
+    <script src="ext/moment-with-locales.js"></script>
+  <script src="doalles.js"></script>
+</body>
+</html>
