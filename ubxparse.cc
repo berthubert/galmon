@@ -10,6 +10,9 @@
 #include <curses.h>
 #include <vector>
 #include <boost/algorithm/string.hpp>
+#include <thread>
+#include <signal.h>
+#include "ext/powerblog/h2o-pp.hh"
 using namespace std;
 
 struct EofException{};
@@ -156,6 +159,8 @@ struct SVIOD
   int16_t cuc{0}, cus{0}, crc{0}, crs{0}, cic{0}, cis{0};
   
   uint8_t sisa;
+
+  uint32_t wn{0}, tow{0};
   bool complete() const
   {
     return words[1] && words[2] && words[3] && words[4]; 
@@ -208,7 +213,8 @@ struct SVStat
   bool disturb1{false}, disturb2{false}, disturb3{false}, disturb4{false}, disturb5{false};
   uint16_t wn{0};
   uint32_t tow{0}; // "last seen"
-  uint32_t a0{0}, a1{0};
+  uint32_t a0{0}, a1{0}, t0t{0}, wn0t{0};
+  int16_t el{-1}, db{-1};
   map<int, SVIOD> iods;
   void addWord(std::basic_string_view<uint8_t> page);
   bool completeIOD() const;
@@ -248,7 +254,16 @@ SVIOD SVStat::liveIOD() const
 void SVStat::addWord(std::basic_string_view<uint8_t> page)
 {
   uint8_t wtype = getbitu(&page[0], 0, 6);
-  if(wtype >=1 && wtype <= 4) { // ephemeris 
+
+
+  if(wtype == 0) {
+    if(getbitu(&page[0], 6,2) == 2) {
+      wn = getbitu(&page[0], 96, 12);
+      tow = getbitu(&page[0], 108, 20);
+    }
+
+  }
+  else if(wtype >=1 && wtype <= 4) { // ephemeris 
     uint16_t iod = getbitu(&page[0], 6, 10);
     iods[iod].addWord(page);
     
@@ -271,7 +286,18 @@ void SVStat::addWord(std::basic_string_view<uint8_t> page)
     tow = getbitu(&page[0], 85, 20);
     //    cout<<"Setting tow to "<<tow<<endl;
   }
-    
+  else if(wtype == 6) {
+    a0 = getbits(&page[0], 6, 32);
+    a1 = getbits(&page[0], 38, 24);
+    t0t = getbitu(&page[0], 70, 8);
+    wn0t = getbits(&page[0], 78, 8);
+
+  }
+}
+
+double todeg(double rad)
+{
+  return 360 * rad/(2*M_PI);
 }
 
 void getCoordinates(int wn, int tow, const SVIOD& iod, double* x, double* y, double* z, bool quiet=true)
@@ -308,11 +334,11 @@ void getCoordinates(int wn, int tow, const SVIOD& iod, double* x, double* y, dou
     cout << "sqrtA = "<< sqrtA << endl;
     cout << "deltan = "<< deltan << endl;
     cout << "t0e = "<< t0e << endl;
-    cout << "m0 = "<< m0 << endl;
+    cout << "m0 = "<< m0 << " ("<<todeg(m0)<<")"<<endl;
     cout << "e = "<< e << endl;
-    cout << "omega = " << omega << endl;
+    cout << "omega = " << omega << " ("<<todeg(omega)<<")"<<endl;
     cout << "idot = " << idot <<endl;
-    cout << "i0 = " << i0 <<endl;
+    cout << "i0 = " << i0 << " ("<<todeg(i0)<<")"<<endl;
     
     cout << "cuc = " << cuc << endl;
     cout << "cus = " << cus << endl;
@@ -322,6 +348,10 @@ void getCoordinates(int wn, int tow, const SVIOD& iod, double* x, double* y, dou
     
     cout << "cic = " << cic << endl;
     cout << "cis = " << cis << endl;
+
+    cout << "Omega0 = " << Omega0 << " ("<<todeg(Omega0)<<")"<<endl;
+    cout << "Omegadot = " << Omegadot << " ("<<todeg(Omegadot)<< ")"<<endl;
+    
   }
   
   double A = pow(sqrtA, 2.0);
@@ -360,16 +390,21 @@ void getCoordinates(int wn, int tow, const SVIOD& iod, double* x, double* y, dou
     e*e*e * (0.25*sin(M) - (13.0/12.0)*sin(3*M));
 
   double nu3 = 2* atan( sqrt((1+e)/(1-e)) * tan(E/2));
-  nu = nu3;
+
+  if(!quiet) {
+    cout <<"         nu sis: "<<nu<< " / +pi = " << nu +M_PI << endl;
+    cout <<"         nu ?: "<<nu1<< " / +pi = "  << nu1 +M_PI << endl;
+    cout <<"         nu fourier/esa: "<<nu2<< " / +pi = "<<nu2+M_PI << endl;
+    cout <<"         nu wikipedia: "<<nu3<< " / +pi = " <<nu3 +M_PI << endl;
+  }
+  
+  nu = nu2;
 
   // https://en.wikipedia.org/wiki/True_anomaly is good
   
   double psi = nu + omega;
   if(!quiet) {
     cout<<"psi = nu + omega = " << nu <<" + "<<omega<< " = " << psi << "\n";
-    cout <<"         nu1: "<<nu1<<endl;
-    cout <<"         nu2: "<<nu2<<endl;
-    cout <<"         nu3: "<<nu3<<endl;
   }
 
 
@@ -415,9 +450,89 @@ std::string humanTime(int wn, int tow)
   return buffer;
 }
 
-int main()
+int* g_tow, *g_wn;
+
+int main(int argc, char** argv)
 try
 {
+  signal(SIGPIPE, SIG_IGN);
+  H2OWebserver h2s("galmon");
+
+  int tow=0, wn=0;
+  g_tow = &tow;
+  g_wn = &wn;
+  
+  h2s.addHandler("/svs", [](auto handler, auto req) {
+      nlohmann::json ret = nlohmann::json::object();
+      for(const auto& s: g_svstats)
+        if(s.second.completeIOD()) {
+          nlohmann::json item  = nlohmann::json::object();
+          
+          item["iod"]=s.second.getIOD();
+          item["sisa"]=humanSisa(s.second.liveIOD().sisa);
+          item["a0"]=s.second.a0;
+          item["a1"]=s.second.a1;
+          item["e5bdvs"]=s.second.e5bdvs;
+          item["e1bdvs"]=s.second.e1bdvs;
+          item["e5bhs"]=s.second.e5bhs;
+          item["e1bhs"]=s.second.e1bhs;                    
+          item["elev"]=s.second.el;
+          item["db"]=s.second.db;
+          item["eph-age-m"] = (*g_tow - 60*s.second.liveIOD().t0e)/60.0;
+          item["last-seen-s"] = s.second.tow ? (*g_tow - s.second.tow) : -1;
+
+          /* Our location:
+X : 3922.505   km
+Y : 290.116   km
+Z : 5004.189   km
+          */
+
+          double ourx = 3922.505 * 1000;
+          double oury = 290.116 * 1000;
+          double ourz = 5004.189 * 1000;
+          double x, y, z;
+          //          cout<<"For sv " <<s.first<<" at "<<humanTime(*g_wn, *g_tow)<<": \n";
+          getCoordinates(*g_wn, *g_tow, s.second.liveIOD(), &x, &y, &z);
+
+          double dx = x-ourx, dy = y-oury, dz = z-ourz;
+          
+          /* https://gis.stackexchange.com/questions/58923/calculating-view-angle
+             to calculate elevation:
+             Cos(elevation) = (x*dx + y*dy + z*dz) / Sqrt((x^2+y^2+z^2)*(dx^2+dy^2+dz^2))
+             Obtain its principal inverse cosine. Subtract this from 90 degrees if you want 
+             the angle of view relative to a nominal horizon. This is the "elevation."
+             NOTE! x = you on the ground!
+          */
+          double elev = acos ( (ourx*dx + oury*dy + ourz*dz) / (sqrt(ourx*ourx + oury*oury + ourz*ourz) * sqrt(dx*dx + dy*dy + dz*dz)));
+
+          double deg = 180.0* (elev/M_PI);
+          
+          item["calc-elev"] = 90 - deg;
+          /*
+          cout<<s.first<<" calc elev radians "<< elev << ", deg "<< deg <<" calc-elev "<<(90-deg)<<", from ublox "<< s.second.el<<endl <<std::fixed<<" (" << ourx << ", "<< oury <<", "<<ourz<<") -> ("
+              << x << ", "<< y <<", "<< z<<") " << sqrt(ourx*ourx + oury*oury + ourz*ourz) <<" - " << sqrt(x*x+y*y+z*z) <<endl;
+          */
+          item["x"]=x;
+          item["y"]=y;
+          item["z"]=z;
+          item["wn"]=*g_wn;
+          item["tow"]=*g_tow;
+          ret[std::to_string(s.first)] = item;
+        }
+      return ret;
+    });
+  h2s.addDirectory("/", argc > 2 ? argv[2] : "./html/");
+
+  int port = argc > 1 ? atoi(argv[1]) : 29599;
+  std::thread ws([&h2s, port]() {
+      auto actx = h2s.addContext();
+      h2s.addListener(ComboAddress("::", port), actx);
+      cout<<"Listening on port "<< port <<endl;
+      h2s.runLoop();
+    });
+  ws.detach();
+
+  
   //  unsigned int tow=0, wn=0;
   ofstream csv("iod.csv");
   ofstream csv2("toe.csv");
@@ -432,7 +547,7 @@ try
   
   sisacsv << "timestamp sv sisa"<<endl;
   
-  int tow=0, wn=0;
+
   string line;
   for(;;) {
     auto c = getUint8();
@@ -450,6 +565,12 @@ try
           vector<string> strs;
           boost::split(strs,line,boost::is_any_of(","));
           for(unsigned int n=4; n + 4 < strs.size(); n += 4) {
+            g_svstats[atoi(strs[n].c_str())].el = atoi(strs[n+1].c_str());
+            if(g_svstats[atoi(strs[n].c_str())].el >= 0)
+              g_svstats[atoi(strs[n].c_str())].db = atoi(strs[n+3].c_str());
+            else
+              g_svstats[atoi(strs[n].c_str())].db = -1;
+            
             /*
             cout<<"sv "<<atoi(strs[n].c_str())
                 << " el "<< atoi(strs[n+1].c_str())
