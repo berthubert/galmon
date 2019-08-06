@@ -13,6 +13,11 @@
 #include <thread>
 #include <signal.h>
 #include "ext/powerblog/h2o-pp.hh"
+#include "minicurl.hh"
+#include <time.h>
+#include "ubx.hh"
+#include "bits.hh"
+
 using namespace std;
 
 struct EofException{};
@@ -36,82 +41,28 @@ uint16_t getUint16()
   return ret;
 }
 
-/* lovingly lifted from RTKLIB */
-unsigned int getbitu(const unsigned char *buff, int pos, int len)
-{
-  unsigned int bits=0;
-  int i;
-  for (i=pos;i<pos+len;i++) bits=(bits<<1)+((buff[i/8]>>(7-i%8))&1u);
-  return bits;
-}
 
-int getbits(const unsigned char *buff, int pos, int len)
-{
-    unsigned int bits=getbitu(buff,pos,len);
-    if (len<=0||32<=len||!(bits&(1u<<(len-1)))) return (int)bits;
-    return (int)(bits|(~0u<<len)); /* extend sign */
-}
+int g_tow, g_wn, g_dtLS{18};
 
-void setbitu(unsigned char *buff, int pos, int len, unsigned int data)
-{
-    unsigned int mask=1u<<(len-1);
-    int i;
-    if (len<=0||32<len) return;
-    for (i=pos;i<pos+len;i++,mask>>=1) {
-        if (data&mask) buff[i/8]|=1u<<(7-i%8); else buff[i/8]&=~(1u<<(7-i%8));
-    }
-}
-static const unsigned int tbl_CRC24Q[]={
-    0x000000,0x864CFB,0x8AD50D,0x0C99F6,0x93E6E1,0x15AA1A,0x1933EC,0x9F7F17,
-    0xA18139,0x27CDC2,0x2B5434,0xAD18CF,0x3267D8,0xB42B23,0xB8B2D5,0x3EFE2E,
-    0xC54E89,0x430272,0x4F9B84,0xC9D77F,0x56A868,0xD0E493,0xDC7D65,0x5A319E,
-    0x64CFB0,0xE2834B,0xEE1ABD,0x685646,0xF72951,0x7165AA,0x7DFC5C,0xFBB0A7,
-    0x0CD1E9,0x8A9D12,0x8604E4,0x00481F,0x9F3708,0x197BF3,0x15E205,0x93AEFE,
-    0xAD50D0,0x2B1C2B,0x2785DD,0xA1C926,0x3EB631,0xB8FACA,0xB4633C,0x322FC7,
-    0xC99F60,0x4FD39B,0x434A6D,0xC50696,0x5A7981,0xDC357A,0xD0AC8C,0x56E077,
-    0x681E59,0xEE52A2,0xE2CB54,0x6487AF,0xFBF8B8,0x7DB443,0x712DB5,0xF7614E,
-    0x19A3D2,0x9FEF29,0x9376DF,0x153A24,0x8A4533,0x0C09C8,0x00903E,0x86DCC5,
-    0xB822EB,0x3E6E10,0x32F7E6,0xB4BB1D,0x2BC40A,0xAD88F1,0xA11107,0x275DFC,
-    0xDCED5B,0x5AA1A0,0x563856,0xD074AD,0x4F0BBA,0xC94741,0xC5DEB7,0x43924C,
-    0x7D6C62,0xFB2099,0xF7B96F,0x71F594,0xEE8A83,0x68C678,0x645F8E,0xE21375,
-    0x15723B,0x933EC0,0x9FA736,0x19EBCD,0x8694DA,0x00D821,0x0C41D7,0x8A0D2C,
-    0xB4F302,0x32BFF9,0x3E260F,0xB86AF4,0x2715E3,0xA15918,0xADC0EE,0x2B8C15,
-    0xD03CB2,0x567049,0x5AE9BF,0xDCA544,0x43DA53,0xC596A8,0xC90F5E,0x4F43A5,
-    0x71BD8B,0xF7F170,0xFB6886,0x7D247D,0xE25B6A,0x641791,0x688E67,0xEEC29C,
-    0x3347A4,0xB50B5F,0xB992A9,0x3FDE52,0xA0A145,0x26EDBE,0x2A7448,0xAC38B3,
-    0x92C69D,0x148A66,0x181390,0x9E5F6B,0x01207C,0x876C87,0x8BF571,0x0DB98A,
-    0xF6092D,0x7045D6,0x7CDC20,0xFA90DB,0x65EFCC,0xE3A337,0xEF3AC1,0x69763A,
-    0x578814,0xD1C4EF,0xDD5D19,0x5B11E2,0xC46EF5,0x42220E,0x4EBBF8,0xC8F703,
-    0x3F964D,0xB9DAB6,0xB54340,0x330FBB,0xAC70AC,0x2A3C57,0x26A5A1,0xA0E95A,
-    0x9E1774,0x185B8F,0x14C279,0x928E82,0x0DF195,0x8BBD6E,0x872498,0x016863,
-    0xFAD8C4,0x7C943F,0x700DC9,0xF64132,0x693E25,0xEF72DE,0xE3EB28,0x65A7D3,
-    0x5B59FD,0xDD1506,0xD18CF0,0x57C00B,0xC8BF1C,0x4EF3E7,0x426A11,0xC426EA,
-    0x2AE476,0xACA88D,0xA0317B,0x267D80,0xB90297,0x3F4E6C,0x33D79A,0xB59B61,
-    0x8B654F,0x0D29B4,0x01B042,0x87FCB9,0x1883AE,0x9ECF55,0x9256A3,0x141A58,
-    0xEFAAFF,0x69E604,0x657FF2,0xE33309,0x7C4C1E,0xFA00E5,0xF69913,0x70D5E8,
-    0x4E2BC6,0xC8673D,0xC4FECB,0x42B230,0xDDCD27,0x5B81DC,0x57182A,0xD154D1,
-    0x26359F,0xA07964,0xACE092,0x2AAC69,0xB5D37E,0x339F85,0x3F0673,0xB94A88,
-    0x87B4A6,0x01F85D,0x0D61AB,0x8B2D50,0x145247,0x921EBC,0x9E874A,0x18CBB1,
-    0xE37B16,0x6537ED,0x69AE1B,0xEFE2E0,0x709DF7,0xF6D10C,0xFA48FA,0x7C0401,
-    0x42FA2F,0xC4B6D4,0xC82F22,0x4E63D9,0xD11CCE,0x575035,0x5BC9C3,0xDD8538
-};
+/* inav schedule:
+t   n   w
+0   1:  2          wn % 30 == 0
+2   2:  4          wn % 30 == 2
+4   3:  6
+6   4:  7/9
+8   5:  8/10       
+10  6:  0          WN/TOW
+12  7:  0          WN/TOW
+14  8:  0          WN/TOW
+16  9:  0          WN/TOW
+18  10: 0          WN/TOW
+20  11: 1          
+22  12: 3
+24  13: 5
+26  14: 0          WN/TOW
+28  15: 0          WN/TOW
+*/
 
-
-/* crc-24q parity --------------------------------------------------------------
-* compute crc-24q parity for sbas, rtcm3
-* args   : unsigned char *buff I data
-*          int    len    I      data length (bytes)
-* return : crc-24Q parity
-* notes  : see reference [2] A.4.3.3 Parity
-*-----------------------------------------------------------------------------*/
-unsigned int rtk_crc24q(const unsigned char *buff, int len)
-{
-    unsigned int crc=0;
-    int i;
-    
-    for (i=0;i<len;i++) crc=((crc<<8)&0xFFFFFF)^tbl_CRC24Q[(crc>>16)^buff[i]];
-    return crc;
-}
 
 string humanSisa(uint8_t sisa)
 {
@@ -130,24 +81,6 @@ string humanSisa(uint8_t sisa)
 }
 
 
-uint16_t calcUbxChecksum(uint8_t ubxClass, uint8_t ubxType, std::basic_string_view<uint8_t> str)
-{
-  uint8_t CK_A = 0, CK_B = 0;
-
-  auto update = [&CK_A, &CK_B](uint8_t c) {
-    CK_A = CK_A + c;
-    CK_B = CK_B + CK_A;
-  };
-  update(ubxClass);
-  update(ubxType);
-  uint16_t len = str.size();
-  update(((uint8_t*)&len)[0]);
-  update(((uint8_t*)&len)[1]);
-  for(unsigned int I=0; I < str.size(); I++) {
-    update(str[I]);
-  }
-  return (CK_B << 8) + CK_A;
-}
 
 struct SVIOD
 {
@@ -157,6 +90,9 @@ struct SVIOD
   int32_t m0, omega0, i0, omega, idot, omegadot, deltan;
   
   int16_t cuc{0}, cus{0}, crc{0}, crs{0}, cic{0}, cis{0};
+  uint16_t t0c; // clock epoch
+  int32_t af0, af1;
+  int8_t af2;
   
   uint8_t sisa;
 
@@ -196,11 +132,14 @@ void SVIOD::addWord(std::basic_string_view<uint8_t> page)
   else if(wtype == 4) {
     cic = getbits(&page[0], 22, 16);
     cis = getbits(&page[0], 38, 16);
-    /*
+
     t0c = getbitu(&page[0], 54, 14);
-    af0 = getbitu(&page[0], 68, 31);
-    af1 = getbitu(&page[0], 99, 21);
-    af2 = getbitu(&page[0], 120, 6);
+    af0 = getbits(&page[0], 68, 31);
+    af1 = getbits(&page[0], 99, 21);
+    af2 = getbits(&page[0], 120, 6);
+    /*
+    cout<<(int) t0c << " " <<(int) af0 <<" " <<(int) af1 <<" " <<(int) af2<<endl;
+    cout<<(int) t0c*60 << " " << (((double) af0) / (1ULL<<34))*1000000  <<" usec " << (((double) af1)/(1ULL << 46))*1000000000000 <<" ps/s"<<endl;
     */
   }
 
@@ -209,12 +148,20 @@ void SVIOD::addWord(std::basic_string_view<uint8_t> page)
 struct SVStat
 {
   uint8_t e5bhs{0}, e1bhs{0};
+  uint16_t ai0{0};
+  int16_t ai1{0}, ai2{0};
+  bool sf1{0}, sf2{0}, sf3{0}, sf4{0}, sf5{0};
+  int BGDE1E5a{0}, BGDE1E5b{0};
   bool e5bdvs{false}, e1bdvs{false};
   bool disturb1{false}, disturb2{false}, disturb3{false}, disturb4{false}, disturb5{false};
   uint16_t wn{0};
   uint32_t tow{0}; // "last seen"
-  uint32_t a0{0}, a1{0}, t0t{0}, wn0t{0};
-  int16_t el{-1}, db{-1};
+  int32_t a0{0}, a1{0}, t0t{0}, wn0t{0};
+  int32_t a0g{0}, a1g{0}, t0g{0}, wn0g{0};
+  int8_t dtLS{0}, dtLSF{0};
+  uint16_t wnLSF{0};
+  uint8_t dn; // leap second day number
+  int16_t el{-1}, azi{-1}, db{-1};
   map<int, SVIOD> iods;
   void addWord(std::basic_string_view<uint8_t> page);
   bool completeIOD() const;
@@ -255,13 +202,11 @@ void SVStat::addWord(std::basic_string_view<uint8_t> page)
 {
   uint8_t wtype = getbitu(&page[0], 0, 6);
 
-
   if(wtype == 0) {
     if(getbitu(&page[0], 6,2) == 2) {
-      wn = getbitu(&page[0], 96, 12);
-      tow = getbitu(&page[0], 108, 20);
+      g_wn = wn = getbitu(&page[0], 96, 12);
+      g_tow = tow = getbitu(&page[0], 108, 20);
     }
-
   }
   else if(wtype >=1 && wtype <= 4) { // ephemeris 
     uint16_t iod = getbitu(&page[0], 6, 10);
@@ -278,20 +223,44 @@ void SVStat::addWord(std::basic_string_view<uint8_t> page)
     }
   }
   else if(wtype==5) { // disturbance, health, time
+    ai0 = getbitu(&page[0], 6, 11);
+    ai1 = getbits(&page[0], 17, 11); // ai1 & 2 are signed, 0 not
+    ai2 = getbits(&page[0], 28, 14);
+    
+    sf1 = getbitu(&page[0], 42, 1);
+    sf2 = getbitu(&page[0], 43, 1);
+    sf3 = getbitu(&page[0], 44, 1);
+    sf4 = getbitu(&page[0], 45, 1);
+    sf5 = getbitu(&page[0], 46, 1);
+    BGDE1E5a = getbits(&page[0], 47, 10);
+    BGDE1E5b = getbits(&page[0], 57, 10);
+    
     e5bhs = getbitu(&page[0], 67, 2);
     e1bhs = getbitu(&page[0], 69, 2);
     e5bdvs = getbitu(&page[0], 71, 1);
     e1bdvs = getbitu(&page[0], 72, 1);
-    wn = getbitu(&page[0], 73, 12);
-    tow = getbitu(&page[0], 85, 20);
-    //    cout<<"Setting tow to "<<tow<<endl;
+    g_wn = wn = getbitu(&page[0], 73, 12);
+    g_tow = tow = getbitu(&page[0], 85, 20);
   }
   else if(wtype == 6) {
     a0 = getbits(&page[0], 6, 32);
     a1 = getbits(&page[0], 38, 24);
-    t0t = getbitu(&page[0], 70, 8);
-    wn0t = getbits(&page[0], 78, 8);
+    dtLS = getbits(&page[0], 62, 8);
 
+    t0t = getbitu(&page[0], 70, 8);
+    wn0t = getbitu(&page[0], 78, 8);
+    wnLSF = getbitu(&page[0], 86, 8);
+    dn = getbitu(&page[0], 94, 3);
+    dtLSF = getbits(&page[0], 97, 8);
+
+    //    cout<<(int) dtLS << " " <<(int) wnLSF<<" " <<(int) dn <<" " <<(int) dtLSF<<endl;
+    g_tow = tow = getbitu(&page[0], 105, 20);
+  }
+  else if(wtype == 10) { // GSTT GPS
+    a0g = getbits(&page[0], 86, 16);
+    a1g = getbits(&page[0], 102, 12);
+    t0g = getbitu(&page[0], 114, 8);
+    wn0g = getbitu(&page[0], 122, 6);
   }
 }
 
@@ -308,26 +277,26 @@ void getCoordinates(int wn, int tow, const SVIOD& iod, double* x, double* y, dou
   constexpr double omegaE = 7.2921151467 * pow(10.0, -5);
   
   double sqrtA = 1.0*iod.sqrtA / (1ULL<<19);
-  double deltan = M_PI * 1.0*iod.deltan / (1ULL<<43);
+  double deltan = M_PI * 1.0*iod.deltan / (1LL<<43);
   double t0e = 60.0*iod.t0e;
-  double m0 = M_PI * 1.0*iod.m0 / (1ULL<<31);
+  double m0 = M_PI * 1.0*iod.m0 / (1LL<<31);
   double e = 1.0*iod.e / (1ULL<<33);
-  double omega = M_PI * 1.0*iod.omega / (1ULL<<31);
+  double omega = M_PI * 1.0*iod.omega / (1LL<<31);
 
-  double cuc = 1.0*iod.cuc / (1ULL<<29);
-  double cus = 1.0*iod.cus / (1ULL<<29);
+  double cuc = 1.0*iod.cuc / (1LL<<29);
+  double cus = 1.0*iod.cus / (1LL<<29);
 
-  double crc = 1.0*iod.crc / (1ULL<<5);
-  double crs = 1.0*iod.crs / (1ULL<<5);
+  double crc = 1.0*iod.crc / (1LL<<5);
+  double crs = 1.0*iod.crs / (1LL<<5);
 
-  double cic = 1.0*iod.cic / (1ULL<<29);
-  double cis = 1.0*iod.cis / (1ULL<<29);
+  double cic = 1.0*iod.cic / (1LL<<29);
+  double cis = 1.0*iod.cis / (1LL<<29);
 
-  double idot = M_PI * 1.0*iod.idot / (1ULL<<43);
-  double i0 = M_PI * 1.0*iod.i0 / (1ULL << 31);
+  double idot = M_PI * 1.0*iod.idot / (1LL<<43);
+  double i0 = M_PI * 1.0*iod.i0 / (1LL << 31);
 
-  double Omegadot = M_PI * 1.0*iod.omegadot / (1ULL << 43);
-  double Omega0 = M_PI * 1.0*iod.omega0 / (1ULL << 31);
+  double Omegadot = M_PI * 1.0*iod.omegadot / (1LL << 43);
+  double Omega0 = M_PI * 1.0*iod.omega0 / (1LL << 31);
   
   // NO IOD BEYOND THIS POINT!
   if(!quiet) {
@@ -377,28 +346,34 @@ void getCoordinates(int wn, int tow, const SVIOD& iod, double* x, double* y, dou
   // M = E  - e * sin(E)   -> E = M + e * sin(E)
   
   
-  double nu = atan(   ((sqrt(1-e*e)  * sin(E)) / (1 - e * cos(E)) ) /
-                        ((cos(E) - e)/ (1-e*cos(E)))
-                        );
-  
-  double nu1 = atan(   (sqrt(1-e*e) * sin(E)) /
-                       (cos(E) - e)
-                     );
 
   double nu2 = M + e*2*sin(M) +
     e *e * (5.0/4.0) * sin(2*M) -
     e*e*e * (0.25*sin(M) - (13.0/12.0)*sin(3*M));
+  double corr = e*e*e*e * (103*sin(4*M) - 44*sin(2*M)) / 96.0 +
+    e*e*e*e*e * (1097*sin(5*M) - 645*sin(3*M) + 50 *sin(M))/960.0 +
+    e*e*e*e*e*e * (1223*sin(6*M) - 902*sin(4*M) + 85 *sin(2*M))/960.0;
 
-  double nu3 = 2* atan( sqrt((1+e)/(1-e)) * tan(E/2));
+
 
   if(!quiet) {
-    cout <<"         nu sis: "<<nu<< " / +pi = " << nu +M_PI << endl;
-    cout <<"         nu ?: "<<nu1<< " / +pi = "  << nu1 +M_PI << endl;
-    cout <<"         nu fourier/esa: "<<nu2<< " / +pi = "<<nu2+M_PI << endl;
+    double nu1 = atan(   ((sqrt(1-e*e)  * sin(E)) / (1 - e * cos(E)) ) /
+                        ((cos(E) - e)/ (1-e*cos(E)))
+                        );
+    
+    double nu2 = atan(   (sqrt(1-e*e) * sin(E)) /
+                       (cos(E) - e)
+                     );
+
+    double nu3 = 2* atan( sqrt((1+e)/(1-e)) * tan(E/2));
+    cout << "e: "<<e<<", M: "<< M<<endl;
+    cout <<"         nu sis: "<<nu1<< " / +pi = " << nu1 +M_PI << endl;
+    cout <<"         nu ?: "<<nu2<< " / +pi = "  << nu2 +M_PI << endl;
+    cout <<"         nu fourier/esa: "<<nu2<< " + " << corr <<" = " << nu2 + corr<<endl;
     cout <<"         nu wikipedia: "<<nu3<< " / +pi = " <<nu3 +M_PI << endl;
   }
   
-  nu = nu2;
+  double nu = nu2 + corr;
 
   // https://en.wikipedia.org/wiki/True_anomaly is good
   
@@ -439,9 +414,74 @@ void getCoordinates(int wn, int tow, const SVIOD& iod, double* x, double* y, dou
 
 std::map<int, SVStat> g_svstats;
 
+uint64_t nanoTime(int wn, int tow)
+{
+  return 1000000000ULL*(935280000 + wn * 7*86400 + tow - g_dtLS); // Leap!!
+}
+
+uint64_t utcFromGST(int wn, int tow)
+{
+  return (935280000 + wn * 7*86400 + tow - g_dtLS); // Leap!!
+}
+
+struct InfluxPusher
+{
+  explicit InfluxPusher(std::string_view dbname) : d_dbname(dbname)
+  {
+  }
+  void addValue( const pair<int,SVStat>& ent, string_view name, auto value)
+  {
+    d_buffer+= string(name) +",sv=" +to_string(ent.first)+" value="+to_string(value)+
+      " "+to_string(nanoTime(ent.second.wn, ent.second.tow))+"\n";
+    checkSend();
+  }
+  
+  // note: this version trusts the system-wide g_wn, g_tow ovre the local one
+  void addValue(int sv, string_view name, auto value)
+  {
+    d_buffer+= string(name) +",sv=" +to_string(sv) + " value="+to_string(value)+" "+
+      to_string(nanoTime(g_wn, g_tow))+"\n";
+    checkSend();
+  }
+
+  void checkSend()
+  {
+    if(d_buffer.size() > 1000000 || (time(0) - d_lastsent) > 10) {
+      string buffer;
+      buffer.swap(d_buffer);
+      //      thread t([buffer,this]() {
+          doSend(buffer);
+          //        });
+          //      t.detach();
+      d_lastsent=time(0);
+    }
+  }
+  
+  void doSend(std::string buffer)
+  {
+    MiniCurl mc;
+    MiniCurl::MiniCurlHeaders mch;
+    if(!buffer.empty()) {
+      mc.postURL("http://127.0.0.1:8086/write?db="+d_dbname, buffer, mch);
+    }
+  }
+
+  ~InfluxPusher()
+  {
+    doSend(d_buffer);
+  }
+  
+  std::string d_buffer;
+  time_t d_lastsent{0};
+  string d_dbname;
+};
+
+/* The GST start epoch is defined as 13 seconds before midnight between 21st August and
+22nd August 1999, i.e. GST was equal to 13 seconds at 22nd August 1999 00:00:00 UTC.  */
+
 std::string humanTime(int wn, int tow)
 {
-  time_t t = 935280000 + wn * 7*86400 + tow;
+  time_t t = utcFromGST(wn, tow);
   struct tm tm;
   gmtime_r(&t, &tm);
 
@@ -450,17 +490,68 @@ std::string humanTime(int wn, int tow)
   return buffer;
 }
 
-int* g_tow, *g_wn;
+/* |            t0e tow     |  - > tow - t0e, <3.5 days, so ok
+
+   | t0e                tow |   -> tow - t0e > 3.5 days, so 
+                                   7*86400 - tow + t0e
+
+   |         tow t0e        |   -> 7*86400 - tow + t0e > 3.5 days, so
+                                  tow - t0e (negative age)
+
+   | tow               t0e  |   -> 7*86400 - tow + t0e < 3.5 days, ok
+*/
+
+int ephAge(int tow, int t0e)
+{
+  unsigned int diff;
+  unsigned int halfweek = 0.5*7*86400;
+  if(t0e < tow) {
+    diff = tow - t0e;
+    if(diff < halfweek)
+      return diff;
+    else
+      return (7*86400 - tow) + t0e;
+  }
+  else { // "t0e in future"
+    diff = 7*86400 - t0e + tow;
+    if(diff < halfweek)
+      return diff;
+    else
+      return tow - t0e; // in the future, negative age
+  }
+}
 
 int main(int argc, char** argv)
 try
 {
   signal(SIGPIPE, SIG_IGN);
+  InfluxPusher idb(argc > 3 ? argv[3] : "galileo");
+  MiniCurl::init();
+  
   H2OWebserver h2s("galmon");
 
-  int tow=0, wn=0;
-  g_tow = &tow;
-  g_wn = &wn;
+  h2s.addHandler("/global", [](auto handler, auto req) {
+      nlohmann::json ret = nlohmann::json::object();
+      ret["leap-seconds"] = g_dtLS;
+
+      map<int, int> utcstats;
+      for(const auto& s: g_svstats) {
+        int dw = (uint8_t)g_wn - s.second.wn0t;
+        int age = dw * 7 * 86400 + g_tow - s.second.t0t * 3600;
+        utcstats[age]=s.first;
+      }
+      if(utcstats.empty()) {
+        ret["utc-offset"]=nullptr;
+      }
+      else {
+        int sv = utcstats.begin()->second; // freshest SV
+        long shift = g_svstats[sv].a0 * (1LL<<20) + g_svstats[sv].a1 * utcstats.begin()->first; // in 2^-50 seconds units
+        ret["utc-offset-ns"] = 1.073741824*ldexp(shift, -20);
+
+        ret["leap-second-planned"] = (g_svstats[sv].dtLSF != g_svstats[sv].dtLS);
+      }
+      return ret;
+    });
   
   h2s.addHandler("/svs", [](auto handler, auto req) {
       nlohmann::json ret = nlohmann::json::object();
@@ -472,14 +563,22 @@ try
           item["sisa"]=humanSisa(s.second.liveIOD().sisa);
           item["a0"]=s.second.a0;
           item["a1"]=s.second.a1;
+          item["dtLS"]=s.second.dtLS;
+          item["a0g"]=s.second.a0g;
+          item["a1g"]=s.second.a1g;
           item["e5bdvs"]=s.second.e5bdvs;
           item["e1bdvs"]=s.second.e1bdvs;
           item["e5bhs"]=s.second.e5bhs;
           item["e1bhs"]=s.second.e1bhs;                    
           item["elev"]=s.second.el;
           item["db"]=s.second.db;
-          item["eph-age-m"] = (*g_tow - 60*s.second.liveIOD().t0e)/60.0;
-          item["last-seen-s"] = s.second.tow ? (*g_tow - s.second.tow) : -1;
+          item["eph-age-m"] = ephAge(g_tow, 60*s.second.liveIOD().t0e)/60.0;
+          item["last-seen-s"] = s.second.tow ? (7*86400*(g_wn - s.second.wn) + (int)g_tow - (int)s.second.tow) : -1;
+
+          item["af0"] = s.second.liveIOD().af0;
+          item["af1"] = s.second.liveIOD().af1;
+          item["af2"] = (int)s.second.liveIOD().af2;
+          item["t0c"] = s.second.liveIOD().t0c;
 
           /* Our location:
 X : 3922.505   km
@@ -491,8 +590,8 @@ Z : 5004.189   km
           double oury = 290.116 * 1000;
           double ourz = 5004.189 * 1000;
           double x, y, z;
-          //          cout<<"For sv " <<s.first<<" at "<<humanTime(*g_wn, *g_tow)<<": \n";
-          getCoordinates(*g_wn, *g_tow, s.second.liveIOD(), &x, &y, &z);
+          //          cout<<"For sv " <<s.first<<" at "<<humanTime(g_wn, g_tow)<<": \n";
+          getCoordinates(g_wn, g_tow, s.second.liveIOD(), &x, &y, &z);
 
           double dx = x-ourx, dy = y-oury, dz = z-ourz;
           
@@ -515,8 +614,8 @@ Z : 5004.189   km
           item["x"]=x;
           item["y"]=y;
           item["z"]=z;
-          item["wn"]=*g_wn;
-          item["tow"]=*g_tow;
+          item["wn"] = s.second.wn;
+          item["tow"] = s.second.tow;
           ret[std::to_string(s.first)] = item;
         }
       return ret;
@@ -533,7 +632,6 @@ Z : 5004.189   km
   ws.detach();
 
   
-  //  unsigned int tow=0, wn=0;
   ofstream csv("iod.csv");
   ofstream csv2("toe.csv");
   csv<<"timestamp sv iod sisa"<<endl;
@@ -546,9 +644,13 @@ Z : 5004.189   km
   ofstream sisacsv("sisa.csv");
   
   sisacsv << "timestamp sv sisa"<<endl;
-  
+
+  ofstream clockcsv("clock.csv");
+  clockcsv <<"timestamp sv af0 af1 af2 t0c age offset"<<endl;
 
   string line;
+  time_t lastDisplay = time(0);
+  try {
   for(;;) {
     auto c = getUint8();
     if(c != 0xb5) {
@@ -565,18 +667,20 @@ Z : 5004.189   km
           vector<string> strs;
           boost::split(strs,line,boost::is_any_of(","));
           for(unsigned int n=4; n + 4 < strs.size(); n += 4) {
-            g_svstats[atoi(strs[n].c_str())].el = atoi(strs[n+1].c_str());
-            if(g_svstats[atoi(strs[n].c_str())].el >= 0)
-              g_svstats[atoi(strs[n].c_str())].db = atoi(strs[n+3].c_str());
-            else
-              g_svstats[atoi(strs[n].c_str())].db = -1;
-            
-            /*
-            cout<<"sv "<<atoi(strs[n].c_str())
-                << " el "<< atoi(strs[n+1].c_str())
-                << " db " << atoi(strs[n+3].c_str()) 
-                <<endl;
-            */
+            int sv = atoi(strs[n].c_str());
+
+            if(sv < 37) {            
+              g_svstats[sv].el = atoi(strs[n+1].c_str());
+              g_svstats[sv].azi = atoi(strs[n+2].c_str());            
+              if(g_svstats[sv].el >= 0)
+                g_svstats[sv].db = atoi(strs[n+3].c_str());
+              else
+                g_svstats[sv].db = -1;
+
+              idb.addValue(sv, "db", g_svstats[sv].db);
+              idb.addValue(sv, "elev", g_svstats[sv].el);
+              idb.addValue(sv, "azi", g_svstats[sv].azi);            
+            }
           }
         }
         line.clear();
@@ -588,7 +692,12 @@ Z : 5004.189   km
       ungetc(c, stdin); // might be 0xb5
       continue;
     }
-
+    if(lastDisplay != time(0)) {
+      lastDisplay = time(0);
+      if(g_wn && g_tow) {
+        cout<<"UTC from satellite: "<<humanTime(g_wn, g_tow)<<", delta: "<<lastDisplay - utcFromGST(g_wn, g_tow) << endl;
+      }
+    }
     // if we are here, just had ubx header
 
     uint8_t ubxClass = getUint8();
@@ -604,7 +713,7 @@ Z : 5004.189   km
 
     uint16_t ubxChecksum = getUint16();
     if(ubxChecksum != calcUbxChecksum(ubxClass, ubxType, msg)) {
-      cout<<"Checksum: "<<ubxChecksum<< ", calculated: "<<
+      cout<<humanTime(g_wn, g_tow)<<": len = "<<msgLen<<", sv ? "<<(int)msg[2]<<", checksum: "<<ubxChecksum<< ", calculated: "<<
         calcUbxChecksum(ubxClass, ubxType, msg)<<"\n";
     }
 
@@ -631,13 +740,12 @@ Z : 5004.189   km
     if(ubxClass == 2 && ubxType == 19) { //UBX-RXM-SFRBX
       //      cout<<"SFRBX GNSSID "<< (int)msg[0]<<", SV "<< (int)msg[1];
       //      cout<<" words "<< (int)msg[4]<<", version "<< (int)msg[6];
+      if(msg[0] == 2) {
+        //        cout<<" word "<< (int)(msg[11] & (~(64+128)));
+      }
       //      cout<<"\n";
-      if(msg[0] != 2) // version field
+      if(msg[0] != 2) // galileo
         continue;
-      // 7 is reserved
-      
-      //      cout << ((msg[8]&128) ? "Even " : "Odd ");
-      //      cout << ((msg[8]&64) ? "Alert " : "Nominal ");
 
       unsigned int sv = (int)msg[1];
       //      cout << "Word type "<< (int)(msg[11] & (~(64+128))) <<" SV " << (int)msg[1]<<"\n";
@@ -680,15 +788,19 @@ Z : 5004.189   km
       unsigned int wtype = getbitu(&inav[0], 0, 6);
        
       g_svstats[sv].addWord(inav);
+      if(g_svstats[sv].e1bhs || g_svstats[sv].e5bhs || g_svstats[sv].e1bdvs || g_svstats[sv].e5bdvs) {
+        if(sv != 18 && sv != 14) 
+          cout << "sv "<<sv<<" health: " << g_svstats[sv].e1bhs <<" " << g_svstats[sv].e5bhs <<" " << g_svstats[sv].e1bdvs <<" "<< g_svstats[sv].e5bdvs <<endl;
+      }
       if(!wtype) {
         if(getbitu(&inav[0], 6,2) == 2) {
-          wn = getbitu(&inav[0], 96, 12);
-          tow = getbitu(&inav[0], 108, 20);
+          //          wn = getbitu(&inav[0], 96, 12);
+          //          tow = getbitu(&inav[0], 108, 20);
         }
       }
       else if(wtype >=1 && wtype <= 4) { // ephemeris 
-        //        uint16_t iod = getbitu(&inav[0], 6, 10);
-        if(wtype == 1 && tow) {
+
+        if(wtype == 1 && g_tow) {
           //          int t0e = 60*getbitu(&inav[0], 16, 14);
           //          int age = (tow - t0e)/60;
           //          uint32_t e = getbitu(&inav[0], 6+10+14+32, 32);
@@ -696,101 +808,142 @@ Z : 5004.189   km
         else if(wtype == 3) {
           //          unsigned int sisa = getbitu(&inav[0], 120, 8);
         }
+        else if(wtype == 4) {
+          uint16_t iod = getbitu(&inav[0], 6, 10);          
+          idb.addValue(sv, "af0", g_svstats[sv].iods[iod].af0);
+          idb.addValue(sv, "af1", g_svstats[sv].iods[iod].af1);
+          idb.addValue(sv, "af2", g_svstats[sv].iods[iod].af2);
+          idb.addValue(sv, "t0c", g_svstats[sv].iods[iod].t0c);
+
+          double age = ephAge(g_tow, g_svstats[sv].iods[iod].t0c * 60);
+          /*
+          cout<<"Atomic age "<<age<<", g_tow: "<<g_tow<<", t0c*60 = "<<g_svstats[sv].iods[iod].t0c * 60<<endl;
+          cout<<"af0: "<<g_svstats[sv].iods[iod].af0<<", af1: "<<g_svstats[sv].iods[iod].af1 << ", af2: "<<(int)g_svstats[sv].iods[iod].af2<<endl;
+          */
+          
+          double offset = ldexp(1000.0*(1.0*g_svstats[sv].iods[iod].af0 + ldexp(age*g_svstats[sv].iods[iod].af1, -12)), -34);
+          // XXX what units is this in then? milliseconds?
+          
+          /*
+          cout <<"Atomic offset: "<<offset<<endl;
+          cout << 1.0*g_svstats[sv].iods[iod].af0/(1LL<<34) << endl;
+          cout << age * (g_svstats[sv].iods[iod].af1/(1LL<<46)) << endl;
+          */
+          idb.addValue(sv, "atomic_offset_ns", 1000000.0*offset);
+        }
         else
           ;
       }
       else if(wtype == 5) {
-        tow = getbitu(&inav[0], 85, 20);
-        wn = getbitu(&inav[0], 73, 12);
-      }
-      else if(wtype == 6) {  // GST-UTC
-        int a0 = getbits(&inav[0], 6, 32);
-        int a1 = getbits(&inav[0], 38, 24);
-        int t0t = getbitu(&inav[0], 70, 8);
-        uint8_t wn0t = getbits(&inav[0], 78, 8);
-        int dw = (uint8_t)wn - wn0t;
+        idb.addValue(sv, "ai0", g_svstats[sv].ai0);
+        idb.addValue(sv, "ai1", g_svstats[sv].ai1);
+        idb.addValue(sv, "ai2", g_svstats[sv].ai2);
 
-        if(tow && wn) {
-          
-          int age = dw * 7 * 86400 + tow - t0t * 3600;
-          // a0 = 2^-30 s, a1 = 2^-50 s/s
-          
-          int shift = a0 * (1U<<20) + a1 * age; // in 2^-50 seconds units
-          time_t t = 935280000 + wn * 7*86400 + tow;
-          gstutc << t << " " << sv <<" " << tow << " " << (t0t * 3600) << " "<< age <<" " <<shift << " " << shift * pow(2, -50) * 1000000000 << " " << a0 <<" " << a1 << "\n";
+        idb.addValue(sv, "sf1", g_svstats[sv].sf1);
+        idb.addValue(sv, "sf2", g_svstats[sv].sf2);
+        idb.addValue(sv, "sf3", g_svstats[sv].sf3);
+        idb.addValue(sv, "sf4", g_svstats[sv].sf4);
+        idb.addValue(sv, "sf5", g_svstats[sv].sf5);
 
-          cout<<humanTime(wn, tow)<<" sv "<<sv<< " GST-UTC6, a0="+to_string(a0)+", a1="+to_string(a1)+", age="+to_string(age/3600)+"h, dw="+to_string(dw)
-                      +", wn0t="+to_string(wn0t)+", wn8="+to_string(wn&0xff)+"\n";
-
-        }
+        idb.addValue(sv, "BGDE1E5a", g_svstats[sv].BGDE1E5a);
+        idb.addValue(sv, "BGDE1E5b", g_svstats[sv].BGDE1E5b);
 
         
-        /*
-        else
-          wk.emitLine(sv, "GST-UTC6, a0="+to_string(a0)+", a1="+to_string(a1));
-        */
+      }
+      else if(wtype == 6) {  // GST-UTC
+        idb.addValue(sv, "a0", g_svstats[sv].a0);
+        idb.addValue(sv, "a1", g_svstats[sv].a1);
 
+        g_dtLS = g_svstats[sv].dtLS;
+        
+        int dw = (uint8_t)g_wn - g_svstats[sv].wn0t;
+
+        if(g_tow && g_wn) {
+          
+          int age = dw * 7 * 86400 + g_tow - g_svstats[sv].t0t * 3600;
+          // a0 = 2^-30 s, a1 = 2^-50 s/s
+          
+          long shift = g_svstats[sv].a0 * (1LL<<20) + g_svstats[sv].a1 * age; // in 2^-50 seconds units
+          time_t t = utcFromGST(g_wn, g_tow);
+          gstutc << t << " " << sv <<" " << g_tow << " " << (g_svstats[sv].t0t * 3600) << " "<< age <<" " <<shift << " " << shift * pow(2, -50) * 1000000000 << " " << g_svstats[sv].a0 <<" " << g_svstats[sv].a1 << "\n";
+          //                                               2^-30
+          idb.addValue(sv, "utc_diff_ns", 1.073741824*ldexp(shift, -20));
+          //          cout<<humanTime(g_wn, g_tow)<<" sv "<<sv<< " GST-UTC6, a0="+to_string(a0)+", a1="+to_string(a1)+", age="+to_string(age/3600)+"h, dw="+to_string(dw)
+          //          +", wn0t="+to_string(wn0t)+", wn8="+to_string(g_wn&0xff)+"\n";
+
+        }
       }
       else if(wtype == 10) { // GSTT GPS
+        idb.addValue(sv, "a0g", g_svstats[sv].a0g);
+        idb.addValue(sv, "a1g", g_svstats[sv].a1g);
+
         int a0g = getbits(&inav[0], 86, 16);
         int a1g = getbits(&inav[0], 102, 12);
         int t0g = getbitu(&inav[0], 114, 8);
         uint8_t wn0g = getbitu(&inav[0], 122, 6);
-        int dw = (((uint8_t)wn)&(1+2+4+8+16+32)) - wn0g;
+        int dw = (((uint8_t)g_wn)&(1+2+4+8+16+32)) - wn0g;
         
-        if(tow && wn) {
+        if(g_tow && g_wn) {
           
-          int age = tow - t0g * 3600;
+          int age = g_tow - t0g * 3600;
           // a0g = 2^-32 s, a1 = 2^-50 s/s
           
           int shift = a0g * (1U<<16) + a1g * age; // in 2^-51 seconds units
-          time_t t = 935280000 + wn * 7*86400 + tow;
-          gstgps << t << " " << sv <<" " << tow << " " << (t0g * 3600) <<" " << age <<" " <<shift << " " << shift * pow(2, -50) * 1000000000 << " " << a0g <<" " << a1g << "\n";
+          time_t t = utcFromGST(g_wn, g_tow);
+          gstgps << t << " " << sv <<" " << g_tow << " " << (t0g * 3600) <<" " << age <<" " <<shift << " " << shift * pow(2, -50) * 1000000000 << " " << a0g <<" " << a1g << "\n";
           
-          cout<<humanTime(wn, tow)<<" sv "<<sv<< " GST-GPS, a0g="+to_string(a0g)+", a1g="+to_string(a1g)+", t0g="+to_string(t0g)+", age="+to_string(tow/3600-t0g)+"h, dw="+to_string(dw)
-            +", wn0g="+to_string(wn0g)+", wn6="+to_string(wn&(1+2+4+8+16+32))+"\n";
+          //          cout<<humanTime(g_wn, g_tow)<<" sv "<<sv<< " GST-GPS, a0g="+to_string(a0g)+", a1g="+to_string(a1g)+", t0g="+to_string(t0g)+", age="+to_string(g_tow/3600-t0g)+"h, dw="+to_string(dw)
+          //        +", wn0g="+to_string(wn0g)+", wn6="+to_string(g_wn&(1+2+4+8+16+32))+"\n";
         }
       }
 
       for(auto& ent : g_svstats) {
         //        fmt::printf("%2d\t", ent.first);
         if(ent.second.completeIOD() && ent.second.prevIOD.first >= 0) {
-          time_t t = 935280000 + wn * 7*86400 + tow;
-          sisacsv << t <<" " << ent.first << " " << (unsigned int) ent.second.liveIOD().sisa << "\n";
-          cout << t <<" " << ent.first << " " << (unsigned int) ent.second.liveIOD().sisa << "\n";
+          time_t t = utcFromGST(g_wn, g_tow);
+          sisacsv << t <<" " << ent.first << " " << (unsigned int) ent.second.liveIOD().sisa << endl;
+          //          cout << t <<" " << ent.first << " " << (unsigned int) ent.second.liveIOD().sisa << "\n";
+
+          double clockage = ephAge(g_tow, ent.second.liveIOD().t0c * 60);
+          double offset = 1.0*ent.second.liveIOD().af0/(1LL<<34) + clockage * ent.second.liveIOD().af1/(1LL<<46);
+          clockcsv << t << " " << ent.first<<" " << ent.second.liveIOD().af0 << " " << ent.second.liveIOD().af1 <<" " << (int)ent.second.liveIOD().af2 <<" " << 935280000 + g_wn *7*86400 + ent.second.liveIOD().t0c * 60 << " " << clockage << " " << offset<<endl;
+          int ephage = ephAge(g_tow, ent.second.prevIOD.second.t0e * 60);
           if(ent.second.liveIOD().sisa != ent.second.prevIOD.second.sisa) {
-            int age = tow - ent.second.prevIOD.second.t0e * 60;
-            cout<<humanTime(wn, tow)<<" sv "<<ent.first<<" changed sisa from "<<(unsigned int) ent.second.prevIOD.second.sisa<<" ("<<
+
+            cout<<humanTime(g_wn, g_tow)<<" sv "<<ent.first<<" changed sisa from "<<(unsigned int) ent.second.prevIOD.second.sisa<<" ("<<
               humanSisa(ent.second.prevIOD.second.sisa)<<") to " << (unsigned int)ent.second.liveIOD().sisa << " ("<<
-              humanSisa(ent.second.liveIOD().sisa)<<"), lastseen = "<< (age/3600.0) <<"h"<<endl;
+              humanSisa(ent.second.liveIOD().sisa)<<"), lastseen = "<< (ephage/3600.0) <<"h"<<endl;
           }
-          ent.second.clearPrev();          
-        }
-        
-        if(0 && ent.second.completeIOD() && ent.second.prevIOD.first >= 0) {
+
           double x, y, z;
           double oldx, oldy, oldz;
-          getCoordinates(wn, tow, ent.second.liveIOD(), &x, &y, &z);
+          getCoordinates(g_wn, g_tow, ent.second.liveIOD(), &x, &y, &z);
           cout << ent.first << ": iod= "<<ent.second.getIOD()<<" "<< x/1000.0 << ", "<< y/1000.0 <<", "<<z/1000.0<<endl;
 
           cout<<"OLD: \n";
-          getCoordinates(wn, tow, ent.second.prevIOD.second, &oldx, &oldy, &oldz);
+          getCoordinates(g_wn, g_tow, ent.second.prevIOD.second, &oldx, &oldy, &oldz);
           cout << ent.first << ": iod= "<<ent.second.prevIOD.first<<" "<< oldx/1000.0 << ", "<< oldy/1000.0 <<", "<<oldz/1000.0<<endl;
 
           double hours = ((ent.second.liveIOD().t0e - ent.second.prevIOD.second.t0e)/60.0);
-          cout<<ent.first<<" discontinuity "<< hours<<"h old: "<<sqrt((x-oldx)*(x-oldx) + (y-oldy)*(y-oldy) + (z-oldz)*(z-oldz)) <<endl;
+          double disco = sqrt((x-oldx)*(x-oldx) + (y-oldy)*(y-oldy) + (z-oldz)*(z-oldz));
+          cout<<ent.first<<" discontinuity "<< hours<<"h old: "<< disco <<endl;
+          idb.addValue(sv, "iod-actual", ent.second.getIOD());
+          idb.addValue(sv, "iod-hours", hours);
+          
+          if(hours < 4)
+            idb.addValue(sv, "eph-disco", disco);
 
 
-          if(hours < 2) {
+          if(0 && hours < 2) {
             ofstream orbitcsv("orbit."+to_string(ent.first)+"."+to_string(ent.second.prevIOD.first)+"-"+to_string(ent.second.getIOD())+".csv");
 
             orbitcsv << "timestamp x y z oldx oldy oldz\n";
             orbitcsv << fixed;
             for(int offset = -7200; offset < 7200; offset += 30) {
               int t = ent.second.liveIOD().t0e * 60 + offset;
-              getCoordinates(wn, t, ent.second.liveIOD(), &x, &y, &z, false);
-              getCoordinates(wn, t, ent.second.prevIOD.second, &oldx, &oldy, &oldz);
-              time_t posix = 935280000 + wn * 7*86400 + t;
+              getCoordinates(g_wn, t, ent.second.liveIOD(), &x, &y, &z, false);
+              getCoordinates(g_wn, t, ent.second.prevIOD.second, &oldx, &oldy, &oldz);
+              time_t posix = utcFromGST(g_wn, t);
               orbitcsv << posix <<" "
                        <<x<<" " <<y<<" "<<z<<" "
                        <<oldx<<" " <<oldy<<" "<<oldz<<"\n";
@@ -798,23 +951,38 @@ Z : 5004.189   km
           }
           ent.second.clearPrev();          
         }
-        
       }
-      
-      //        time_t t = 935280000 + wn * 7*86400 + tow;
-      /*
-      for(const auto& ent : g_svstats) {
-        // 12  iod   t0e
-        fmt::printf("%2d\t", ent.first);
-        if(ent.second.completeIOD()) {
-          cout << ent.second.getIOD() << "\t" << ( ent.second.tow - ent.second.liveIOD().t0e ) << "\t" << (unsigned int)ent.second.liveIOD().sisa;
-        }
+    }
+    else if (ubxClass == 1 && ubxType == 0x35) { // UBX-NAV-SAT
+      cout<< "Info for "<<(int) msg[5]<<" svs: \n";
+      for(unsigned int n = 0 ; n < msg[5]; ++n) {
+        cout << "  "<<(msg[8+12*n] ? 'E' : 'G') << (int)msg[9+12*n] <<" db=";
+        cout << (int)msg[10+12*n]<<" elev="<<(int)(char)msg[11+12*n]<<" azi=";
+        cout << ((int)msg[13+12*n]*256 + msg[12+12*n])<<" pr="<< *((int16_t*)(msg.c_str()+ 14 +12*n)) *0.1 << " signal="<< ((int)(msg[16+12*n])&7) << " used="<<  (msg[16+12*n]&8);
+          
+        fmt::printf(" | %02x %02x %02x %02x", (int)msg[16+12*n], (int)msg[17+12*n],
+                    (int)msg[18+12*n], (int)msg[19+12*n]);
         cout<<"\n";
       }
-      cout<<"\n";
-      */
+      cout<<endl;
     }
+    else if (ubxClass == 4) { // info
+      fmt::printf("Log level %d: %.*s\n", (int)ubxType, msg.size(), (char*)msg.c_str());
+    }
+    else if (ubxClass == 6 && ubxType == 1) { // msg rate
+      fmt::printf("Rate for class %02x type %02x: %d %d %d %d %d %d\n",
+                  (int)msg[0], (int)msg[1], (int) msg[2], (int) msg[3],(int) msg[4],
+                  (int) msg[5],(int) msg[6],(int) msg[7]);
+    }
+
+    else
+      cout << "ubxClass: "<<(unsigned int)ubxClass<<", ubxType: "<<(unsigned int)ubxType<<", size="<<msg.size()<<endl;
   }
- }
- catch(EofException& e)
-   {}
+  }
+  catch(EofException& e)
+    {}
+}
+catch(std::exception& e)
+{
+  cerr<<"Exiting because of fatal error "<<e.what()<<endl;
+}

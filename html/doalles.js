@@ -1,5 +1,7 @@
 var repeat;
 
+moment.relativeTimeThreshold('m', 120);
+
 function maketable(str, arr)
 {
     var table=d3.select(str);
@@ -12,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "iod", "eph-age-m", "sisa", "e1bhs", "e1bdvs", "e5bhs", "e5bdvs", "a0", "a1", "elev", "calc-elev", "db", "last-seen-s"];    
+    var columns = ["sv", "iod", "eph-age-m", "sisa", "e1bhs", "e1bdvs", "e5bhs", "e5bdvs", "a0", "a1","a0g", "a1g", "calc-elev", "db", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -27,7 +29,7 @@ function maketable(str, arr)
             return columns.map(function(column) {
                 var ret={};
                 ret.column = column;
-                ret.color="white";
+                ret.color=null;
                 if(column == "eph-age-m") {
                     var b = moment.duration(row[column], 'm');
                     ret.value = b.humanize();
