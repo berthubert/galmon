@@ -799,7 +799,7 @@ Z : 5004.189   km
         }
       }
       else if(wtype >=1 && wtype <= 4) { // ephemeris 
-
+        uint16_t iod = getbitu(&inav[0], 6, 10);          
         if(wtype == 1 && g_tow) {
           //          int t0e = 60*getbitu(&inav[0], 16, 14);
           //          int age = (tow - t0e)/60;
@@ -807,9 +807,10 @@ Z : 5004.189   km
         }
         else if(wtype == 3) {
           //          unsigned int sisa = getbitu(&inav[0], 120, 8);
+          idb.addValue(sv, "sisa", g_svstats[sv].iods[iod].sisa);
         }
         else if(wtype == 4) {
-          uint16_t iod = getbitu(&inav[0], 6, 10);          
+
           idb.addValue(sv, "af0", g_svstats[sv].iods[iod].af0);
           idb.addValue(sv, "af1", g_svstats[sv].iods[iod].af1);
           idb.addValue(sv, "af2", g_svstats[sv].iods[iod].af2);
@@ -848,7 +849,10 @@ Z : 5004.189   km
         idb.addValue(sv, "BGDE1E5a", g_svstats[sv].BGDE1E5a);
         idb.addValue(sv, "BGDE1E5b", g_svstats[sv].BGDE1E5b);
 
-        
+        idb.addValue(sv, "e1bhs", g_svstats[sv].e1bhs);
+        idb.addValue(sv, "e5bhs", g_svstats[sv].e5bhs);
+        idb.addValue(sv, "e5bdvs", g_svstats[sv].e5bdvs);
+        idb.addValue(sv, "e1bdvs", g_svstats[sv].e1bdvs);
       }
       else if(wtype == 6) {  // GST-UTC
         idb.addValue(sv, "a0", g_svstats[sv].a0);
@@ -929,6 +933,7 @@ Z : 5004.189   km
           cout<<ent.first<<" discontinuity "<< hours<<"h old: "<< disco <<endl;
           idb.addValue(sv, "iod-actual", ent.second.getIOD());
           idb.addValue(sv, "iod-hours", hours);
+
           
           if(hours < 4)
             idb.addValue(sv, "eph-disco", disco);
