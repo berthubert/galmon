@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include "ubx.hh"
 #include <iostream>
+#include <fstream>
 #include <string.h>
 #include "fmt/format.h"
 #include "fmt/printf.h"
@@ -169,7 +170,8 @@ int main(int argc, char** argv)
 {                                                                         
   int fd;
   struct termios oldtio,newtio;                                           
-                                                                          
+  ofstream orbitcsv("orbit.csv");
+  orbitcsv<<"timestamp gnssid sv prmes cpmes doppler"<<endl;
   fd = open(MODEMDEVICE, O_RDWR | O_NOCTTY );                             
   if (fd <0) {perror(MODEMDEVICE); exit(-1); }                            
                                                                           
@@ -189,15 +191,25 @@ int main(int argc, char** argv)
   tcflush(fd, TCIFLUSH);                                                  
   tcsetattr(fd,TCSANOW,&newtio);                                          
 
-  for(int n=0; n < 10; ++n) {
+  for(int n=0; n < 5; ++n) {
     auto [timestamp, msg] = getUBXMessage(fd);
     cerr<<"Read some init: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<endl;
+    //    if(msg.getClass() == 0x2)
+    //cerr<<string((char*)msg.getPayload().c_str(), msg.getPayload().size()) <<endl;
   }
-
-  
-  usleep(500000);
   
   std::basic_string<uint8_t> msg;
+  if(argc> 1 && string(argv[1])=="cold") {
+    cerr<<"Sending cold start!"<<endl;
+    msg = buildUbxMessage(0x06, 0x04, {0xff, 0xff, 0x04, 0x00}); // cold start!
+    writen2(fd, msg.c_str(), msg.size());
+    
+    for(int n=0; n < 10; ++n) {
+      auto [timestamp, msg] = getUBXMessage(fd);
+      cerr<<"Read some init: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<endl;
+    }
+  }
+  cerr<<"Asking for rate"<<endl;
   msg = buildUbxMessage(0x06, 0x01, {0x02, 89}); // ask for rates of class 0x02 type 89, RLM
   writen2(fd, msg.c_str(), msg.size());
 
@@ -239,9 +251,16 @@ int main(int argc, char** argv)
   cerr<<"Enabling UBX-RXM-RAWX"<<endl;
   enableUBXMessageUSB(fd, 0x02, 0x15);
 
+    cerr<<"Enabling UBX-RXM-SFRBX"<<endl;
+  enableUBXMessageUSB(fd, 0x02, 0x13);
+
   cerr<<"Enabling UBX-NAV-POSECEF"<<endl;
   enableUBXMessageUSB(fd, 0x01, 0x01);
 
+  cerr<<"Enabling UBX-NAV-SAT"<<endl;
+  enableUBXMessageUSB(fd, 0x01, 0x35);
+
+  
   
   /* goal: isolate UBX messages, ignore everyting else.
      The challenge is that we might sometimes hit the 0xb5 0x62 marker
@@ -278,8 +297,28 @@ int main(int argc, char** argv)
       lasttv[id]=tv[id];          
     }
     writen2(1, msg.d_raw.c_str(),msg.d_raw.size());
+#if 0
+    if(msg.getClass() == 0x02 && msg.getType() == 0x15) {  // RAWX
+      cerr<<"Got "<<(int)payload[11] <<" measurements "<<endl;
+      double rcvTow;
+      memcpy(&rcvTow, &payload[0], 8);        
+      for(int n=0 ; n < payload[11]; ++n) {
+
+        double prMes;
+        double cpMes;
+        float doppler;
+
+        memcpy(&prMes, &payload[16+32*n], 8);
+        memcpy(&cpMes, &payload[24+32*n], 8);
+        memcpy(&doppler, &payload[32+32*n], 4);
+        int gnssid = payload[36+32*n];
+        int sv = payload[37+32*n];
+        orbitcsv << std::fixed << rcvTow <<" " <<gnssid <<" " <<sv<<" "<<prMes<<" "<<cpMes <<" " << doppler<<endl;
+      }
+    }
+#endif
+
   }
-  
   tcsetattr(fd,TCSANOW,&oldtio);                                          
 }                                                                         
 

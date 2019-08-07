@@ -12,7 +12,7 @@ clean:
 H2OPP=ext/powerblog/h2o-pp.o
 SIMPLESOCKETS=ext/powerblog/ext/simplesocket/swrappers.o ext/powerblog/ext/simplesocket/sclasses.o  ext/powerblog/ext/simplesocket/comboaddress.o 
 ubxparse: ubxparse.o ext/fmt-5.2.1/src/format.o $(H2OPP) $(SIMPLESOCKETS) minicurl.o ubx.o bits.o
-	g++ -std=gnu++17 $^ -o $@ -pthread -lncurses -L/usr/local/lib -lh2o-evloop -lssl -lcrypto -lz  -lcurl -lwslay
+	g++ -std=gnu++17 $^ -o $@ -pthread -lncurses -L/usr/local/lib -lh2o-evloop -lssl -lcrypto -lz  -lcurl # -lwslay
 
 ubxdisplay: ubxdisplay.o ext/fmt-5.2.1/src/format.o
 	g++ -std=gnu++17 $^ -o $@ -pthread -lncurses

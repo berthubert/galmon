@@ -17,6 +17,7 @@
 #include <time.h>
 #include "ubx.hh"
 #include "bits.hh"
+#include "minivec.hh"
 
 using namespace std;
 
@@ -41,6 +42,7 @@ uint16_t getUint16()
   return ret;
 }
 
+Point g_ourpos(3922.505 * 1000,  290.116 * 1000, 5004.189 * 1000);
 
 int g_tow, g_wn, g_dtLS{18};
 
@@ -269,7 +271,7 @@ double todeg(double rad)
   return 360 * rad/(2*M_PI);
 }
 
-void getCoordinates(int wn, int tow, const SVIOD& iod, double* x, double* y, double* z, bool quiet=true)
+void getCoordinates(int wn, double tow, const SVIOD& iod, Point* p, bool quiet=true)
 {
   // here goes
 
@@ -391,9 +393,6 @@ void getCoordinates(int wn, int tow, const SVIOD& iod, double* x, double* y, dou
 
   double r = A * (1- e * cos(E)) + deltar;
 
-
-
-
   double xprime = r*cos(u), yprime = r*sin(u);
   if(!quiet) {
     cout<<"u = psi + deltau = "<< psi <<" + " << deltau << " = "<<u<<"\n";
@@ -402,15 +401,26 @@ void getCoordinates(int wn, int tow, const SVIOD& iod, double* x, double* y, dou
   }
   double Omega = Omega0 + (Omegadot - omegaE)*tk - omegaE * t0e;
   double i = i0 + deltai + idot * tk;
-  *x = xprime * cos(Omega) - yprime * cos(i) * sin(Omega);
-  *y = xprime * sin(Omega) + yprime * cos(i) * cos(Omega);
-  *z = yprime * sin(i);
+  p->x = xprime * cos(Omega) - yprime * cos(i) * sin(Omega);
+  p->y = xprime * sin(Omega) + yprime * cos(i) * cos(Omega);
+  p->z = yprime * sin(i);
 
-  if(!quiet)
-    cout << sqrt( (*x)*(*x) + (*y)*(*y) + (*z)*(*z)) << " calculated r "<<endl;
+  if(!quiet) {
+    Point core(0.0, .0, .0);
+    Vector radius(core, *p);
+    cout << radius.length() << " calculated r "<<endl;
+  }
   
 }
 
+
+void getSpeed(int wn, double tow, const SVIOD& iod, Vector* v)
+{
+  Point a, b;
+  getCoordinates(wn, tow-0.5, iod, &a);
+  getCoordinates(wn, tow+0.5, iod, &b);
+  *v = Vector(a, b);
+}
 
 std::map<int, SVStat> g_svstats;
 
@@ -423,6 +433,12 @@ uint64_t utcFromGST(int wn, int tow)
 {
   return (935280000 + wn * 7*86400 + tow - g_dtLS); // Leap!!
 }
+
+double utcFromGST(int wn, double tow)
+{
+  return (935280000 + wn * 7*86400 + tow - g_dtLS); // Leap!!
+}
+
 
 struct InfluxPusher
 {
@@ -580,20 +596,14 @@ try
           item["af2"] = (int)s.second.liveIOD().af2;
           item["t0c"] = s.second.liveIOD().t0c;
 
-          /* Our location:
-X : 3922.505   km
-Y : 290.116   km
-Z : 5004.189   km
-          */
+          Point our = g_ourpos;
+          Point p;
+          Point core;
 
-          double ourx = 3922.505 * 1000;
-          double oury = 290.116 * 1000;
-          double ourz = 5004.189 * 1000;
-          double x, y, z;
-          //          cout<<"For sv " <<s.first<<" at "<<humanTime(g_wn, g_tow)<<": \n";
-          getCoordinates(g_wn, g_tow, s.second.liveIOD(), &x, &y, &z);
+          getCoordinates(g_wn, g_tow, s.second.liveIOD(), &p);
 
-          double dx = x-ourx, dy = y-oury, dz = z-ourz;
+          Vector core2us(core, our);
+          Vector dx(our, p); //  = x-ourx, dy = y-oury, dz = z-ourz;
           
           /* https://gis.stackexchange.com/questions/58923/calculating-view-angle
              to calculate elevation:
@@ -602,18 +612,16 @@ Z : 5004.189   km
              the angle of view relative to a nominal horizon. This is the "elevation."
              NOTE! x = you on the ground!
           */
-          double elev = acos ( (ourx*dx + oury*dy + ourz*dz) / (sqrt(ourx*ourx + oury*oury + ourz*ourz) * sqrt(dx*dx + dy*dy + dz*dz)));
-
+          double elev = acos ( core2us.inner(dx) / (core2us.length() * dx.length()));
           double deg = 180.0* (elev/M_PI);
-          
           item["calc-elev"] = 90 - deg;
-          /*
-          cout<<s.first<<" calc elev radians "<< elev << ", deg "<< deg <<" calc-elev "<<(90-deg)<<", from ublox "<< s.second.el<<endl <<std::fixed<<" (" << ourx << ", "<< oury <<", "<<ourz<<") -> ("
-              << x << ", "<< y <<", "<< z<<") " << sqrt(ourx*ourx + oury*oury + ourz*ourz) <<" - " << sqrt(x*x+y*y+z*z) <<endl;
-          */
-          item["x"]=x;
-          item["y"]=y;
-          item["z"]=z;
+          
+          cout<<s.first<<" calc elev radians "<< elev << ", deg "<< deg <<" calc-elev "<<(90-deg)<<", from ublox "<< s.second.el<<endl <<std::fixed<<" (" << our.x << ", "<< our.y <<", "<<our.z<<") -> ("
+              << p.x << ", "<< p.y <<", "<< p.z<<") "<<endl;// << sqrt(ourx*ourx + oury*oury + ourz*ourz) <<" - " << sqrt(x*x+y*y+z*z) <<endl;
+
+          item["x"]=p.x;
+          item["y"]=p.y;
+          item["z"]=p.z;
           item["wn"] = s.second.wn;
           item["tow"] = s.second.tow;
           ret[std::to_string(s.first)] = item;
@@ -648,6 +656,10 @@ Z : 5004.189   km
   ofstream clockcsv("clock.csv");
   clockcsv <<"timestamp sv af0 af1 af2 t0c age offset"<<endl;
 
+  ofstream dopplercsv("doppler.csv");
+  dopplercsv<<"timestamp gnssid sv prmes cpmes doppler preddop distance radvel locktimems iod_age"<<endl;
+
+  
   string line;
   time_t lastDisplay = time(0);
   try {
@@ -884,12 +896,12 @@ Z : 5004.189   km
         int a0g = getbits(&inav[0], 86, 16);
         int a1g = getbits(&inav[0], 102, 12);
         int t0g = getbitu(&inav[0], 114, 8);
-        uint8_t wn0g = getbitu(&inav[0], 122, 6);
-        int dw = (((uint8_t)g_wn)&(1+2+4+8+16+32)) - wn0g;
+        //        uint8_t wn0g = getbitu(&inav[0], 122, 6);
+        //        int dw = (((uint8_t)g_wn)&(1+2+4+8+16+32)) - wn0g;
         
         if(g_tow && g_wn) {
           
-          int age = g_tow - t0g * 3600;
+          int age = g_tow - t0g * 3600; // xx WHERE IS DW??
           // a0g = 2^-32 s, a1 = 2^-50 s/s
           
           int shift = a0g * (1U<<16) + a1g * age; // in 2^-51 seconds units
@@ -919,17 +931,16 @@ Z : 5004.189   km
               humanSisa(ent.second.liveIOD().sisa)<<"), lastseen = "<< (ephage/3600.0) <<"h"<<endl;
           }
 
-          double x, y, z;
-          double oldx, oldy, oldz;
-          getCoordinates(g_wn, g_tow, ent.second.liveIOD(), &x, &y, &z);
-          cout << ent.first << ": iod= "<<ent.second.getIOD()<<" "<< x/1000.0 << ", "<< y/1000.0 <<", "<<z/1000.0<<endl;
+          Point p, oldp;
+          getCoordinates(g_wn, g_tow, ent.second.liveIOD(), &p);
+          cout << ent.first << ": iod= "<<ent.second.getIOD()<<" "<< p.x/1000.0 << ", "<< p.y/1000.0 <<", "<<p.z/1000.0<<endl;
 
           cout<<"OLD: \n";
-          getCoordinates(g_wn, g_tow, ent.second.prevIOD.second, &oldx, &oldy, &oldz);
-          cout << ent.first << ": iod= "<<ent.second.prevIOD.first<<" "<< oldx/1000.0 << ", "<< oldy/1000.0 <<", "<<oldz/1000.0<<endl;
+          getCoordinates(g_wn, g_tow, ent.second.prevIOD.second, &oldp);
+          cout << ent.first << ": iod= "<<ent.second.prevIOD.first<<" "<< oldp.x/1000.0 << ", "<< oldp.y/1000.0 <<", "<<oldp.z/1000.0<<endl;
 
           double hours = ((ent.second.liveIOD().t0e - ent.second.prevIOD.second.t0e)/60.0);
-          double disco = sqrt((x-oldx)*(x-oldx) + (y-oldy)*(y-oldy) + (z-oldz)*(z-oldz));
+          double disco = Vector(p, oldp).length();
           cout<<ent.first<<" discontinuity after "<< hours<<" hours: "<< disco <<endl;
           idb.addValue(sv, "iod-actual", ent.second.getIOD());
           idb.addValue(sv, "iod-hours", hours);
@@ -946,12 +957,13 @@ Z : 5004.189   km
             orbitcsv << fixed;
             for(int offset = -7200; offset < 7200; offset += 30) {
               int t = ent.second.liveIOD().t0e * 60 + offset;
-              getCoordinates(g_wn, t, ent.second.liveIOD(), &x, &y, &z, false);
-              getCoordinates(g_wn, t, ent.second.prevIOD.second, &oldx, &oldy, &oldz);
+              Point p, oldp;
+              getCoordinates(g_wn, t, ent.second.liveIOD(), &p);
+              getCoordinates(g_wn, t, ent.second.prevIOD.second, &oldp);
               time_t posix = utcFromGST(g_wn, t);
               orbitcsv << posix <<" "
-                       <<x<<" " <<y<<" "<<z<<" "
-                       <<oldx<<" " <<oldy<<" "<<oldz<<"\n";
+                       <<p.x<<" " <<p.y<<" "<<p.z<<" "
+                       <<oldp.x<<" " <<oldp.y<<" "<<oldp.z<<"\n";
             }
           }
           ent.second.clearPrev();          
@@ -965,11 +977,23 @@ Z : 5004.189   km
         cout << (int)msg[10+12*n]<<" elev="<<(int)(char)msg[11+12*n]<<" azi=";
         cout << ((int)msg[13+12*n]*256 + msg[12+12*n])<<" pr="<< *((int16_t*)(msg.c_str()+ 14 +12*n)) *0.1 << " signal="<< ((int)(msg[16+12*n])&7) << " used="<<  (msg[16+12*n]&8);
           
-        fmt::printf(" | %02x %02x %02x %02x", (int)msg[16+12*n], (int)msg[17+12*n],
+        fmt::printf(" | %02x %02x %02x %02x\n", (int)msg[16+12*n], (int)msg[17+12*n],
                     (int)msg[18+12*n], (int)msg[19+12*n]);
-        cout<<"\n";
+
+        if(msg[8+12*n]==2) { // galileo
+          int sv = msg[9+12*n];
+          g_svstats[sv].el = (int)(char)msg[11+12*n];
+          g_svstats[sv].azi = ((int)msg[13+12*n]*256 + msg[12+12*n]);
+          if(g_svstats[sv].el >= 0)
+            g_svstats[sv].db = (int)msg[10+12*n];
+          else
+            g_svstats[sv].db = -1;
+          
+          idb.addValue(sv, "db", g_svstats[sv].db);
+          idb.addValue(sv, "elev", g_svstats[sv].el);
+          idb.addValue(sv, "azi", g_svstats[sv].azi);            
+        }
       }
-      cout<<endl;
     }
     else if (ubxClass == 4) { // info
       fmt::printf("Log level %d: %.*s\n", (int)ubxType, msg.size(), (char*)msg.c_str());
@@ -995,6 +1019,72 @@ Z : 5004.189   km
       fmt::printf("Rate for class %02x type %02x: %d %d %d %d %d %d\n",
                   (int)msg[0], (int)msg[1], (int) msg[2], (int) msg[3],(int) msg[4],
                   (int) msg[5],(int) msg[6],(int) msg[7]);
+    }
+    else if(ubxClass == 0x01 && ubxType == 0x01) {  // POSECF
+      struct pos
+      {
+        uint32_t iTOW;
+        int32_t ecefX; // cm
+        int32_t ecefY;
+        int32_t ecefZ;
+        uint32_t pAcc;
+      };
+      pos p;
+      memcpy(&p, msg.c_str(), sizeof(pos));
+      cout<<"Position: ("<< p.ecefX / 100000.0<<", "
+          << p.ecefY / 100000.0<<", "
+          << p.ecefZ / 100000.0<<") +- "<<p.pAcc<<" cm"<<endl;
+      g_ourpos.x = p.ecefX/100.0;
+      g_ourpos.y = p.ecefY/100.0;
+      g_ourpos.z = p.ecefZ/100.0;
+    }
+    else if(ubxClass == 0x02 && ubxType == 0x15) {  // RAWX
+      cout<<"Got "<<(int)msg[11] <<" measurements "<<endl;
+      double rcvTow;
+      memcpy(&rcvTow, &msg[0], 8);        
+      for(int n=0 ; n < msg[11]; ++n) {
+
+        double prMes;
+        double cpMes;
+        float doppler;
+
+        memcpy(&prMes, &msg[16+32*n], 8);
+        memcpy(&cpMes, &msg[24+32*n], 8);
+        memcpy(&doppler, &msg[32+32*n], 4);
+        int gnssid = msg[36+32*n];
+        int sv = msg[37+32*n];
+        uint16_t locktimems;
+        memcpy(&locktimems, &msg[40+32*n], 2);
+
+
+        if(gnssid ==2 && g_svstats[sv].completeIOD()) {
+          Point sat;
+          Point us=g_ourpos;
+
+          getCoordinates(g_wn, rcvTow, g_svstats[sv].liveIOD(), &sat);
+          Point core;
+          Vector us2sat(us, sat);
+          Vector speed;
+          getSpeed(g_wn, rcvTow, g_svstats[sv].liveIOD(), &speed);
+          cout<<sv<<" radius: "<<Vector(core, sat).length()<<",  distance: "<<us2sat.length()<<", orbital velocity: "<<speed.length()/1000.0<<" km/s, ";
+
+          Vector core2us(core, us);
+          Vector dx(us, sat); //  = x-ourx, dy = y-oury, dz = z-ourz;
+          double elev = acos ( core2us.inner(dx) / (core2us.length() * dx.length()));
+          double deg = 180.0* (elev/M_PI);
+          cout <<"elev: "<<90 - deg<< " ("<<g_svstats[sv].el<<")\n";
+
+          us2sat.norm();
+          double radvel=us2sat.inner(speed);
+          double c=299792458;
+          double galileol1f = 1575.42 * 1000000; // frequency
+          double preddop = -galileol1f*radvel/c;
+          
+          double ephage = ephAge(g_tow, g_svstats[sv].liveIOD().t0e*60);
+          cout<<"Radial velocity: "<< radvel<<", predicted doppler: "<< preddop << ", measured doppler: "<<doppler<<endl;
+          dopplercsv << std::fixed << utcFromGST(g_wn, rcvTow) <<" " <<gnssid <<" " <<sv<<" "<<prMes<<" "<<cpMes <<" " << doppler<<" " << preddop << " " << Vector(us, sat).length() << " " <<radvel <<" " <<locktimems<<" " <<ephage <<endl;
+        }
+      }
     }
     
     else
