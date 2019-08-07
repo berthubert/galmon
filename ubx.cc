@@ -46,10 +46,15 @@ std::basic_string<uint8_t> buildUbxMessage(uint8_t ubxClass, uint8_t ubxType, st
   for(unsigned int n= 0 ; n < str.size(); ++n)
     msg.append(1, str[n]); 
 
-  uint16_t csum = calcUbxChecksum(0x06, 0x01, msg.substr(6));
+  uint16_t csum = calcUbxChecksum(ubxClass, ubxType, msg.substr(6));
 
   msg.append(1, csum&0xff);
   msg.append(1, csum>>8);
-
+  /*
+  for(const auto& c : msg) {
+    fmt::fprintf(stderr, "%02x ", (int)c);
+  }
+  fmt::fprintf(stderr,"\n");
+  */
   return msg;
 }

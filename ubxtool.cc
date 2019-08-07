@@ -1,4 +1,6 @@
 #include <sys/types.h>                                                    
+#include <sys/time.h>
+#include <map>
 #include <sys/stat.h>                                                     
 #include <fcntl.h>                                                        
 #include <termios.h>                                                      
@@ -11,6 +13,8 @@
 #include "ubx.hh"
 #include <iostream>
 #include <string.h>
+#include "fmt/format.h"
+#include "fmt/printf.h"
 using namespace std;
 
 #define BAUDRATE B921600 
@@ -41,22 +45,6 @@ size_t readn2(int fd, void* buffer, size_t len)
 
 
 
-static uint8_t getUint8(int fd)
-{
-  uint8_t c;
-  if(readn2(fd, &c, 1) != sizeof(c))
-    throw EofException();
-  return c;
-}
-
-static uint16_t getUint16(int fd)
-{
-  uint8_t c[2];
-  if(readn2(fd, &c, sizeof(c)) != sizeof(c))
-    throw EofException();
-
-  return c[0] + 256*c[1];
-}
 
 size_t writen2(int fd, const void *buf, size_t count)
 {
@@ -79,10 +67,107 @@ size_t writen2(int fd, const void *buf, size_t count)
 }
 
 
+class UBXMessage
+{
+public:
+  explicit UBXMessage(basic_string_view<uint8_t> src)
+  {
+    d_raw = src;
+    if(d_raw.size() < 6)
+      throw std::runtime_error("Partial UBX message");
+
+    uint16_t csum = calcUbxChecksum(getClass(), getType(), d_raw.substr(6, d_raw.size()-8));
+    if(csum != d_raw.at(d_raw.size()-2) + 256*d_raw.at(d_raw.size()-1))
+      throw std::runtime_error("Bad UBX checksum");
+    
+  }
+  uint8_t getClass() const
+  {
+    return d_raw.at(2);
+  }
+  uint8_t getType() const
+  {
+    return d_raw.at(3);
+  }
+  std::basic_string<uint8_t> getPayload() const
+  {
+    return d_raw.substr(6, d_raw.size()-8);
+  }
+  std::basic_string<uint8_t> d_raw;
+};
+
+std::pair<struct timeval, UBXMessage> getUBXMessage(int fd)
+{
+  uint8_t marker[2]={0};
+  for(;;) {
+    marker[0] = marker[1];
+    int res = readn2(fd, marker+1, 1);
+    if(res < 0)
+      throw EofException();
+    
+    //    cerr<<"marker now: "<< (int)marker[0]<<" " <<(int)marker[1]<<endl;
+    if(marker[0]==0xb5 && marker[1]==0x62) { // bingo
+      struct timeval tv;
+      gettimeofday(&tv, 0);
+      basic_string<uint8_t> msg;
+      msg.append(marker, 2);  // 0,1
+      uint8_t b[4];
+      readn2(fd, b, 4);
+      msg.append(b, 4); // class, type, len1, len2
+
+
+      uint16_t len = b[2] + 256*b[3];
+      //      cerr<<"Got class "<<(int)msg[2]<<" type "<<(int)msg[3]<<", len = "<<len<<endl;
+      uint8_t buffer[len+2];
+      res=readn2(fd, buffer, len+2);
+      msg.append(buffer, len+2); // checksum
+      
+      return make_pair(tv, UBXMessage(msg));
+    }
+  }                                                                       
+}
+
+UBXMessage waitForUBX(int fd, int seconds, uint8_t ubxClass, uint8_t ubxType)
+{
+  for(int n=0; n < seconds*20; ++n) {
+    auto [timestamp, msg] = getUBXMessage(fd);
+    //    cerr<<"Got: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<endl;
+    if(msg.getClass() == ubxClass && msg.getType() == ubxType) {
+      return msg;
+    }
+  }
+  throw std::runtime_error("Did not get response on time");
+}
+
+bool waitForUBXAckNack(int fd, int seconds)
+{
+  for(int n=0; n < seconds*4; ++n) {
+    auto [timestamp, msg] = getUBXMessage(fd);
+    //    cerr<<"Got: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<endl;
+    if(msg.getClass() == 0x05 && msg.getType() == 0x01) {
+      return true;
+    }
+    else if(msg.getClass() == 0x05 && msg.getType() == 0x00) {
+      return false;
+    }
+  }
+  throw std::runtime_error("Did not get ACK/NACK response on time");
+}
+
+
+void enableUBXMessageUSB(int fd, uint8_t ubxClass, uint8_t ubxType)
+{
+  auto msg = buildUbxMessage(0x06, 0x01, {ubxClass, ubxType, 0, 0, 0, 1, 0, 0});
+  writen2(fd, msg.c_str(), msg.size());
+  if(waitForUBXAckNack(fd, 2))
+    return;
+  else
+    throw std::runtime_error("Got NACK enabling UBX message "+to_string((int)ubxClass)+" "+to_string((int)ubxType));
+}
 
 int main(int argc, char** argv)
 {                                                                         
-  int fd, res;                                                          
+  int fd;
   struct termios oldtio,newtio;                                           
                                                                           
   fd = open(MODEMDEVICE, O_RDWR | O_NOCTTY );                             
@@ -104,45 +189,97 @@ int main(int argc, char** argv)
   tcflush(fd, TCIFLUSH);                                                  
   tcsetattr(fd,TCSANOW,&newtio);                                          
 
+  for(int n=0; n < 10; ++n) {
+    auto [timestamp, msg] = getUBXMessage(fd);
+    cerr<<"Read some init: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<endl;
+  }
+
+  
   usleep(500000);
   
-  std::basic_string<uint8_t> msg = buildUbxMessage(0x06, 0x01, {0x02, 89});
+  std::basic_string<uint8_t> msg;
+  msg = buildUbxMessage(0x06, 0x01, {0x02, 89}); // ask for rates of class 0x02 type 89, RLM
   writen2(fd, msg.c_str(), msg.size());
+
+  UBXMessage um=waitForUBX(fd, 2, 0x06, 0x01);
+  cerr<<"Message rate: "<<endl;
+  for(const auto& c : um.getPayload())
+    cerr<<(int)c<< " ";
+  cerr<<endl;
 
   msg = buildUbxMessage(0x06, 0x01, {0x02, 89, 0, 0, 0, 1, 0, 0});
   writen2(fd, msg.c_str(), msg.size());
 
+  if(waitForUBXAckNack(fd, 2))
+    cerr<<"Got ack on rate setting"<<endl;
+  else
+    cerr<<"Got nack on rate setting"<<endl;
+  
   msg = buildUbxMessage(0x06, 0x01, {0x02, 89});
   writen2(fd, msg.c_str(), msg.size());
+  um=waitForUBX(fd, 2, 0x06, 0x01); // ignore
+  
+  cerr<<"Disabling NMEA"<<endl;
+  msg = buildUbxMessage(0x06, 0x00, {0x03,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x01,0x00,0x00,0x00,0x00,0x00});
+  writen2(fd, msg.c_str(), msg.size());
+  if(waitForUBXAckNack(fd, 2))
+    cerr<<"NMEA disabled"<<endl;
+  else
+    cerr<<"Got NACK disabling NMEA"<<endl;
+  
+  msg = buildUbxMessage(0x06, 0x00, {0x03});
+  writen2(fd, msg.c_str(), msg.size());
 
+  um=waitForUBX(fd, 2, 0x06, 0x00);
+  cerr<<"Protocol settings on USB: \n";
+  for(const auto& c : um.getPayload())
+    cerr<<(int)c<< " ";
+  cerr<<endl;
+
+  cerr<<"Enabling UBX-RXM-RAWX"<<endl;
+  enableUBXMessageUSB(fd, 0x02, 0x15);
+
+  cerr<<"Enabling UBX-NAV-POSECEF"<<endl;
+  enableUBXMessageUSB(fd, 0x01, 0x01);
+
+  
   /* goal: isolate UBX messages, ignore everyting else.
      The challenge is that we might sometimes hit the 0xb5 0x62 marker
      in the middle of a message, which will cause us to possibly jump over valid messages */
-  
 
-  uint8_t marker[2]={0};
+  std::map<pair<int,int>, struct timeval> lasttv, tv;
+
   for(;;) {
-    marker[0] = marker[1];
-    res = readn2(fd, marker+1, 1);
-    if(res < 0)
-      break;
-    //    cerr<<"marker now: "<< (int)marker[0]<<" " <<(int)marker[1]<<endl;
-    if(marker[0]==0xb5 && marker[1]==0x62) { // bingo
-      basic_string<uint8_t> msg;
-      msg.append(marker, 2);
-      msg.append(1, getUint8(fd)); // class
-      msg.append(1, getUint8(fd)); // type
-      uint16_t len = getUint16(fd);
+    auto [timestamp, msg] = getUBXMessage(fd);
+    auto payload = msg.getPayload();
 
-      msg.append((uint8_t*)&len, 2);
-      cerr<<"Got class "<<(int)msg[0]<<" type "<<(int)msg[1]<<", len = "<<len<<endl;
-      uint8_t buffer[len+2];
-      res=readn2(fd, buffer, len+2);
-      msg.append(buffer, len+2); // checksum
-      writen2(1, msg.c_str(),msg.size());
-      marker[0]=marker[1]=0;
+    if(msg.getClass() == 0x01 && msg.getType() == 0x01) {  // POSECF
+      struct pos
+      {
+        uint32_t iTOW;
+        int32_t ecefX;
+        int32_t ecefY;
+        int32_t ecefZ;
+        uint32_t pAcc;
+      };
+      pos p;
+      memcpy(&p, payload.c_str(), sizeof(pos));
+      cerr<<"Position: ("<< p.ecefX / 100000.0<<", "
+          << p.ecefY / 100000.0<<", "
+          << p.ecefZ / 100000.0<<") +- "<<p.pAcc<<" cm"<<endl;
     }
-  }                                                                       
+    if(msg.getClass() == 2 && msg.getType() == 0x13) {  // SFRBX
+      pair<int,int> id = make_pair(payload[0], payload[1]);
+      tv[id] = timestamp;
+      if(lasttv.count(id)) {
+        fmt::fprintf(stderr, "gnssid %d sv %d, %d:%d -> %d:%d, delta=%d\n", 
+                     payload[0], payload[1], lasttv[id].tv_sec, lasttv[id].tv_usec, tv[id].tv_sec, tv[id].tv_usec, tv[id].tv_usec - lasttv[id].tv_usec);
+      }
+      lasttv[id]=tv[id];          
+    }
+    writen2(1, msg.d_raw.c_str(),msg.d_raw.size());
+  }
+  
   tcsetattr(fd,TCSANOW,&oldtio);                                          
 }                                                                         
 

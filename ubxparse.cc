@@ -704,7 +704,7 @@ Z : 5004.189   km
     uint8_t ubxType = getUint8();
     uint16_t msgLen = getUint16();
     
-    //    cout <<"Had an ubx message of class "<<(int) ubxClass <<" and type "<< (int) ubxType << " of " << msgLen <<" bytes"<<endl;
+    cout <<"Had an ubx message of class "<<(int) ubxClass <<" and type "<< (int) ubxType << " of " << msgLen <<" bytes"<<endl;
 
     std::basic_string<uint8_t> msg;
     msg.reserve(msgLen);
@@ -930,7 +930,7 @@ Z : 5004.189   km
 
           double hours = ((ent.second.liveIOD().t0e - ent.second.prevIOD.second.t0e)/60.0);
           double disco = sqrt((x-oldx)*(x-oldx) + (y-oldy)*(y-oldy) + (z-oldz)*(z-oldz));
-          cout<<ent.first<<" discontinuity "<< hours<<"h old: "<< disco <<endl;
+          cout<<ent.first<<" discontinuity after "<< hours<<" hours: "<< disco <<endl;
           idb.addValue(sv, "iod-actual", ent.second.getIOD());
           idb.addValue(sv, "iod-hours", hours);
 
@@ -974,12 +974,29 @@ Z : 5004.189   km
     else if (ubxClass == 4) { // info
       fmt::printf("Log level %d: %.*s\n", (int)ubxType, msg.size(), (char*)msg.c_str());
     }
+    else if (ubxClass == 6 && ubxType == 0) { // port config
+      fmt::printf("Port config: ");
+      for(const auto& c : msg) 
+        fmt::printf("0x%02x,", (int)c);
+      cout<<"\n";
+      uint8_t outmask=msg[14];
+      if(outmask & 1)
+        cout<<"  out UBX"<<endl;
+      if(outmask & 2)
+        cout<<"  out NMEA"<<endl;
+      if(outmask & 32)
+        cout<<"  out RTCM3"<<endl;
+      msg[14]=1;
+      for(const auto& c : msg) 
+        fmt::printf("0x%02x,", (int)c);
+      cout<<"\n";
+    }
     else if (ubxClass == 6 && ubxType == 1) { // msg rate
       fmt::printf("Rate for class %02x type %02x: %d %d %d %d %d %d\n",
                   (int)msg[0], (int)msg[1], (int) msg[2], (int) msg[3],(int) msg[4],
                   (int) msg[5],(int) msg[6],(int) msg[7]);
     }
-
+    
     else
       cout << "ubxClass: "<<(unsigned int)ubxClass<<", ubxType: "<<(unsigned int)ubxType<<", size="<<msg.size()<<endl;
   }
