@@ -1,6 +1,6 @@
 CXXFLAGS:= -std=gnu++17 -Wall -O3 -MMD -MP -ggdb -fno-omit-frame-pointer  -Iext/fmt-5.2.1/include/ -Iext/powerblog/ext/simplesocket -Iext/powerblog/ext/
 
-PROGRAMS = ubxparse navparse ubxdisplay minread ubxtool
+PROGRAMS = navparse ubxtool navnexus
 
 all: $(PROGRAMS)
 
@@ -11,18 +11,16 @@ clean:
 
 H2OPP=ext/powerblog/h2o-pp.o
 SIMPLESOCKETS=ext/powerblog/ext/simplesocket/swrappers.o ext/powerblog/ext/simplesocket/sclasses.o  ext/powerblog/ext/simplesocket/comboaddress.o 
-ubxparse: ubxparse.o ext/fmt-5.2.1/src/format.o $(H2OPP) $(SIMPLESOCKETS) minicurl.o ubx.o bits.o
-	g++ -std=gnu++17 $^ -o $@ -pthread -lncurses -L/usr/local/lib -lh2o-evloop -lssl -lcrypto -lz  -lcurl # -lwslay
 
 navparse: navparse.o ext/fmt-5.2.1/src/format.o $(H2OPP) $(SIMPLESOCKETS) minicurl.o ubx.o bits.o navmon.pb.o
+	g++ -std=gnu++17 $^ -o $@ -pthread -L/usr/local/lib -lh2o-evloop -lssl -lcrypto -lz  -lcurl -lprotobuf  # -lwslay
+
+navnexus: navnexus.o ext/fmt-5.2.1/src/format.o $(H2OPP) $(SIMPLESOCKETS) minicurl.o ubx.o bits.o navmon.pb.o
 	g++ -std=gnu++17 $^ -o $@ -pthread -L/usr/local/lib -lh2o-evloop -lssl -lcrypto -lz  -lcurl -lprotobuf  # -lwslay
 
 
 navmon.pb.h: navmon.proto
 	protoc --cpp_out=./ navmon.proto
-
-ubxdisplay: ubxdisplay.o ext/fmt-5.2.1/src/format.o
-	g++ -std=gnu++17 $^ -o $@ -pthread -lncurses
 
 ubxtool: ubxtool.o ubx.o bits.o ext/fmt-5.2.1/src/format.o galileo.o navmon.pb.o 
 	g++ -std=gnu++17 $^ -o $@ -lprotobuf

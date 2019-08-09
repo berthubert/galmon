@@ -24,6 +24,12 @@ struct EofException{};
 
 Point g_ourpos(3922.505 * 1000,  290.116 * 1000, 5004.189 * 1000);
 
+struct GNSSReceiver
+{
+  Point position; 
+};
+
+
 int g_dtLS{18};
 
 
@@ -108,6 +114,14 @@ void SVIOD::addWord(std::basic_string_view<uint8_t> page)
 
 }
 
+struct SVPerRecv
+{
+  int el{-1}, azi{-1}, db{-1};
+  uint16_t wn;
+  uint32_t tow; // last seen
+};
+  
+
 struct SVStat
 {
   uint8_t e5bhs{0}, e1bhs{0};
@@ -124,7 +138,9 @@ struct SVStat
   int8_t dtLS{0}, dtLSF{0};
   uint16_t wnLSF{0};
   uint8_t dn; // leap second day number
-  int16_t el{-1}, azi{-1}, db{-1};
+
+  map<uint64_t, SVPerRecv> perrecv;
+
   map<int, SVIOD> iods;
   void addWord(std::basic_string_view<uint8_t> page);
   bool completeIOD() const;
@@ -535,6 +551,8 @@ try
 
       map<int, int> utcstats, gpsgststats;
       for(const auto& s: g_svstats) {
+        if(!s.second.wn) // this will suck in 20 years
+          continue;
         int dw = (uint8_t)s.second.wn - s.second.wn0t;
         int age = dw * 7 * 86400 + s.second.tow - s.second.t0t * 3600;
         utcstats[age]=s.first;
@@ -551,7 +569,8 @@ try
       else {
         int sv = utcstats.begin()->second; // freshest SV
         long shift = g_svstats[sv].a0 * (1LL<<20) + g_svstats[sv].a1 * utcstats.begin()->first; // in 2^-50 seconds units
-        ret["utc-offset-ns"] = 1.073741824*ldexp(shift, -20);
+        //        cout<<"sv: "<<sv<<", shift: "<<shift<<" a0: "<< g_svstats[sv].a0 << ", a1: "<< g_svstats[sv].a1 <<", age: "<< utcstats.begin()->first<<endl;
+        ret["utc-offset-ns"] = 1.073741824*ldexp(1.0*shift, -20);
 
         ret["leap-second-planned"] = (g_svstats[sv].dtLSF != g_svstats[sv].dtLS);
       }
@@ -561,7 +580,7 @@ try
       }
       else {
         int sv = gpsgststats.begin()->second; // freshest SV
-        long shift = g_svstats[sv].a0g * (1U<<16) + g_svstats[sv].a1g * utcstats.begin()->first; // in 2^-51 seconds units
+        long shift = g_svstats[sv].a0g * (1L<<16) + g_svstats[sv].a1g * gpsgststats.begin()->first; // in 2^-51 seconds units
         
         ret["gps-offset-ns"] = 1.073741824*ldexp(shift, -21);
       }
@@ -587,8 +606,16 @@ try
           item["e1bdvs"]=s.second.e1bdvs;
           item["e5bhs"]=s.second.e5bhs;
           item["e1bhs"]=s.second.e1bhs;                    
-          item["elev"]=s.second.el;
-          item["db"]=s.second.db;
+
+          nlohmann::json perrecv  = nlohmann::json::object();
+          for(const auto& pr : s.second.perrecv) {
+            nlohmann::json det  = nlohmann::json::object();
+            det["elev"] = pr.second.el;
+            det["db"] = pr.second.db;
+            det["last-seen-s"] = (7*86400*(latestWN() - pr.second.wn) + latestTow() - (int)pr.second.tow);
+            perrecv[to_string(pr.first)]=det;
+          }
+          item["perrecv"]=perrecv;
           item["eph-age-m"] = ephAge(s.second.tow, 60*s.second.liveIOD().t0e)/60.0;
           item["last-seen-s"] = s.second.tow ? (7*86400*(s.second.wn - s.second.wn) + latestTow() - (int)s.second.tow) : -1;
 
@@ -606,20 +633,13 @@ try
 
           Vector core2us(core, our);
           Vector dx(our, p); //  = x-ourx, dy = y-oury, dz = z-ourz;
+
+          // https://ds9a.nl/articles/
           
-          /* https://gis.stackexchange.com/questions/58923/calculating-view-angle
-             to calculate elevation:
-             Cos(elevation) = (x*dx + y*dy + z*dz) / Sqrt((x^2+y^2+z^2)*(dx^2+dy^2+dz^2))
-             Obtain its principal inverse cosine. Subtract this from 90 degrees if you want 
-             the angle of view relative to a nominal horizon. This is the "elevation."
-             NOTE! x = you on the ground!
-          */
           double elev = acos ( core2us.inner(dx) / (core2us.length() * dx.length()));
           double deg = 180.0* (elev/M_PI);
-          item["calc-elev"] = 90 - deg;
+          item["elev"] = 90 - deg;
           
-          cout<<s.first<<" calc elev radians "<< elev << ", deg "<< deg <<" calc-elev "<<(90-deg)<<", from ublox "<< s.second.el<<endl <<std::fixed<<" (" << our.x << ", "<< our.y <<", "<<our.z<<") -> ("
-              << p.x << ", "<< p.y <<", "<< p.z<<") "<<endl;// << sqrt(ourx*ourx + oury*oury + ourz*ourz) <<" - " << sqrt(x*x+y*y+z*z) <<endl;
 
           item["x"]=p.x;
           item["y"]=p.y;
@@ -682,19 +702,22 @@ try
     nmm.ParseFromString(string(buffer, len));
     if(nmm.type() == NavMonMessage::ReceptionDataType) {
       int sv = nmm.rd().gnsssv();
-      g_svstats[sv].db = nmm.rd().db();
-      g_svstats[sv].el = nmm.rd().el();
-      g_svstats[sv].azi = nmm.rd().azi();
+      g_svstats[sv].perrecv[nmm.sourceid()].db = nmm.rd().db();
+      g_svstats[sv].perrecv[nmm.sourceid()].el = nmm.rd().el();
+      g_svstats[sv].perrecv[nmm.sourceid()].azi = nmm.rd().azi();
       
-      idb.addValue(sv, "db", g_svstats[sv].db);
-      idb.addValue(sv, "elev", g_svstats[sv].el);
-      idb.addValue(sv, "azi", g_svstats[sv].azi);            
+      //      idb.addValue(sv, "db", g_svstats[sv].db);
+      // idb.addValue(sv, "elev", g_svstats[sv].el);
+      // idb.addValue(sv, "azi", g_svstats[sv].azi);            
     }
     else if(nmm.type() == NavMonMessage::GalileoInavType) {
       basic_string<uint8_t> inav((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
       int sv = nmm.gi().gnsssv();
       g_svstats[sv].wn = nmm.gi().gnsswn();
       g_svstats[sv].tow = nmm.gi().gnsstow();
+
+      g_svstats[sv].perrecv[nmm.sourceid()].wn = nmm.gi().gnsswn();
+      g_svstats[sv].perrecv[nmm.sourceid()].tow = nmm.gi().gnsstow();
       
       //      cout<<"inav for "<<wtype<<" for sv "<<sv<<": ";
       //      for(auto& c : inav)
@@ -838,9 +861,9 @@ try
 
           Vector core2us(core, us);
           Vector dx(us, sat); //  = x-ourx, dy = y-oury, dz = z-ourz;
-          double elev = acos ( core2us.inner(dx) / (core2us.length() * dx.length()));
-          double deg = 180.0* (elev/M_PI);
-          cout <<"elev: "<<90 - deg<< " ("<<g_svstats[sv].el<<")\n";
+          //          double elev = acos ( core2us.inner(dx) / (core2us.length() * dx.length()));
+          //double deg = 180.0* (elev/M_PI);
+          //          cout <<"elev: "<<90 - deg<< " ("<<g_svstats[sv].el<<")\n";
 
           us2sat.norm();
           double radvel=us2sat.inner(speed);
