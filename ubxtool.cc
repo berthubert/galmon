@@ -24,6 +24,8 @@ struct timespec g_gstutc;
 uint16_t g_wn;
 using namespace std;
 
+uint16_t g_srcid{2};
+
 #define BAUDRATE B921600 
 #define MODEMDEVICE "/dev/ttyACM0"
 
@@ -427,7 +429,7 @@ int main(int argc, char** argv)
           nmm.set_type(NavMonMessage::RFDataType);
           nmm.set_localutcseconds(g_gstutc.tv_sec);
           nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
-          nmm.set_sourceid(1); // XXX source id
+          nmm.set_sourceid(g_srcid); // XXX source id
 
           nmm.mutable_rfd()->set_gnssid(gnssid);
           nmm.mutable_rfd()->set_gnsssv(sv);
@@ -462,7 +464,7 @@ int main(int argc, char** argv)
         nmm.set_type(NavMonMessage::ObserverPositionType);
         nmm.set_localutcseconds(g_gstutc.tv_sec);
         nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
-        nmm.set_sourceid(1); // XXX source id
+        nmm.set_sourceid(g_srcid); // XXX source id
         nmm.mutable_op()->set_x(p.ecefX /100.0);
         nmm.mutable_op()->set_y(p.ecefY /100.0);
         nmm.mutable_op()->set_z(p.ecefZ /100.0);
@@ -470,102 +472,102 @@ int main(int argc, char** argv)
         emitNMM(1, nmm);
       }
       else if(msg.getClass() == 2 && msg.getType() == 0x13) {  // SFRBX
-      try {
-        pair<int,int> id = make_pair(payload[0], payload[1]);
-        if(id.first != 2)
-          continue; // not Galileo
-        auto inav = getInavFromSFRBXMsg(payload);
-        unsigned int wtype = getbitu(&inav[0], 0, 6);
-        tv[id] = timestamp;
+        try {
+          pair<int,int> id = make_pair(payload[0], payload[1]);
+          if(id.first != 2)
+            continue; // not Galileo
+          auto inav = getInavFromSFRBXMsg(payload);
+          unsigned int wtype = getbitu(&inav[0], 0, 6);
+          tv[id] = timestamp;
 
-        cerr<<"gnssid "<<id.first<<" sv "<<id.second<<" " << wtype << endl;
-        uint32_t satTOW;
-        int msgTOW{0};
-        if(getTOWFromInav(inav, &satTOW, &g_wn)) {
-          cerr<<"   "<<wtype<<" sv "<<id.second<<" tow "<<satTOW << " % 30 = "<< satTOW % 30<<", implied start of cycle: "<<(satTOW - (satTOW %30)) <<endl;
-          if(curCycleTOW != satTOW - (satTOW %30))
-            curCycleTOWFresh=false;
-          curCycleTOW = satTOW - (satTOW %30);
-          nextCycleTOW = curCycleTOW + 30;
-        }
-        else {
-          cerr<<"   "<<wtype<<" sv "<<id.second<<" tow ";
-          if(wtype == 2) {
-            cerr<<"infered to be 1 "<<nextCycleTOW + 1<<endl;
-            curCycleTOWFresh=false;
-            msgTOW = nextCycleTOW + 1;
+          cerr<<"gnssid "<<id.first<<" sv "<<id.second<<" " << wtype << endl;
+          uint32_t satTOW;
+          int msgTOW{0};
+          if(getTOWFromInav(inav, &satTOW, &g_wn)) {
+            cerr<<"   "<<wtype<<" sv "<<id.second<<" tow "<<satTOW << " % 30 = "<< satTOW % 30<<", implied start of cycle: "<<(satTOW - (satTOW %30)) <<endl;
+            if(curCycleTOW != satTOW - (satTOW %30))
+              curCycleTOWFresh=false;
+            msgTOW = satTOW;
+            curCycleTOW = satTOW - (satTOW %30);
+            nextCycleTOW = curCycleTOW + 30;
           }
-          else if(wtype == 4) {
-            cerr<<"infered to be 3 "<<nextCycleTOW + 3<<endl;
-            msgTOW = nextCycleTOW + 3;
-            curCycleTOWFresh=false;
-          } // next have '6' which sets TOW
-          else if(wtype==7 || wtype == 9) {
-            if(curCycleTOWFresh) {
-              cerr<<"infered to be 7 "<< curCycleTOW + 7<<endl;
-              msgTOW = curCycleTOW + 7;
+          else {
+            cerr<<"   "<<wtype<<" sv "<<id.second<<" tow ";
+            if(wtype == 2) {
+              cerr<<"infered to be 1 "<<nextCycleTOW + 1<<endl;
+              curCycleTOWFresh=false;
+              msgTOW = nextCycleTOW + 1;
             }
-            else {
-              cerr<<"infered to be 7 "<< nextCycleTOW + 7<<endl;
-              msgTOW = nextCycleTOW + 7;
+            else if(wtype == 4) {
+              cerr<<"infered to be 3 "<<nextCycleTOW + 3<<endl;
+              msgTOW = nextCycleTOW + 3;
+              curCycleTOWFresh=false;
+            } // next have '6' which sets TOW
+            else if(wtype==7 || wtype == 9) {
+              if(curCycleTOWFresh) {
+                cerr<<"infered to be 7 "<< curCycleTOW + 7<<endl;
+                msgTOW = curCycleTOW + 7;
+              }
+              else {
+                cerr<<"infered to be 7 "<< nextCycleTOW + 7<<endl;
+                msgTOW = nextCycleTOW + 7;
+              }
+            }
+            else if(wtype==8 || wtype == 10) {
+              if(curCycleTOWFresh) {
+                cerr<<"infered to be 9 "<< curCycleTOW + 9<<endl;
+                msgTOW = curCycleTOW + 9;
+              }
+              else {
+                cerr<<"infered to be 9 "<< nextCycleTOW + 9<<endl;
+                msgTOW = nextCycleTOW + 9;
+              }
+            }
+            else if(wtype==1) {
+              if(curCycleTOWFresh) {
+                cerr<<"infered to be 21 "<< curCycleTOW + 21<<endl;
+                msgTOW = curCycleTOW + 21;
+              }
+              else {
+                cerr<<"infered to be 21 "<< nextCycleTOW + 21<<endl;
+                msgTOW = nextCycleTOW + 21;
+              }
+            }
+            else if(wtype==3) {
+              if(curCycleTOWFresh) {
+                msgTOW = curCycleTOW + 23; 
+                cerr<<"infered to be 23 "<< curCycleTOW + 23 <<endl;
+              }
+              else {
+                cerr<<"infered to be 23 "<< nextCycleTOW + 23 <<endl;
+                msgTOW = nextCycleTOW + 23;
+              }
+            }
+            else { // dummy
+              cerr<<"what kind of wtype is this"<<endl;
+              continue;
             }
           }
-          else if(wtype==8 || wtype == 10) {
-            if(curCycleTOWFresh) {
-              cerr<<"infered to be 9 "<< curCycleTOW + 9<<endl;
-              msgTOW = curCycleTOW + 9;
-            }
-            else {
-              cerr<<"infered to be 9 "<< nextCycleTOW + 9<<endl;
-              msgTOW = nextCycleTOW + 9;
-            }
-          }
-          else if(wtype==1) {
-            if(curCycleTOWFresh) {
-              cerr<<"infered to be 21 "<< curCycleTOW + 21<<endl;
-              msgTOW = curCycleTOW + 21;
-            }
-            else {
-              cerr<<"infered to be 21 "<< nextCycleTOW + 21<<endl;
-              msgTOW = nextCycleTOW + 21;
-            }
-          }
-          else if(wtype==3) {
-            if(curCycleTOWFresh) {
-              msgTOW = curCycleTOW + 23; 
-              cerr<<"infered to be 23 "<< curCycleTOW + 23 <<endl;
-            }
-            else {
-              cerr<<"infered to be 23 "<< nextCycleTOW + 23 <<endl;
-              msgTOW = nextCycleTOW + 23;
-            }
-          }
-          else { // dummy
-            cerr<<"what kind of wtype is this"<<endl;
-            continue;
-          }
-
           NavMonMessage nmm;
-          nmm.set_sourceid(1);
+          nmm.set_sourceid(g_srcid);
           nmm.set_type(NavMonMessage::GalileoInavType);
           nmm.set_localutcseconds(g_gstutc.tv_sec);
           nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
-
+        
           nmm.mutable_gi()->set_gnsswn(g_wn);
           nmm.mutable_gi()->set_gnsstow(msgTOW);
           nmm.mutable_gi()->set_gnssid(id.first);
           nmm.mutable_gi()->set_gnsssv(id.second);
           nmm.mutable_gi()->set_contents((const char*)&inav[0], inav.size());
-
-          emitNMM(1, nmm);
-        }
-          
         
-        if(0 && lasttv.count(id)) {
-          fmt::fprintf(stderr, "gnssid %d sv %d wtype %d, %d:%d -> %d:%d, delta=%d\n", 
-                       payload[0], payload[1], wtype, lasttv[id].tv_sec, lasttv[id].tv_usec, tv[id].tv_sec, tv[id].tv_usec, tv[id].tv_usec - lasttv[id].tv_usec);
-        }
-        lasttv[id]=tv[id];          
+          emitNMM(1, nmm);
+        
+        
+          if(0 && lasttv.count(id)) {
+            fmt::fprintf(stderr, "gnssid %d sv %d wtype %d, %d:%d -> %d:%d, delta=%d\n", 
+                         payload[0], payload[1], wtype, lasttv[id].tv_sec, lasttv[id].tv_usec, tv[id].tv_sec, tv[id].tv_usec, tv[id].tv_usec - lasttv[id].tv_usec);
+          }
+          lasttv[id]=tv[id];          
         }
         catch(CRCMismatch& cm) {
           cerr<<"Had CRC mismatch!"<<endl;
@@ -589,7 +591,7 @@ int main(int argc, char** argv)
             auto db = (int)payload[10+12*n];
 
             NavMonMessage nmm;
-            nmm.set_sourceid(1);
+            nmm.set_sourceid(g_srcid);
             nmm.set_localutcseconds(g_gstutc.tv_sec);
             nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
 
