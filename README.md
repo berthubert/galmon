@@ -32,3 +32,10 @@ The magic value is there to help us resync from partially written data.
 The whole goal is that we can continue to rebuild the database by 
 rerunning 'navstore' and 'navinflux'.
 
+ubxtool
+-------
+ * Will also spool raw serial data to disk (in a filename that includes the
+   start date)
+ * Can also read from disk
+ * Careful to add the right timestamps
+

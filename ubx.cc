@@ -2,6 +2,7 @@
 #include "ubx.hh"
 #include "fmt/format.h"
 #include "fmt/printf.h"
+#include "bits.hh"
 
 using namespace std;
 uint16_t calcUbxChecksum(uint8_t ubxClass, uint8_t ubxType, std::basic_string_view<uint8_t> str)
@@ -57,4 +58,32 @@ std::basic_string<uint8_t> buildUbxMessage(uint8_t ubxClass, uint8_t ubxType, st
   fmt::fprintf(stderr,"\n");
   */
   return msg;
+}
+
+basic_string<uint8_t> getInavFromSFRBXMsg(std::basic_string_view<uint8_t> msg)
+{
+  // byte order adjustment
+  std::basic_string<uint8_t> payload;
+  for(unsigned int i = 0 ; i < (msg.size() - 8) / 4; ++i)
+    for(int j=1; j <= 4; ++j)
+      payload.append(1, msg[8 + (i+1) * 4 -j]);
+
+  /* test crc (4(pad) + 114 + 82 bits) */
+  unsigned char crc_buff[26]={0};
+  unsigned int i,j;
+  for (i=0,j=  4;i<15;i++,j+=8) setbitu(crc_buff,j,8,getbitu(payload.c_str()   ,i*8,8));
+  for (i=0,j=118;i<11;i++,j+=8) setbitu(crc_buff,j,8,getbitu(payload.c_str()+16,i*8,8));
+  if (rtk_crc24q(crc_buff,25) != getbitu(payload.c_str()+16,82,24)) {
+    cout << "CRC mismatch, " << rtk_crc24q(crc_buff, 25) << " != " << getbitu(payload.c_str()+16,82,24) <<endl;
+    throw CRCMismatch();
+  }
+
+  std::basic_string<uint8_t> inav;
+  
+  for (i=0,j=2; i<14; i++, j+=8)
+    inav.append(1, (unsigned char)getbitu(payload.c_str()   ,j,8));
+  for (i=0,j=2; i< 2; i++, j+=8)
+    inav.append(1, (unsigned char)getbitu(payload.c_str()+16,j,8));
+
+  return inav;
 }

@@ -1,0 +1,53 @@
+syntax = "proto2";
+
+message NavMonMessage {
+  enum Type {
+    ReceptionDataType = 1;
+    ObserverPositionType = 2;
+    GalileoInavType = 3;
+    RFDataType = 4;
+  }
+
+  required uint64 sourceID = 1;
+
+  required Type type = 2;
+  required uint64 localUtcSeconds = 3;
+  required uint64 localUtcNanoseconds = 4;
+
+  message GalileoInav {
+	required uint32 gnssWN =1;
+  	required uint32 gnssTOW =2; // INTEGERS!
+
+	required uint32 gnssID =3;
+	required uint32 gnssSV =4;
+	required bytes contents =5;
+  }
+  
+  message ReceptionData {
+        required uint32 gnssID =1;
+	required uint32 gnssSV =2;
+  	required uint32 db     =3;
+        required uint32 el     =4;
+        required uint32 azi    =5;
+        required double prRes  =6;
+  }
+
+  message RFData {
+	required uint32 gnssID =1;
+	required uint32 gnssSV =2;
+	required double doppler =3;
+	required double carrierphase =4;
+  }
+
+  message ObserverPosition {
+          required double x = 1;
+          required double y = 2;
+          required double z = 3;
+          required double accCm = 4;
+  }
+
+  optional GalileoInav gi=5;
+  optional ReceptionData rd=6;  
+  optional RFData rfd=7;
+  optional ObserverPosition op=8;
+}
