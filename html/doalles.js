@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "iod", "eph-age-m", "sisa", "e1bhs", "e1bdvs", "e5bhs", "e5bdvs", "a0", "a1","a0g", "a1g", "calc-elev", "db", "last-seen-s"];    
+    var columns = ["sv", "iod", "eph-age-m", "sisa", "e1bhs", "e1bdvs", "e5bhs", "e5bdvs", "a0", "a1","a0g", "a1g", "sources", "db", "elev", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -38,8 +38,8 @@ function maketable(str, arr)
                     var b = moment.duration(row[column], 's');
                     ret.value = b.humanize();
                 }
-                else if(column == "calc-elev") 
-                    ret.value = row[column].toFixed(1);
+//                else if(column == "elev") 
+  //                  ret.value = row[column].toFixed(1);
                 else if(column == "e1bdvs" || column =="e5bdvs")  {                    
                     if(row[column] == 0)
                         ret.value = "valid";
@@ -84,6 +84,10 @@ function update()
     clearTimeout(repeat);
     repeat=setTimeout(update, 1000.0*seconds);
 
+    d3.json("global", function(d) {
+        d3.select('#facts').html("Galileo-UTC offset: <b>"+d["utc-offset-ns"].toFixed(2)+"</b> ns, Galileo-GPS offset: <b>"+d["gps-offset-ns"].toFixed(2)+"</b> ns<b>, "+d["leap-seconds"]+"</b> leap seconds");
+    });
+    
     d3.json("svs", function(d) {
         // put data in an array
         sats=d;
@@ -91,6 +95,20 @@ function update()
         Object.keys(d).forEach(function(e) {
             var o = d[e];
             o.sv=e;
+            o.sources="";
+            o.db="";
+            o.elev="";
+            Object.keys(o.perrecv).forEach(function(k) {
+                if(o.perrecv[k]["last-seen-s"] < 1800) {
+                    o.sources = o.sources + k +" ";
+                    o.db = o.db + o.perrecv[k].db +" ";
+                    if(o.perrecv[k].elev != null)
+                        o.elev = o.elev + o.perrecv[k].elev.toFixed(0)+" ";
+                    else
+                        o.elev = o.elev + "? ";
+                }
+            });
+            
             arr.push(o);
         });
 
