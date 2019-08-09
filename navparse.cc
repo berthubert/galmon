@@ -530,6 +530,7 @@ try
   
   H2OWebserver h2s("galmon");
 
+  
   h2s.addHandler("/global", [](auto handler, auto req) {
       nlohmann::json ret = nlohmann::json::object();
       ret["leap-seconds"] = g_dtLS;
@@ -660,14 +661,16 @@ try
   clockcsv <<"timestamp sv af0 af1 af2 t0c age offset"<<endl;
 
   ofstream dopplercsv("doppler.csv");
-  dopplercsv<<"timestamp gnssid sv prmes cpmes doppler preddop distance radvel locktimems iod_age prstd cpstd dostd trkstat"<<endl;
+  dopplercsv<<"timestamp gnssid sv prmes cpmes doppler preddop distance radvel locktimems iod_age prstd cpstd dostd"<<endl;
 
   
   try {
   for(;;) {
     char bert[4];
-    if(read(0, bert, 4) != 4 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t')
+    if(read(0, bert, 4) != 4 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
+      cerr<<"EOF or bad magic"<<endl;
       break;
+    }
     
     uint16_t len;
     if(read(0, &len, 2) != 2)
@@ -778,11 +781,11 @@ try
             
             Point p, oldp;
             getCoordinates(ent.second.wn, ent.second.tow, ent.second.liveIOD(), &p);
-            cout << ent.first << ": iod= "<<ent.second.getIOD()<<" "<< p.x/1000.0 << ", "<< p.y/1000.0 <<", "<<p.z/1000.0<<endl;
+            //            cout << ent.first << ": iod= "<<ent.second.getIOD()<<" "<< p.x/1000.0 << ", "<< p.y/1000.0 <<", "<<p.z/1000.0<<endl;
             
-            cout<<"OLD: \n";
+            //            cout<<"OLD: \n";
             getCoordinates(ent.second.wn, ent.second.tow, ent.second.prevIOD.second, &oldp);
-            cout << ent.first << ": iod= "<<ent.second.prevIOD.first<<" "<< oldp.x/1000.0 << ", "<< oldp.y/1000.0 <<", "<<oldp.z/1000.0<<endl;
+            //            cout << ent.first << ": iod= "<<ent.second.prevIOD.first<<" "<< oldp.x/1000.0 << ", "<< oldp.y/1000.0 <<", "<<oldp.z/1000.0<<endl;
             
             double hours = ((ent.second.liveIOD().t0e - ent.second.prevIOD.second.t0e)/60.0);
             double disco = Vector(p, oldp).length();
@@ -815,57 +818,24 @@ try
           }
         }
     }
-    
-#if 0
-    else if(ubxClass == 0x01 && ubxType == 0x01) {  // POSECF
-      struct pos
-      {
-        uint32_t iTOW;
-        int32_t ecefX; // cm
-        int32_t ecefY;
-        int32_t ecefZ;
-        uint32_t pAcc;
-      };
-      pos p;
-      memcpy(&p, msg.c_str(), sizeof(pos));
-      cout<<"Position: ("<< p.ecefX / 100000.0<<", "
-          << p.ecefY / 100000.0<<", "
-          << p.ecefZ / 100000.0<<") +- "<<p.pAcc<<" cm"<<endl;
-      g_ourpos.x = p.ecefX/100.0;
-      g_ourpos.y = p.ecefY/100.0;
-      g_ourpos.z = p.ecefZ/100.0;
+    else if(nmm.type() == NavMonMessage::ObserverPositionType) {
+      // XXX!! this has to deal with source id!
+      g_ourpos.x = nmm.op().x();
+      g_ourpos.y = nmm.op().y();
+      g_ourpos.z = nmm.op().z();
     }
-    else if(ubxClass == 0x02 && ubxType == 0x15) {  // RAWX
-      cout<<"Got "<<(int)msg[11] <<" measurements "<<endl;
-      double rcvTow;
-      memcpy(&rcvTow, &msg[0], 8);        
-      for(int n=0 ; n < msg[11]; ++n) {
+    else if(nmm.type() == NavMonMessage::RFDataType) {
+      int sv = nmm.rfd().gnsssv();
+      if(nmm.rfd().gnssid() ==2 && g_svstats[sv].completeIOD()) {
+        Point sat;
+        Point us=g_ourpos;
 
-        double prMes;
-        double cpMes;
-        float doppler;
-
-        memcpy(&prMes, &msg[16+32*n], 8);
-        memcpy(&cpMes, &msg[24+32*n], 8);
-        memcpy(&doppler, &msg[32+32*n], 4);
-
-        int gnssid = msg[36+32*n];
-        int sv = msg[37+32*n];
-        uint16_t locktimems;
-        memcpy(&locktimems, &msg[40+32*n], 2);
-        uint8_t prStddev = msg[43+23*n] & 0xf;
-        uint8_t cpStddev = msg[44+23*n] & 0xf;
-        uint8_t doStddev = msg[45+23*n] & 0xf;
-        uint8_t trkStat = msg[46+23*n] & 0xf;
-        if(gnssid ==2 && g_svstats[sv].completeIOD()) {
-          Point sat;
-          Point us=g_ourpos;
-
-          getCoordinates(g_svstats[sv].wn, rcvTow, g_svstats[sv].liveIOD(), &sat);
+        
+        getCoordinates(g_svstats[sv].wn, nmm.rfd().rcvtow(), g_svstats[sv].liveIOD(), &sat);
           Point core;
           Vector us2sat(us, sat);
           Vector speed;
-          getSpeed(g_svstats[sv].wn, rcvTow, g_svstats[sv].liveIOD(), &speed);
+          getSpeed(g_svstats[sv].wn, nmm.rfd().rcvtow(), g_svstats[sv].liveIOD(), &speed);
           cout<<sv<<" radius: "<<Vector(core, sat).length()<<",  distance: "<<us2sat.length()<<", orbital velocity: "<<speed.length()/1000.0<<" km/s, ";
 
           Vector core2us(core, us);
@@ -881,16 +851,18 @@ try
           double preddop = -galileol1f*radvel/c;
           
           double ephage = ephAge(g_svstats[sv].tow, g_svstats[sv].liveIOD().t0e*60);
-          cout<<"Radial velocity: "<< radvel<<", predicted doppler: "<< preddop << ", measured doppler: "<<doppler<<endl;
-          dopplercsv << std::fixed << utcFromGST(g_svstats[sv].wn, rcvTow) <<" " <<gnssid <<" " <<sv<<" "<<prMes<<" "<<cpMes <<" " << doppler<<" " << preddop << " " << Vector(us, sat).length() << " " <<radvel <<" " <<locktimems<<" " <<ephage << " " << ldexp(0.01, prStddev) << " " << cpStddev *0.4 <<" " << 
-            ldexp(0.002, doStddev) <<" " << (unsigned int)trkStat << endl;
+          cout<<"Radial velocity: "<< radvel<<", predicted doppler: "<< preddop << ", measured doppler: "<<nmm.rfd().doppler()<<endl;
+          dopplercsv << std::fixed << utcFromGST(g_svstats[sv].wn, nmm.rfd().rcvtow()) <<" " << nmm.rfd().gnssid() <<" " <<sv<<" "<<nmm.rfd().pseudorange()<<" "<< nmm.rfd().carrierphase() <<" " << nmm.rfd().doppler()<<" " << preddop << " " << Vector(us, sat).length() << " " <<radvel <<" " << nmm.rfd().locktimems()<<" " <<ephage << " " << nmm.rfd().prstd() << " " << nmm.rfd().cpstd() <<" " << 
+            nmm.rfd().dostd() << endl;
         }
-      }
+
+
+      
+    }
+    else {
+      cout<<"Unknown type "<< (int)nmm.type()<<endl;
     }
     
-    else
-      cout << "ubxClass: "<<(unsigned int)ubxClass<<", ubxType: "<<(unsigned int)ubxType<<", size="<<msg.size()<<endl;
-  #endif
   }
   }
   catch(EofException& e)

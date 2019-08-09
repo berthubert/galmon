@@ -33,10 +33,16 @@ message NavMonMessage {
   }
 
   message RFData {
-	required uint32 gnssID =1;
-	required uint32 gnssSV =2;
-	required double doppler =3;
-	required double carrierphase =4;
+        required double rcvTow = 1;
+	required uint32 gnssID =2;
+	required uint32 gnssSV =3;
+	required double doppler =4;
+	required double carrierphase = 5;
+        required double pseudorange = 6;
+        required double locktimeMS = 7;
+        required double doStd = 8;
+        required double cpStd = 9;
+        required double prStd = 10;
   }
 
   message ObserverPosition {

@@ -401,8 +401,49 @@ int main(int argc, char** argv)
           fmt::fprintf(stderr, "Our UTC      : %02d:%02d:%06.4f -> %.4f or %d:%f -> delta = %.4fs\n", tm.tm_hour, tm.tm_min, seconds, ourutc, timestamp.tv_sec, 1.0*timestamp.tv_usec, ourutc - satutc);
         }
       }
+      else if(msg.getClass() == 0x02 && msg.getType() == 0x15) {  // RAWX
+        //        cerr<<"Got "<<(int)payload[11] <<" measurements "<<endl;
+        double rcvTow;
+        memcpy(&rcvTow, &payload[0], 8);        
+        for(int n=0 ; n < payload[11]; ++n) {
+          double prMes;
+          double cpMes;
+          float doppler;
+          
+          memcpy(&prMes, &payload[16+32*n], 8);
+          memcpy(&cpMes, &payload[24+32*n], 8);
+          memcpy(&doppler, &payload[32+32*n], 4);
+          
+          int gnssid = payload[36+32*n];
+          int sv = payload[37+32*n];
+          uint16_t locktimems;
+          memcpy(&locktimems, &payload[40+32*n], 2);
+          uint8_t prStddev = payload[43+23*n] & 0xf;
+          uint8_t cpStddev = payload[44+23*n] & 0xf;
+          uint8_t doStddev = payload[45+23*n] & 0xf;
+          uint8_t trkStat = payload[46+23*n] & 0xf;
+
+          NavMonMessage nmm;
+          nmm.set_type(NavMonMessage::RFDataType);
+          nmm.set_localutcseconds(g_gstutc.tv_sec);
+          nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
+          nmm.set_sourceid(1); // XXX source id
+
+          nmm.mutable_rfd()->set_gnssid(gnssid);
+          nmm.mutable_rfd()->set_gnsssv(sv);
+          nmm.mutable_rfd()->set_rcvtow(rcvTow);
+          nmm.mutable_rfd()->set_doppler(doppler);
+          nmm.mutable_rfd()->set_carrierphase(cpMes);
+          nmm.mutable_rfd()->set_pseudorange(prMes);
+
+          nmm.mutable_rfd()->set_prstd(ldexp(0.01, prStddev));
+          nmm.mutable_rfd()->set_dostd(ldexp(0.002, doStddev));
+          nmm.mutable_rfd()->set_cpstd(cpStddev*0.4);
+          nmm.mutable_rfd()->set_locktimems(locktimems);
+          emitNMM(1, nmm);
+        }
+      }
       else if(msg.getClass() == 0x01 && msg.getType() == 0x01) {  // POSECF
-        // must conver this into protobuf
         struct pos
         {
           uint32_t iTOW;
@@ -421,11 +462,11 @@ int main(int argc, char** argv)
         nmm.set_type(NavMonMessage::ObserverPositionType);
         nmm.set_localutcseconds(g_gstutc.tv_sec);
         nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
-
+        nmm.set_sourceid(1); // XXX source id
         nmm.mutable_op()->set_x(p.ecefX /100.0);
         nmm.mutable_op()->set_y(p.ecefY /100.0);
         nmm.mutable_op()->set_z(p.ecefZ /100.0);
-        nmm.mutable_op()->set_accCM(p.pAcc /100.0);
+        nmm.mutable_op()->set_acccm(p.pAcc /100.0);
         emitNMM(1, nmm);
       }
       else if(msg.getClass() == 2 && msg.getType() == 0x13) {  // SFRBX
@@ -524,15 +565,16 @@ int main(int argc, char** argv)
         lasttv[id]=tv[id];          
       }
       else if(msg.getClass() == 1 && msg.getType() == 0x35) { // UBX-NAV-SAT
-        cerr<< "Info for "<<(int) payload[5]<<" svs: \n";
+        //        cerr<< "Info for "<<(int) payload[5]<<" svs: \n";
         for(unsigned int n = 0 ; n < payload[5]; ++n) {
+          /*
           cerr << "  "<<(payload[8+12*n] ? 'E' : 'G') << (int)payload[9+12*n] <<" db=";
           cerr << (int)payload[10+12*n]<<" elev="<<(int)(char)payload[11+12*n]<<" azi=";
           cerr << ((int)payload[13+12*n]*256 + payload[12+12*n])<<" prres="<< *((int16_t*)(payload.c_str()+ 14 +12*n)) *0.1 << " signal="<< ((int)(payload[16+12*n])&7) << " used="<<  (payload[16+12*n]&8);
           
           fmt::fprintf(stderr, " | %02x %02x %02x %02x\n", (int)payload[16+12*n], (int)payload[17+12*n],
                       (int)payload[18+12*n], (int)payload[19+12*n]);
-          
+          */
           if(payload[8+12*n]==2) { // galileo
             int sv = payload[9+12*n];
             auto el = (int)(char)payload[11+12*n];
