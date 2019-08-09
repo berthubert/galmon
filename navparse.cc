@@ -7,9 +7,7 @@
 #include <fstream>
 #include <map>
 #include <bitset>
-#include <curses.h>
 #include <vector>
-#include <boost/algorithm/string.hpp>
 #include <thread>
 #include <signal.h>
 #include "ext/powerblog/h2o-pp.hh"

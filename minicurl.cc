@@ -26,7 +26,8 @@
 #include <curl/curl.h>
 #include <stdexcept>
 #include <vector>
-#include <boost/format.hpp> // XXX 
+#include "fmt/format.h"
+#include "fmt/printf.h"
 void MiniCurl::init()
 {
   static std::atomic_flag s_init = ATOMIC_FLAG_INIT;
@@ -96,7 +97,7 @@ void MiniCurl::setupURL(const std::string& str, const ComboAddress* rem, const C
     }
 
     for (const auto& port : ports) {
-      string hcode = boost::str(boost::format("%s:%u:%s") % host4 % port % rem->toString());
+      string hcode = fmt::format("%s:%u:%s", host4 , port , rem->toString());
       hostlist = curl_slist_append(hostlist, hcode.c_str());
     }
 

@@ -470,7 +470,10 @@ int main(int argc, char** argv)
         emitNMM(1, nmm);
       }
       else if(msg.getClass() == 2 && msg.getType() == 0x13) {  // SFRBX
+      try {
         pair<int,int> id = make_pair(payload[0], payload[1]);
+        if(id.first != 2)
+          continue; // not Galileo
         auto inav = getInavFromSFRBXMsg(payload);
         unsigned int wtype = getbitu(&inav[0], 0, 6);
         tv[id] = timestamp;
@@ -563,6 +566,10 @@ int main(int argc, char** argv)
                        payload[0], payload[1], wtype, lasttv[id].tv_sec, lasttv[id].tv_usec, tv[id].tv_sec, tv[id].tv_usec, tv[id].tv_usec - lasttv[id].tv_usec);
         }
         lasttv[id]=tv[id];          
+        }
+        catch(CRCMismatch& cm) {
+          cerr<<"Had CRC mismatch!"<<endl;
+        }
       }
       else if(msg.getClass() == 1 && msg.getType() == 0x35) { // UBX-NAV-SAT
         //        cerr<< "Info for "<<(int) payload[5]<<" svs: \n";
