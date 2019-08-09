@@ -233,20 +233,35 @@ void enableUBXMessageUSB(int fd, uint8_t ubxClass, uint8_t ubxType)
     throw std::runtime_error("Got NACK enabling UBX message "+to_string((int)ubxClass)+" "+to_string((int)ubxType));
 }
 
+bool isCharDevice(string_view fname)
+{
+  struct stat sb;
+  if(stat(&fname[0], &sb) < 0)
+    return false;
+  return (sb.st_mode & S_IFMT) == S_IFCHR;
+}
+
+
+// ubxtool device srcid
 int main(int argc, char** argv)
-{                                                                         
+{
+  if(argc != 3) {
+    cout<<"syntax: ubxtool /dev/ttyACM0 1\nDevice name, followed by your assigned source id"<<endl;
+    return EXIT_FAILURE;
+  }
   struct termios oldtio,newtio;                                           
   int fd;
   bool fromFile=false;
-  if(argc > 1) {
+  if(string(argv[1]) != "stdin" && string(argv[1]) != "/dev/stdin" && isCharDevice(argv[1]))
+    fd = open(argv[1], O_RDWR | O_NOCTTY );
+  else {
     fromFile = true;
     fd = open(argv[1], O_RDONLY );
   }
-  else
-    fd = open(MODEMDEVICE, O_RDWR | O_NOCTTY );
-
-  if (fd <0) {perror(MODEMDEVICE); exit(-1); }                            
-
+  if (fd <0) {perror(argv[1]); exit(-1); }                            
+  
+  g_srcid = atoi(argv[2]);
+  
   if(!fromFile) {
     tcgetattr(fd,&oldtio); /* save current port settings */                 
     
