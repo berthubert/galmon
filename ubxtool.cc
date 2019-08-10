@@ -421,7 +421,8 @@ int main(int argc, char** argv)
       else if(msg.getClass() == 0x02 && msg.getType() == 0x15) {  // RAWX
         //        cerr<<"Got "<<(int)payload[11] <<" measurements "<<endl;
         double rcvTow;
-        memcpy(&rcvTow, &payload[0], 8);        
+        memcpy(&rcvTow, &payload[0], 8);
+        uint16_t rcvWn = payload[8] + 256*payload[9];
         for(int n=0 ; n < payload[11]; ++n) {
           double prMes;
           double cpMes;
@@ -449,6 +450,7 @@ int main(int argc, char** argv)
           nmm.mutable_rfd()->set_gnssid(gnssid);
           nmm.mutable_rfd()->set_gnsssv(sv);
           nmm.mutable_rfd()->set_rcvtow(rcvTow);
+          nmm.mutable_rfd()->set_rcvwn(rcvWn);
           nmm.mutable_rfd()->set_doppler(doppler);
           nmm.mutable_rfd()->set_carrierphase(cpMes);
           nmm.mutable_rfd()->set_pseudorange(prMes);

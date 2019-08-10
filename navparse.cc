@@ -851,31 +851,33 @@ try
         Point sat;
         Point us=g_ourpos;
 
+        // be careful with time here - we need to evaluate at the timestamp of this RFDataType update
+        // which might be newer than .tow in g_svstats
+        getCoordinates(nmm.rfd().rcvwn(), nmm.rfd().rcvtow(), g_svstats[sv].liveIOD(), &sat);
+        Point core;
+        Vector us2sat(us, sat);
+        Vector speed;
+        getSpeed(nmm.rfd().rcvwn(), nmm.rfd().rcvtow(), g_svstats[sv].liveIOD(), &speed);
+        cout<<sv<<" radius: "<<Vector(core, sat).length()<<",  distance: "<<us2sat.length()<<", orbital velocity: "<<speed.length()/1000.0<<" km/s, ";
         
-        getCoordinates(g_svstats[sv].wn, nmm.rfd().rcvtow(), g_svstats[sv].liveIOD(), &sat);
-          Point core;
-          Vector us2sat(us, sat);
-          Vector speed;
-          getSpeed(g_svstats[sv].wn, nmm.rfd().rcvtow(), g_svstats[sv].liveIOD(), &speed);
-          cout<<sv<<" radius: "<<Vector(core, sat).length()<<",  distance: "<<us2sat.length()<<", orbital velocity: "<<speed.length()/1000.0<<" km/s, ";
-
-          Vector core2us(core, us);
-          Vector dx(us, sat); //  = x-ourx, dy = y-oury, dz = z-ourz;
-          //          double elev = acos ( core2us.inner(dx) / (core2us.length() * dx.length()));
-          //double deg = 180.0* (elev/M_PI);
-          //          cout <<"elev: "<<90 - deg<< " ("<<g_svstats[sv].el<<")\n";
-
-          us2sat.norm();
-          double radvel=us2sat.inner(speed);
-          double c=299792458;
-          double galileol1f = 1575.42 * 1000000; // frequency
-          double preddop = -galileol1f*radvel/c;
-          
-          double ephage = ephAge(g_svstats[sv].tow, g_svstats[sv].liveIOD().t0e*60);
-          cout<<"Radial velocity: "<< radvel<<", predicted doppler: "<< preddop << ", measured doppler: "<<nmm.rfd().doppler()<<endl;
-          dopplercsv << std::fixed << utcFromGST(g_svstats[sv].wn, nmm.rfd().rcvtow()) <<" " << nmm.rfd().gnssid() <<" " <<sv<<" "<<nmm.rfd().pseudorange()<<" "<< nmm.rfd().carrierphase() <<" " << nmm.rfd().doppler()<<" " << preddop << " " << Vector(us, sat).length() << " " <<radvel <<" " << nmm.rfd().locktimems()<<" " <<ephage << " " << nmm.rfd().prstd() << " " << nmm.rfd().cpstd() <<" " << 
-            nmm.rfd().dostd() << endl;
-        }
+        Vector core2us(core, us);
+        Vector dx(us, sat); //  = x-ourx, dy = y-oury, dz = z-ourz;
+        //          double elev = acos ( core2us.inner(dx) / (core2us.length() * dx.length()));
+        //double deg = 180.0* (elev/M_PI);
+        //          cout <<"elev: "<<90 - deg<< " ("<<g_svstats[sv].el<<")\n";
+        
+        us2sat.norm();
+        double radvel=us2sat.inner(speed);
+        double c=299792458;
+        double galileol1f = 1575.42 * 1000000; // frequency
+        double preddop = -galileol1f*radvel/c;
+        
+        // be careful with time here - 
+        double ephage = ephAge(nmm.rfd().rcvtow(), g_svstats[sv].liveIOD().t0e*60);
+        cout<<"Radial velocity: "<< radvel<<", predicted doppler: "<< preddop << ", measured doppler: "<<nmm.rfd().doppler()<<endl;
+        dopplercsv << std::fixed << utcFromGST(g_svstats[sv].wn, nmm.rfd().rcvtow()) <<" " << nmm.rfd().gnssid() <<" " <<sv<<" "<<nmm.rfd().pseudorange()<<" "<< nmm.rfd().carrierphase() <<" " << nmm.rfd().doppler()<<" " << preddop << " " << Vector(us, sat).length() << " " <<radvel <<" " << nmm.rfd().locktimems()<<" " <<ephage << " " << nmm.rfd().prstd() << " " << nmm.rfd().cpstd() <<" " << 
+          nmm.rfd().dostd() << endl;
+      }
 
 
       

@@ -10,9 +10,11 @@ Tooling:
    frames & metadata
  * navtrans: transmits GNSS NAV frames emitted by ubxtool to a collector.
    Performs some best effort buffering & will reconnect if needed.
+   UPDATE -> will be part of ubxtool
  * navrecv: receives GNSS NAV frames and stores them on disk, split out per
-   sender
- * navstore: tails the file stored by navrecv, puts them in LMDB
+   sender. UPDATE -> part of navnexus
+ * navstore: tails the file stored by navrecv, puts them in LMDB.
+   UPDATE -> part of navnexus
  * navstream: produces a stream of NAV updates from all sources, with a few
    seconds delay so all data is in. Does this with queries to LMDB
  * navweb: consumes these ordered nav updates for a nice website
@@ -31,6 +33,14 @@ The magic value is there to help us resync from partially written data.
 
 The whole goal is that we can continue to rebuild the database by 
 rerunning 'navstore' and 'navinflux'.
+
+Big TODO
+--------
+
+ * Oddity of ephemeris age in doppler graph (possibly wider)
+ * Navnexus permanence
+ * Semantics definition for output of Navnexus
+ * Idempotency and retransmit by ubxtool
 
 ubxtool
 -------

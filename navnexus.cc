@@ -52,16 +52,19 @@ void recvSession(int s, ComboAddress client)
     if(nmm.type() == NavMonMessage::GalileoInavType) {
       std::lock_guard<std::mutex> lg(g_dedupmut);
       if(g_dedup.count({nmm.gi().gnssid(), nmm.gi().gnsssv(), nmm.gi().gnsswn(), nmm.gi().gnsstow()})) {
-        cerr<<"Dedupped message from "<< nmm.sourceid()<<" "<< fmt::format("{0} {1} {2} {3}", nmm.gi().gnssid(), nmm.gi().gnsssv(), nmm.gi().gnsswn(), nmm.gi().gnsstow()) << endl;
+        //        cerr<<"Dedupped message from "<< nmm.sourceid()<<" "<< fmt::format("{0} {1} {2} {3}", nmm.gi().gnssid(), nmm.gi().gnsssv(), nmm.gi().gnsswn(), nmm.gi().gnsstow()) << endl;
         continue;
       }
-      cerr<<"New message from "<< nmm.sourceid()<<" "<< fmt::format("{0} {1} {2} {3}", nmm.gi().gnssid(), nmm.gi().gnsssv(), nmm.gi().gnsswn(), nmm.gi().gnsstow()) << endl;
+      //      cerr<<"New message from "<< nmm.sourceid()<<" "<< fmt::format("{0} {1} {2} {3}", nmm.gi().gnssid(), nmm.gi().gnsssv(), nmm.gi().gnsswn(), nmm.gi().gnsstow()) << endl;
       g_dedup.insert({nmm.gi().gnssid(), nmm.gi().gnsssv(), nmm.gi().gnsswn(), nmm.gi().gnsstow()});
     }
     else
       ; //      cerr<<"Not an inav message "<< (int) nmm.type()<<endl;
 
     g_history.insert({{nmm.localutcseconds(), nmm.localutcnanoseconds()}, out});
+    if(write(g_store, out.c_str(), out.size()) != out.size()) {
+      cerr<<"Failed to store message in buffer"<<endl;
+    }
     for(const auto& fd : g_clients) {
       SWrite(fd, out);
     }
