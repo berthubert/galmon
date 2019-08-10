@@ -245,6 +245,9 @@ bool isCharDevice(string_view fname)
 // ubxtool device srcid
 int main(int argc, char** argv)
 {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  
   if(argc != 3) {
     cout<<"syntax: ubxtool /dev/ttyACM0 1\nDevice name, followed by your assigned source id"<<endl;
     return EXIT_FAILURE;
@@ -356,9 +359,8 @@ int main(int argc, char** argv)
   */
 
   std::map<pair<int,int>, struct timeval> lasttv, tv;
-  unsigned int nextCycleTOW{0};
   unsigned int curCycleTOW{0};
-  bool curCycleTOWFresh=false;
+  
   for(;;) {
     try {
       auto [msg, timestamp] = getUBXMessage(fd);
@@ -489,6 +491,11 @@ int main(int argc, char** argv)
         emitNMM(1, nmm);
       }
       else if(msg.getClass() == 2 && msg.getType() == 0x13) {  // SFRBX
+                  
+        // order: 2, 4, 6, 7/9, 8/10, 0, 0, 0, 0, 0, 1, 3, 5, 0, 0
+        //              *             *  *  *  *  *        * 
+        // tow    
+        
         try {
           pair<int,int> id = make_pair(payload[0], payload[1]);
           if(id.first != 2)
@@ -500,65 +507,32 @@ int main(int argc, char** argv)
           cerr<<"gnssid "<<id.first<<" sv "<<id.second<<" " << wtype << endl;
           uint32_t satTOW;
           int msgTOW{0};
-          if(getTOWFromInav(inav, &satTOW, &g_wn)) {
+          if(getTOWFromInav(inav, &satTOW, &g_wn)) { // 0, 6, 5
             cerr<<"   "<<wtype<<" sv "<<id.second<<" tow "<<satTOW << " % 30 = "<< satTOW % 30<<", implied start of cycle: "<<(satTOW - (satTOW %30)) <<endl;
-            if(curCycleTOW != satTOW - (satTOW %30))
-              curCycleTOWFresh=false;
             msgTOW = satTOW;
             curCycleTOW = satTOW - (satTOW %30);
-            nextCycleTOW = curCycleTOW + 30;
           }
           else {
             cerr<<"   "<<wtype<<" sv "<<id.second<<" tow ";
             if(wtype == 2) {
-              cerr<<"infered to be 1 "<<nextCycleTOW + 1<<endl;
-              curCycleTOWFresh=false;
-              msgTOW = nextCycleTOW + 1;
+              cerr<<"infered to be 1 "<<curCycleTOW + 31<<endl;
+              msgTOW = curCycleTOW + 31;
             }
             else if(wtype == 4) {
-              cerr<<"infered to be 3 "<<nextCycleTOW + 3<<endl;
-              msgTOW = nextCycleTOW + 3;
-              curCycleTOWFresh=false;
+              cerr<<"infered to be 3 "<<curCycleTOW + 33<<endl;
+              msgTOW = curCycleTOW + 33;
             } // next have '6' which sets TOW
             else if(wtype==7 || wtype == 9) {
-              if(curCycleTOWFresh) {
-                cerr<<"infered to be 7 "<< curCycleTOW + 7<<endl;
-                msgTOW = curCycleTOW + 7;
-              }
-              else {
-                cerr<<"infered to be 7 "<< nextCycleTOW + 7<<endl;
-                msgTOW = nextCycleTOW + 7;
-              }
+              msgTOW = curCycleTOW + 7;
             }
             else if(wtype==8 || wtype == 10) {
-              if(curCycleTOWFresh) {
-                cerr<<"infered to be 9 "<< curCycleTOW + 9<<endl;
-                msgTOW = curCycleTOW + 9;
-              }
-              else {
-                cerr<<"infered to be 9 "<< nextCycleTOW + 9<<endl;
-                msgTOW = nextCycleTOW + 9;
-              }
+              msgTOW = curCycleTOW + 9;
             }
             else if(wtype==1) {
-              if(curCycleTOWFresh) {
-                cerr<<"infered to be 21 "<< curCycleTOW + 21<<endl;
-                msgTOW = curCycleTOW + 21;
-              }
-              else {
-                cerr<<"infered to be 21 "<< nextCycleTOW + 21<<endl;
-                msgTOW = nextCycleTOW + 21;
-              }
+              msgTOW = curCycleTOW + 21;
             }
             else if(wtype==3) {
-              if(curCycleTOWFresh) {
-                msgTOW = curCycleTOW + 23; 
-                cerr<<"infered to be 23 "<< curCycleTOW + 23 <<endl;
-              }
-              else {
-                cerr<<"infered to be 23 "<< nextCycleTOW + 23 <<endl;
-                msgTOW = nextCycleTOW + 23;
-              }
+              msgTOW = curCycleTOW + 23; 
             }
             else { // dummy
               cerr<<"what kind of wtype is this"<<endl;
