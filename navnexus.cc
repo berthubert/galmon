@@ -6,11 +6,15 @@
 #include "fmt/format.h"
 #include "fmt/printf.h"
 #include <mutex>
-
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <unistd.h>
+#include <stdexcept>
+#include <sys/types.h>
+#include "storage.hh"
+#include <dirent.h>
+
 using namespace std;
 
 std::mutex g_clientmut;
@@ -20,66 +24,9 @@ std::mutex g_dedupmut;
 
 set<std::tuple<int, int, int, int>> g_dedup;
 
-int g_store;
+std::string g_storage;
 
 std::multimap<pair<uint32_t,uint32_t>, string> g_history;
-
-void recvSession(int s, ComboAddress client)
-{
-  cerr<<"Receiving messages from "<<client.toStringWithPort()<<endl;
-  for(;;) {
-    string part=SRead(s, 4);
-    if(part != "bert") {
-      cerr << "Wrong magic!"<<endl;
-      break;
-    }
-    string out=part;
-
-    part = SRead(s, 2);
-    out += part;
-    
-    uint16_t len;
-    memcpy(&len, part.c_str(), 2);
-    len = htons(len);
-
-    part = SRead(s, len);
-    out += part;
-    
-    NavMonMessage nmm;
-    nmm.ParseFromString(part);
-    //    cerr<<nmm.sourceid()<<" ";
-
-    if(nmm.type() == NavMonMessage::GalileoInavType) {
-      std::lock_guard<std::mutex> lg(g_dedupmut);
-      if(g_dedup.count({nmm.gi().gnssid(), nmm.gi().gnsssv(), nmm.gi().gnsswn(), nmm.gi().gnsstow()})) {
-        //        cerr<<"Dedupped message from "<< nmm.sourceid()<<" "<< fmt::format("{0} {1} {2} {3}", nmm.gi().gnssid(), nmm.gi().gnsssv(), nmm.gi().gnsswn(), nmm.gi().gnsstow()) << endl;
-        continue;
-      }
-      //      cerr<<"New message from "<< nmm.sourceid()<<" "<< fmt::format("{0} {1} {2} {3}", nmm.gi().gnssid(), nmm.gi().gnsssv(), nmm.gi().gnsswn(), nmm.gi().gnsstow()) << endl;
-      g_dedup.insert({nmm.gi().gnssid(), nmm.gi().gnsssv(), nmm.gi().gnsswn(), nmm.gi().gnsstow()});
-    }
-    else
-      ; //      cerr<<"Not an inav message "<< (int) nmm.type()<<endl;
-
-    g_history.insert({{nmm.localutcseconds(), nmm.localutcnanoseconds()}, out});
-    if(write(g_store, out.c_str(), out.size()) != out.size()) {
-      cerr<<"Failed to store message in buffer"<<endl;
-    }
-    for(const auto& fd : g_clients) {
-      SWrite(fd, out);
-    }
-  }
-}
-
-void recvListener(Socket&& s, ComboAddress local)
-{
-  for(;;) {
-    ComboAddress remote=local;
-    int fd = SAccept(s, remote);
-    std::thread t(recvSession, fd, remote);
-    t.detach();
-  }
-}
 
 
 void sendSession(int s, ComboAddress client)
@@ -116,29 +63,59 @@ void sendListener(Socket&& s, ComboAddress local)
 
 }
 
+void unixDie(const std::string& str)
+{
+  throw std::runtime_error(str+string(": ")+string(strerror(errno)));
+}
+
+vector<uint64_t> getSources()
+{
+  DIR *dir = opendir(g_storage.c_str());
+  if(!dir)
+    unixDie("Listing metrics from statistics storage "+g_storage);
+  struct dirent *result=0;
+  vector<uint64_t> ret;
+  for(;;) {
+    errno=0;
+    if(!(result = readdir(dir))) {
+      closedir(dir);
+      if(errno)
+        unixDie("Reading directory entry "+g_storage);
+      else
+        break;
+    }
+    if(result->d_name[0] != '.') {
+      uint64_t src;
+      if(sscanf(result->d_name, "%08lx", &src)==1)
+        ret.push_back(src);
+    }
+  }
+
+  sort(ret.begin(), ret.end());
+  return ret;
+}
+
 
 int main(int argc, char** argv)
 {
   signal(SIGPIPE, SIG_IGN);
-
-  g_store = open("permanent", O_CREAT | O_APPEND | O_WRONLY, 0666);
-  if(g_store < 0) {
-    cerr<<"Unable to open permanent storage file"<<endl;
+  if(argc != 3) {
+    cout<<"Syntax: navnexus storage listen-address"<<endl;
     return(EXIT_FAILURE);
   }
+  g_storage=argv[1];
+  for(;;) {
+    auto srcs = getSources();
+    for(const auto& s: srcs) {
+      time_t t = time(0);
+      
+      cout<<s <<" -> "<<getPath(g_storage, t, s) << " & " << getPath(g_storage, t-3600, s) <<  endl;
+    }
+    sleep(5);
+  }
     
-  
-  ComboAddress recvaddr("0.0.0.0", 29600);
-  Socket receiver(recvaddr.sin4.sin_family, SOCK_STREAM, 0);
-  SSetsockopt(receiver,SOL_SOCKET, SO_REUSEADDR, 1 );
-  
-  SBind(receiver, recvaddr);
-  SListen(receiver, 128);
-
-  thread recvThread(recvListener, std::move(receiver), recvaddr);
-  recvThread.detach();
-
-  ComboAddress sendaddr("0.0.0.0", 29601);
+#if 0
+  ComboAddress sendaddr(argv[2], 29601);
   Socket sender(sendaddr.sin4.sin_family, SOCK_STREAM);
   SSetsockopt(sender, SOL_SOCKET, SO_REUSEADDR, 1 );
   SBind(sender, sendaddr);
@@ -147,10 +124,7 @@ int main(int argc, char** argv)
   thread sendThread(sendListener, std::move(sender), sendaddr);
 
   sendThread.detach();
-
-  for(;;) {
-    sleep(1);
-  }
+#endif   
 
   
 }

@@ -184,7 +184,10 @@ void SVStat::addWord(std::basic_string_view<uint8_t> page)
   if(wtype == 0) {
     if(getbitu(&page[0], 6,2) == 2) {
       wn = getbitu(&page[0], 96, 12);
-      tow = getbitu(&page[0], 108, 20);
+      if(tow != getbitu(&page[0], 108, 20)) {
+        cerr<<"wtype "<<wtype<<", was about to mis-set TOW, " <<tow<< " " <<getbitu(&page[0], 108, 20) <<endl;
+      }
+
     }
   }
   else if(wtype >=1 && wtype <= 4) { // ephemeris 
@@ -219,7 +222,10 @@ void SVStat::addWord(std::basic_string_view<uint8_t> page)
     e5bdvs = getbitu(&page[0], 71, 1);
     e1bdvs = getbitu(&page[0], 72, 1);
     wn = getbitu(&page[0], 73, 12);
-    tow = getbitu(&page[0], 85, 20);
+    if(tow != getbitu(&page[0], 85, 20))
+    {
+      cerr<<"wtype "<<wtype<<", was about to mis-set TOW"<<endl;
+    }
   }
   else if(wtype == 6) {
     a0 = getbits(&page[0], 6, 32);
@@ -233,7 +239,9 @@ void SVStat::addWord(std::basic_string_view<uint8_t> page)
     dtLSF = getbits(&page[0], 97, 8);
 
     //    cout<<(int) dtLS << " " <<(int) wnLSF<<" " <<(int) dn <<" " <<(int) dtLSF<<endl;
-    tow = getbitu(&page[0], 105, 20);
+    if(tow != getbitu(&page[0], 105, 20)) {
+      cerr<<"wtype "<<wtype<<", was about to mis-set TOW"<<endl;
+    }
   }
   else if(wtype == 10) { // GSTT GPS
     a0g = getbits(&page[0], 86, 16);
@@ -714,6 +722,13 @@ try
       basic_string<uint8_t> inav((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
       int sv = nmm.gi().gnsssv();
       g_svstats[sv].wn = nmm.gi().gnsswn();
+      unsigned int wtype = getbitu(&inav[0], 0, 6);
+      if(1) {
+        //        cout<<sv <<"\t" << wtype << "\t" << nmm.gi().gnsstow() << "\t"<< nmm.sourceid() << endl;
+        if(g_svstats[sv].tow > nmm.gi().gnsstow()) {
+          cout<<"  wtype "<<wtype<<", was about to set tow backwards for "<<sv<<", "<<g_svstats[sv].tow << " > "<<nmm.gi().gnsstow()<<", " << ((signed)g_svstats[sv].tow - (signed)nmm.gi().gnsstow()) << ", source "<<nmm.sourceid()<<endl;
+        }
+      }
       g_svstats[sv].tow = nmm.gi().gnsstow();
 
       g_svstats[sv].perrecv[nmm.sourceid()].wn = nmm.gi().gnsswn();
@@ -723,7 +738,7 @@ try
       //      for(auto& c : inav)
       //        fmt::printf("%02x ", c);
       
-      unsigned int wtype = getbitu(&inav[0], 0, 6);
+
         
         g_svstats[sv].addWord(inav);
         if(g_svstats[sv].e1bhs || g_svstats[sv].e5bhs || g_svstats[sv].e1bdvs || g_svstats[sv].e5bdvs) {
@@ -858,7 +873,7 @@ try
         Vector us2sat(us, sat);
         Vector speed;
         getSpeed(nmm.rfd().rcvwn(), nmm.rfd().rcvtow(), g_svstats[sv].liveIOD(), &speed);
-        cout<<sv<<" radius: "<<Vector(core, sat).length()<<",  distance: "<<us2sat.length()<<", orbital velocity: "<<speed.length()/1000.0<<" km/s, ";
+        //        cout<<sv<<" radius: "<<Vector(core, sat).length()<<",  distance: "<<us2sat.length()<<", orbital velocity: "<<speed.length()/1000.0<<" km/s, ";
         
         Vector core2us(core, us);
         Vector dx(us, sat); //  = x-ourx, dy = y-oury, dz = z-ourz;
@@ -874,7 +889,7 @@ try
         
         // be careful with time here - 
         double ephage = ephAge(nmm.rfd().rcvtow(), g_svstats[sv].liveIOD().t0e*60);
-        cout<<"Radial velocity: "<< radvel<<", predicted doppler: "<< preddop << ", measured doppler: "<<nmm.rfd().doppler()<<endl;
+        //        cout<<"Radial velocity: "<< radvel<<", predicted doppler: "<< preddop << ", measured doppler: "<<nmm.rfd().doppler()<<endl;
         dopplercsv << std::fixed << utcFromGST(g_svstats[sv].wn, nmm.rfd().rcvtow()) <<" " << nmm.rfd().gnssid() <<" " <<sv<<" "<<nmm.rfd().pseudorange()<<" "<< nmm.rfd().carrierphase() <<" " << nmm.rfd().doppler()<<" " << preddop << " " << Vector(us, sat).length() << " " <<radvel <<" " << nmm.rfd().locktimems()<<" " <<ephage << " " << nmm.rfd().prstd() << " " << nmm.rfd().cpstd() <<" " << 
           nmm.rfd().dostd() << endl;
       }

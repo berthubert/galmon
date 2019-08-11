@@ -12,7 +12,7 @@ Tooling:
    Performs some best effort buffering & will reconnect if needed.
    UPDATE -> will be part of ubxtool
  * navrecv: receives GNSS NAV frames and stores them on disk, split out per
-   sender. UPDATE -> part of navnexus
+   sender. 
  * navstore: tails the file stored by navrecv, puts them in LMDB.
    UPDATE -> part of navnexus
  * navstream: produces a stream of NAV updates from all sources, with a few
@@ -37,10 +37,23 @@ rerunning 'navstore' and 'navinflux'.
 Big TODO
 --------
 
- * Oddity of ephemeris age in doppler graph (possibly wider)
+ * Dual goals: completeness, liveness, not the same
+   For forensics, great if the packet is there
+   For display, not that bad if we missed a message
  * Navnexus permanence
+    lmdb? sqlite?
+ * It looks like we have some ups and downs in WN/TOW
+ * In general, consider refeed strategy
+     Raw serial
+     Protobuf
+     Influxdb
+     ".csv files"
+ * Delivery needs to be bit more stateful (queue)
+   
  * Semantics definition for output of Navnexus
- * Idempotency and retransmit by ubxtool
+   "we'll never surprise you with old data"
+
+ 
 
 ubxtool
 -------

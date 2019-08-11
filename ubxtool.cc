@@ -359,7 +359,7 @@ int main(int argc, char** argv)
   */
 
   std::map<pair<int,int>, struct timeval> lasttv, tv;
-  unsigned int curCycleTOW{0};
+  int curCycleTOW{-1}; // means invalid
   
   for(;;) {
     try {
@@ -513,6 +513,8 @@ int main(int argc, char** argv)
             curCycleTOW = satTOW - (satTOW %30);
           }
           else {
+            if(curCycleTOW < 0) // did not yet have a start of cycle
+              continue;
             cerr<<"   "<<wtype<<" sv "<<id.second<<" tow ";
             if(wtype == 2) {
               cerr<<"infered to be 1 "<<curCycleTOW + 31<<endl;
