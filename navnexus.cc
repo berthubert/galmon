@@ -22,9 +22,6 @@ set<int> g_clients;
 
 std::string g_storage;
 
-std::multimap<pair<uint32_t,uint32_t>, string> g_history;
-
-
 void unixDie(const std::string& str)
 {
   throw std::runtime_error(str+string(": ")+string(strerror(errno)));
@@ -64,19 +61,15 @@ try
   cerr<<"New downstream client "<<client.toStringWithPort() << endl;
 
   pair<uint64_t, uint64_t> start = {0,0};
-  start.first = time(0) - 1800;
+  start.first = time(0) - 4*3600; // 4 hours of backlog
 
-
+  // so we have a ton of files, and internally these are not ordered
   map<string,uint32_t> fpos;
   for(;;) {
     auto srcs = getSources();
     vector<NavMonMessage> nmms;
-    for(const auto& s: srcs) {
-      time_t t = time(0);
-      
-      cout<<s <<" -> "<<getPath(g_storage, t, s) << " & " << getPath(g_storage, t-3600, s) <<  endl;
-
-      string fname = getPath(g_storage, t, s);
+    for(const auto& src: srcs) {
+      string fname = getPath(g_storage, start.first, src);
       int fd = open(fname.c_str(), O_RDONLY);
       if(fd < 0)
         continue;
@@ -91,7 +84,8 @@ try
 
       uint32_t looked=0;
       while(getNMM(fd, nmm, offset)) {
-        if(make_pair(nmm.localutcseconds(), nmm.localutcnanoseconds()) > start) {
+        // don't drop data that is only 5 seconds too old
+        if(make_pair(nmm.localutcseconds() + 5, nmm.localutcnanoseconds()) >= start) {
           nmms.push_back(nmm);
         }
         ++looked;
@@ -115,9 +109,13 @@ try
       buf+=out;
       SWriten(clientfd, buf);
     }
-    if(!nmms.empty())
-      start = {nmms.rbegin()->localutcseconds(), nmms.rbegin()->localutcnanoseconds()};
-    sleep(1);
+    if(3600 + start.first - (start.first%3600) < time(0))
+      start.first = 3600 + start.first - (start.first%3600);
+    else {
+      if(!nmms.empty())
+        start = {nmms.rbegin()->localutcseconds(), nmms.rbegin()->localutcnanoseconds()};
+      sleep(1);
+    }
   }
 }
  catch(std::exception& e) {

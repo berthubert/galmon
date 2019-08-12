@@ -1,3 +1,6 @@
+navmon.pb.cc
+navmon.pb.h
+*.csv
 # Prerequisites
 *.d
 *~

@@ -11,7 +11,7 @@ void getCoordinates(int wn, double tow, const auto& iod, Point* p, bool quiet=tr
   
   double sqrtA = 1.0*iod.sqrtA / (1ULL<<19);
   double deltan = M_PI * 1.0*iod.deltan / (1LL<<43);
-  double t0e = 60.0*iod.t0e;
+  double t0e = iod.t0e; // t0e is PRE-SCALED
   double m0 = M_PI * 1.0*iod.m0 / (1LL<<31);
   double e = 1.0*iod.e / (1ULL<<33);
   double omega = M_PI * 1.0*iod.omega / (1LL<<31);
@@ -65,7 +65,7 @@ void getCoordinates(int wn, double tow, const auto& iod, Point* p, bool quiet=tr
   double A3 = pow(sqrtA, 6.0);
 
   double n0 = sqrt(mu/A3);
-  double tk = tow - t0e; // in seconds, ignores WN!!! XX!!! ! XX
+  double tk = tow - t0e; // in seconds, should do ephAge
 
   double n = n0 + deltan;
   if(!quiet)

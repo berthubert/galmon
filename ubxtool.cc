@@ -541,7 +541,7 @@ int main(int argc, char** argv)
             nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
             nmm.set_sourceid(g_srcid);         
             //            cerr<<"GPS frame, numwords: "<<(int)payload[4]<<", version: "<<(int)payload[6]<<endl;
-            unsigned int wn{18}, tow;
+            unsigned int wn{2048+18}, tow;
             auto gpsframe = getGPSFromSFRBXMsg(id.second, payload);
             auto cond = getCondensedGPSMessage(gpsframe);
             tow = 1.5*(getbitu(&cond[0], 24, 17)*4);

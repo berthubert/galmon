@@ -1,6 +1,6 @@
 CXXFLAGS:= -std=gnu++17 -Wall -O3 -MMD -MP -ggdb -fno-omit-frame-pointer  -Iext/fmt-5.2.1/include/ -Iext/powerblog/ext/simplesocket -Iext/powerblog/ext/
 
-PROGRAMS = navparse ubxtool navnexus navrecv
+PROGRAMS = navparse ubxtool navnexus navrecv navdump
 
 all: $(PROGRAMS)
 
@@ -14,6 +14,10 @@ SIMPLESOCKETS=ext/powerblog/ext/simplesocket/swrappers.o ext/powerblog/ext/simpl
 
 navparse: navparse.o ext/fmt-5.2.1/src/format.o $(H2OPP) $(SIMPLESOCKETS) minicurl.o ubx.o bits.o navmon.pb.o gps.o
 	g++ -std=gnu++17 $^ -o $@ -pthread -L/usr/local/lib -lh2o-evloop -lssl -lcrypto -lz  -lcurl -lprotobuf  # -lwslay
+
+navdump: navdump.o ext/fmt-5.2.1/src/format.o bits.o navmon.pb.o 
+	g++ -std=gnu++17 $^ -o $@ -pthread  -lprotobuf
+
 
 navnexus: navnexus.o ext/fmt-5.2.1/src/format.o  $(SIMPLESOCKETS) ubx.o bits.o navmon.pb.o storage.o
 	g++ -std=gnu++17 $^ -o $@ -pthread -lprotobuf

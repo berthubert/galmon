@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "iod", "eph-age-m", "sisa", "e1bhs", "e1bdvs", "e5bhs", "e5bdvs", "a0", "a1","a0g", "a1g", "sources", "db", "elev", "last-seen-s"];    
+    var columns = ["sv", "iod", "eph-age-m", "latest-disco", "sisa", "e1bhs", "e1bdvs", "e5bhs", "e5bdvs", "gpshealth", "a0", "a1","a0g", "a1g", "sources", "db", "elev", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -31,15 +31,28 @@ function maketable(str, arr)
                 ret.column = column;
                 ret.color=null;
                 if(column == "eph-age-m") {
-                    var b = moment.duration(row[column], 'm');
-                    ret.value = b.humanize();
+                    if(row[column] != null) {
+                        var b = moment.duration(-row[column], 'm');
+                        ret.value = b.humanize(true);
+                    }
+                    else
+                        ret.value="";
                 }
+
                 else if(column == "last-seen-s") {
                     var b = moment.duration(row[column], 's');
                     ret.value = b.humanize();
                 }
-//                else if(column == "elev") 
-  //                  ret.value = row[column].toFixed(1);
+                else if(column == "gpshealth" && row[column] != null) {
+                    if(row[column]==0)
+                        ret.value = "ok";
+                    else {
+                        ret.value = "NOT OK";
+                        ret.color="red";
+                    }
+                }
+                else if(column == "latest-disco" && row[column] != null) 
+                    ret.value = ((100*row[column]).toFixed(2))+" cm";
                 else if(column == "e1bdvs" || column =="e5bdvs")  {                    
                     if(row[column] == 0)
                         ret.value = "valid";
@@ -77,15 +90,21 @@ function maketable(str, arr)
 }
 
 var sats={};
-
+var lastseen=null;
 function update()
 {
     var seconds = 2;
     clearTimeout(repeat);
     repeat=setTimeout(update, 1000.0*seconds);
 
+    if(lastseen != null)
+        d3.select("#freshness").html(lastseen.fromNow());
+
+    
     d3.json("global", function(d) {
         d3.select('#facts').html("Galileo-UTC offset: <b>"+d["utc-offset-ns"].toFixed(2)+"</b> ns, Galileo-GPS offset: <b>"+d["gps-offset-ns"].toFixed(2)+"</b> ns<b>, "+d["leap-seconds"]+"</b> leap seconds");
+        lastseen = moment(1000*d["last-seen"]);
+        d3.select("#freshness").html(lastseen.fromNow());
     });
     
     d3.json("svs", function(d) {

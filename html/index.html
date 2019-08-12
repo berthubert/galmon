@@ -18,7 +18,7 @@ tr:nth-child(even) {background: #CCC}
 tr:nth-child(odd) {background: #FFF}
 </style>
 <body>
-  Live:<br/>
+  Last update: <span id="freshness"></span><br/>
   <table id="svs"></table>
   <hr>
   <p>
@@ -33,13 +33,15 @@ tr:nth-child(odd) {background: #FFF}
 
     Some technical detail behind this setup can be found in <a href="https://ds9a.nl/articles/posts/galileo-notes/">this post</a>.
 
-    For updates, follow <a href="https://twitter.com/GalileoSats">@GalileoSats</a> on Twitter.
+    For updates, follow <a href="https://twitter.com/GalileoSats">@GalileoSats</a> on Twitter, or join us on our IRC channel (chat) via the
+    <a href="https://webchat.oftc.net/?channels=galileo">web gateway</a>.
     
     The meaning of the fields is as follows:
     <table>
       <tr valign="top"><td>sv</td><td>Satellite Vehicle, an identifier for a Galileo satellite. Not the actual name of the satellite, other satellites could take over this number in case of failures</td></tr>
       <tr valign="top"><td>iod</td><td>Issue of Data. Satellites periodically get sent updates on their orbit &amp; other details, each update has a new IOD number. It is coincidence that all SVs currently receive the same IOD numbers, this is by no means guaranteed. Currently however, if an SV has a lower IOD, it has not received new updates recently.</td></tr>
       <tr valign="top"><td>eph‑age‑m</td><td>Age of ephemeris in minutes. Denotes how old the current set of orbit data is. Could be very old if SV is out of sight (see below). An acceptable limit is 4 hours (240 minutes).</td></tr>
+      <tr valign="top"><td>latest-disco</td><td>"jump" of the orbit prediction at the latest ephemeris change. Centimeters are good.</td></tr>
       <tr valign="top"><td>sisa</td><td>Signal In Space Accuracy, how well the position of an SV is known.</td></tr>
       <tr valign="top"><td>e1bhs, e1bdvs, e5bhs, e5bdvs</td><td>Health flags for E1 (common) and E5 (uncommon) frequencies.</td></tr>
       <tr valign="top"><td>a0, a1</td><td>Offset of the Galileo Standard Time to UTC. a0 is (more or less) the offset in nanoseconds, a1 is a measure of the rate of change</td></tr>
