@@ -48,30 +48,35 @@ void writeToDisk(time_t s, uint64_t sourceid, std::string_view message)
 
 void recvSession(int s, ComboAddress client)
 {
-  Socket sock(s);
-  cerr<<"Receiving messages from "<<client.toStringWithPort()<<endl;
-  for(;;) {
-    string part=SRead(sock, 4);
-    if(part != "bert") {
-      cerr << "Wrong magic!"<<endl;
-      break;
+  try {
+    Socket sock(s);
+    cerr<<"Receiving messages from "<<client.toStringWithPort()<<endl;
+    for(;;) {
+      string part=SRead(sock, 4);
+      if(part != "bert") {
+        cerr << "Wrong magic!"<<endl;
+        break;
+      }
+      string out=part;
+      
+      part = SRead(s, 2);
+      out += part;
+      
+      uint16_t len;
+      memcpy(&len, part.c_str(), 2);
+      len = htons(len);
+      
+      part = SRead(s, len);
+      out += part;
+      
+      NavMonMessage nmm;
+      nmm.ParseFromString(part);
+      
+      writeToDisk(nmm.localutcseconds(), nmm.sourceid(), out);
     }
-    string out=part;
-
-    part = SRead(s, 2);
-    out += part;
-    
-    uint16_t len;
-    memcpy(&len, part.c_str(), 2);
-    len = htons(len);
-
-    part = SRead(s, len);
-    out += part;
-    
-    NavMonMessage nmm;
-    nmm.ParseFromString(part);
-
-    writeToDisk(nmm.localutcseconds(), nmm.sourceid(), out);
+  }
+  catch(std::exception& e) {
+    cout<<"Error in receiving thread: "<<e.what()<<endl;
   }
 }
 
@@ -84,8 +89,6 @@ void recvListener(Socket&& s, ComboAddress local)
     t.detach();
   }
 }
-
- 
 
 int main(int argc, char** argv)
 {
@@ -105,11 +108,8 @@ int main(int argc, char** argv)
 
   thread recvThread(recvListener, std::move(receiver), recvaddr);
   recvThread.detach();
-
  
   for(;;) {
     sleep(1);
   }
-
-  
 }

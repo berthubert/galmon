@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
+#include <arpa/inet.h>
 using namespace std;
 
 
@@ -37,4 +37,24 @@ vector<string> getPathComponents(std::string_view root, time_t s, uint64_t sourc
   ret.push_back(to_string(tm.tm_mday+1));
   ret.push_back(to_string(tm.tm_hour)+".pb");
   return ret;
+}
+
+bool getNMM(int fd, NavMonMessage& nmm, uint32_t& offset)
+{
+  char bert[4];
+  if(read(fd, bert, 4) != 4 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
+    return false;
+  }
+    
+  uint16_t len;
+  if(read(fd, &len, 2) != 2)
+    return false;
+  len = htons(len);
+  char buffer[len];
+  if(read(fd, buffer, len) != len)
+    return false;
+    
+  nmm.ParseFromString(string(buffer, len));
+  offset += 4 + 2 + len;
+  return true;
 }

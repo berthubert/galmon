@@ -17,6 +17,8 @@
 #include "bits.hh"
 #include "minivec.hh"
 #include "navmon.pb.h"
+#include "ephemeris.hh"
+#include "gps.hh"
 
 using namespace std;
 
@@ -49,11 +51,20 @@ string humanSisa(uint8_t sisa)
   return "NO SIS AVAILABLE";
 }
 
+string humanUra(uint8_t ura)
+{
+  if(ura < 6)
+    return fmt::sprintf("%d cm", (int)(100*pow(2, 1+ura/2.0)));
+  else if(ura < 15)
+    return fmt::sprintf("%d m", (int)(pow(2, ura-2)));
+  return "NO URA AVAILABLE";
+}
 
 
 struct SVIOD
 {
   std::bitset<32> words;
+  int gnssid;
   uint32_t t0e; 
   uint32_t e, sqrtA;
   int32_t m0, omega0, i0, omega, idot, omegadot, deltan;
@@ -68,15 +79,19 @@ struct SVIOD
   uint32_t wn{0}, tow{0};
   bool complete() const
   {
-    return words[1] && words[2] && words[3] && words[4]; 
+    if(gnssid==2)
+      return words[1] && words[2] && words[3] && words[4];
+    else
+      return words[2] && words[3];
   }
-  void addWord(std::basic_string_view<uint8_t> page);
+  void addGalileoWord(std::basic_string_view<uint8_t> page);
 };
 
-void SVIOD::addWord(std::basic_string_view<uint8_t> page)
+void SVIOD::addGalileoWord(std::basic_string_view<uint8_t> page)
 {
   uint8_t wtype = getbitu(&page[0], 0, 6);
   words[wtype]=true;
+  gnssid = 2;
   if(wtype == 1) {
     t0e = getbitu(&page[0],   16, 14);
     m0 = getbits(&page[0],    30, 32);
@@ -117,14 +132,14 @@ void SVIOD::addWord(std::basic_string_view<uint8_t> page)
 struct SVPerRecv
 {
   int el{-1}, azi{-1}, db{-1};
-  uint16_t wn;
-  uint32_t tow; // last seen
+  time_t t; // last seen
 };
   
 
 struct SVStat
 {
   uint8_t e5bhs{0}, e1bhs{0};
+  uint8_t gpshealth{0};
   uint16_t ai0{0};
   int16_t ai1{0}, ai2{0};
   bool sf1{0}, sf2{0}, sf3{0}, sf4{0}, sf5{0};
@@ -138,20 +153,25 @@ struct SVStat
   int8_t dtLS{0}, dtLSF{0};
   uint16_t wnLSF{0};
   uint8_t dn; // leap second day number
-
+  int ura, af0, af1, af2, t0c, iod; // GPS parameters that should not be here XXX
   map<uint64_t, SVPerRecv> perrecv;
 
+  double latestDisco{-1};
+  
   map<int, SVIOD> iods;
-  void addWord(std::basic_string_view<uint8_t> page);
+  void addGalileoWord(std::basic_string_view<uint8_t> page);
+  
   bool completeIOD() const;
   uint16_t getIOD() const;
   SVIOD liveIOD() const;
+  SVIOD& getEph(int i) { return iods[i]; }   // XXXX gps adaptor
 
   pair<int,SVIOD> prevIOD{-1, SVIOD()};
   void clearPrev()
   {
     prevIOD.first = -1;
   }
+  void checkCompleteAndClean();
 };
 
 bool SVStat::completeIOD() const
@@ -177,10 +197,22 @@ SVIOD SVStat::liveIOD() const
   throw std::runtime_error("Asked for unknown IOD");
 }
 
-void SVStat::addWord(std::basic_string_view<uint8_t> page)
+void SVStat::checkCompleteAndClean()
+{
+  if(iods[iod].complete()) {
+    for(const auto& i : iods) {
+      if(i.first != iod && i.second.complete())
+        prevIOD=i;
+    }
+    SVIOD latest = iods[iod];
+    iods.clear();
+    iods[iod] = latest;
+  }
+}
+
+void SVStat::addGalileoWord(std::basic_string_view<uint8_t> page)
 {
   uint8_t wtype = getbitu(&page[0], 0, 6);
-
   if(wtype == 0) {
     if(getbitu(&page[0], 6,2) == 2) {
       wn = getbitu(&page[0], 96, 12);
@@ -192,17 +224,8 @@ void SVStat::addWord(std::basic_string_view<uint8_t> page)
   }
   else if(wtype >=1 && wtype <= 4) { // ephemeris 
     uint16_t iod = getbitu(&page[0], 6, 10);
-    iods[iod].addWord(page);
-    
-    if(iods[iod].complete()) {
-      for(const auto& i : iods) {
-        if(i.first != iod && i.second.complete())
-          prevIOD=i;
-      }
-      SVIOD latest = iods[iod];
-      iods.clear();
-      iods[iod] = latest;
-    }
+    iods[iod].addGalileoWord(page);
+    checkCompleteAndClean();
   }
   else if(wtype==5) { // disturbance, health, time
     ai0 = getbitu(&page[0], 6, 11);
@@ -228,10 +251,11 @@ void SVStat::addWord(std::basic_string_view<uint8_t> page)
     }
   }
   else if(wtype == 6) {
+
     a0 = getbits(&page[0], 6, 32);
     a1 = getbits(&page[0], 38, 24);
     dtLS = getbits(&page[0], 62, 8);
-
+    cerr<<"Setting a0,a1 to "<<a0<<", "<<a1<<endl;
     t0t = getbitu(&page[0], 70, 8);
     wn0t = getbitu(&page[0], 78, 8);
     wnLSF = getbitu(&page[0], 86, 8);
@@ -251,154 +275,6 @@ void SVStat::addWord(std::basic_string_view<uint8_t> page)
   }
 }
 
-double todeg(double rad)
-{
-  return 360 * rad/(2*M_PI);
-}
-
-void getCoordinates(int wn, double tow, const SVIOD& iod, Point* p, bool quiet=true)
-{
-  // here goes
-
-  constexpr double mu = 3.986004418 * pow(10.0, 14.0);
-  constexpr double omegaE = 7.2921151467 * pow(10.0, -5);
-  
-  double sqrtA = 1.0*iod.sqrtA / (1ULL<<19);
-  double deltan = M_PI * 1.0*iod.deltan / (1LL<<43);
-  double t0e = 60.0*iod.t0e;
-  double m0 = M_PI * 1.0*iod.m0 / (1LL<<31);
-  double e = 1.0*iod.e / (1ULL<<33);
-  double omega = M_PI * 1.0*iod.omega / (1LL<<31);
-
-  double cuc = 1.0*iod.cuc / (1LL<<29);
-  double cus = 1.0*iod.cus / (1LL<<29);
-
-  double crc = 1.0*iod.crc / (1LL<<5);
-  double crs = 1.0*iod.crs / (1LL<<5);
-
-  double cic = 1.0*iod.cic / (1LL<<29);
-  double cis = 1.0*iod.cis / (1LL<<29);
-
-  double idot = M_PI * 1.0*iod.idot / (1LL<<43);
-  double i0 = M_PI * 1.0*iod.i0 / (1LL << 31);
-
-  double Omegadot = M_PI * 1.0*iod.omegadot / (1LL << 43);
-  double Omega0 = M_PI * 1.0*iod.omega0 / (1LL << 31);
-  
-  // NO IOD BEYOND THIS POINT!
-  if(!quiet) {
-    cout << "sqrtA = "<< sqrtA << endl;
-    cout << "deltan = "<< deltan << endl;
-    cout << "t0e = "<< t0e << endl;
-    cout << "m0 = "<< m0 << " ("<<todeg(m0)<<")"<<endl;
-    cout << "e = "<< e << endl;
-    cout << "omega = " << omega << " ("<<todeg(omega)<<")"<<endl;
-    cout << "idot = " << idot <<endl;
-    cout << "i0 = " << i0 << " ("<<todeg(i0)<<")"<<endl;
-    
-    cout << "cuc = " << cuc << endl;
-    cout << "cus = " << cus << endl;
-    
-    cout << "crc = " << crc << endl;
-    cout << "crs = " << crs << endl;
-    
-    cout << "cic = " << cic << endl;
-    cout << "cis = " << cis << endl;
-
-    cout << "Omega0 = " << Omega0 << " ("<<todeg(Omega0)<<")"<<endl;
-    cout << "Omegadot = " << Omegadot << " ("<<todeg(Omegadot)<< ")"<<endl;
-    
-  }
-  
-  double A = pow(sqrtA, 2.0);
-  double A3 = pow(sqrtA, 6.0);
-
-  double n0 = sqrt(mu/A3);
-  double tk = tow - t0e; // in seconds, ignores WN!
-
-  double n = n0 + deltan;
-  if(!quiet)
-    cout <<"tk: "<<tk<<", n0: "<<n0<<", deltan: "<<deltan<<", n: "<<n<<endl;
-  
-  double M = m0 + n * tk;
-  if(!quiet)
-    cout << " M = m0 + n * tk = "<<m0 << " + " << n << " * " << tk <<endl;
-  double E = M;
-  for(int k =0 ; k < 10; ++k) {
-    if(!quiet)
-      cout<<"M = "<<M<<", E = "<< E << endl;
-    E = M + e * sin(E);
-  }
-
-  // M = E  - e * sin(E)   -> E = M + e * sin(E)
-  
-  
-
-  double nu2 = M + e*2*sin(M) +
-    e *e * (5.0/4.0) * sin(2*M) -
-    e*e*e * (0.25*sin(M) - (13.0/12.0)*sin(3*M));
-  double corr = e*e*e*e * (103*sin(4*M) - 44*sin(2*M)) / 96.0 +
-    e*e*e*e*e * (1097*sin(5*M) - 645*sin(3*M) + 50 *sin(M))/960.0 +
-    e*e*e*e*e*e * (1223*sin(6*M) - 902*sin(4*M) + 85 *sin(2*M))/960.0;
-
-
-
-  if(!quiet) {
-    double nu1 = atan(   ((sqrt(1-e*e)  * sin(E)) / (1 - e * cos(E)) ) /
-                        ((cos(E) - e)/ (1-e*cos(E)))
-                        );
-    
-    double nu2 = atan(   (sqrt(1-e*e) * sin(E)) /
-                       (cos(E) - e)
-                     );
-
-    double nu3 = 2* atan( sqrt((1+e)/(1-e)) * tan(E/2));
-    cout << "e: "<<e<<", M: "<< M<<endl;
-    cout <<"         nu sis: "<<nu1<< " / +pi = " << nu1 +M_PI << endl;
-    cout <<"         nu ?: "<<nu2<< " / +pi = "  << nu2 +M_PI << endl;
-    cout <<"         nu fourier/esa: "<<nu2<< " + " << corr <<" = " << nu2 + corr<<endl;
-    cout <<"         nu wikipedia: "<<nu3<< " / +pi = " <<nu3 +M_PI << endl;
-  }
-  
-  double nu = nu2 + corr;
-
-  // https://en.wikipedia.org/wiki/True_anomaly is good
-  
-  double psi = nu + omega;
-  if(!quiet) {
-    cout<<"psi = nu + omega = " << nu <<" + "<<omega<< " = " << psi << "\n";
-  }
-
-
-  double deltau = cus * sin(2*psi) + cuc * cos(2*psi);
-  double deltar = crs * sin(2*psi) + crc * cos(2*psi);
-  double deltai = cis * sin(2*psi) + cic * cos(2*psi);
-
-  double u = psi + deltau;
-
-  double r = A * (1- e * cos(E)) + deltar;
-
-  double xprime = r*cos(u), yprime = r*sin(u);
-  if(!quiet) {
-    cout<<"u = psi + deltau = "<< psi <<" + " << deltau << " = "<<u<<"\n";
-    cout << "calculated r = "<< r << " (" << (r/1000.0) <<"km)"<<endl;
-    cout << "xprime: "<<xprime<<", yprime: "<<yprime<<endl;
-  }
-  double Omega = Omega0 + (Omegadot - omegaE)*tk - omegaE * t0e;
-  double i = i0 + deltai + idot * tk;
-  p->x = xprime * cos(Omega) - yprime * cos(i) * sin(Omega);
-  p->y = xprime * sin(Omega) + yprime * cos(i) * cos(Omega);
-  p->z = yprime * sin(i);
-
-  if(!quiet) {
-    Point core(0.0, .0, .0);
-    Vector radius(core, *p);
-    cout << radius.length() << " calculated r "<<endl;
-  }
-  
-}
-
-
 void getSpeed(int wn, double tow, const SVIOD& iod, Vector* v)
 {
   Point a, b;
@@ -407,23 +283,25 @@ void getSpeed(int wn, double tow, const SVIOD& iod, Vector* v)
   *v = Vector(a, b);
 }
 
-std::map<int, SVStat> g_svstats;
+std::map<pair<int,int>, SVStat> g_svstats;
 
-int latestWN()
+int latestWN(int gnssid)
 {
-  map<int, int> ages;
-  for(const auto& s: g_svstats) 
-    ages[7*s.second.wn*86400 + s.second.tow]= s.first;
+  map<int, pair<int,int>> ages;
+  for(const auto& s: g_svstats)
+    if(s.first.first == gnssid)
+      ages[7*s.second.wn*86400 + s.second.tow]= s.first;
   if(ages.empty())
-    throw runtime_error("Asked for latest WN: we don't know it yet");
+    throw runtime_error("Asked for latest WN for "+to_string(gnssid)+": we don't know it yet");
   return g_svstats[ages.rbegin()->second].wn;
 }
 
-int latestTow()
+int latestTow(int gnssid)
 {
-  map<int, int> ages;
-  for(const auto& s: g_svstats) 
-    ages[7*s.second.wn*86400 + s.second.tow]= s.first;
+  map<int, pair<int,int>> ages;
+  for(const auto& s: g_svstats)
+    if(s.first.first == gnssid)
+      ages[7*s.second.wn*86400 + s.second.tow]= s.first;
   if(ages.empty())
     throw runtime_error("Asked for latest WN: we don't know it yet");
   return g_svstats[ages.rbegin()->second].tow;
@@ -452,17 +330,17 @@ struct InfluxPusher
   explicit InfluxPusher(std::string_view dbname) : d_dbname(dbname)
   {
   }
-  void addValue( const pair<int,SVStat>& ent, string_view name, auto value)
+  void addValue( const pair<pair<int,int>,SVStat>& ent, string_view name, auto value)
   {
-    d_buffer+= string(name) +",sv=" +to_string(ent.first)+" value="+to_string(value)+
+    d_buffer+= string(name) +",sv=" +to_string(ent.first.second)+",gnssid="+to_string(ent.first.first)+" value="+to_string(value)+
       " "+to_string(nanoTime(ent.second.wn, ent.second.tow))+"\n";
     checkSend();
   }
   
-  void addValue(int sv, string_view name, auto value)
+  void addValue(pair<int,int> id, string_view name, auto value)
   {
-    d_buffer+= string(name) +",sv=" +to_string(sv) + " value="+to_string(value)+" "+
-      to_string(nanoTime(g_svstats[sv].wn, g_svstats[sv].tow))+"\n";
+    d_buffer+= string(name) +",gnssid="+to_string(id.first)+",sv=" +to_string(id.second) + " value="+to_string(value)+" "+
+      to_string(nanoTime(g_svstats[id].wn, g_svstats[id].tow))+"\n";
     checkSend();
   }
 
@@ -556,19 +434,26 @@ try
   h2s.addHandler("/global", [](auto handler, auto req) {
       nlohmann::json ret = nlohmann::json::object();
       ret["leap-seconds"] = g_dtLS;
-
+      try {
+        ret["last-seen"]=utcFromGST(latestWN(2), latestTow(2));
+      }
+      catch(...)
+        {}
+      
       map<int, int> utcstats, gpsgststats;
       for(const auto& s: g_svstats) {
         if(!s.second.wn) // this will suck in 20 years
           continue;
+        if(s.first.first != 2) // Galileo only
+          continue;
         int dw = (uint8_t)s.second.wn - s.second.wn0t;
         int age = dw * 7 * 86400 + s.second.tow - s.second.t0t * 3600;
-        utcstats[age]=s.first;
+        utcstats[age]=s.first.second;
 
         uint8_t wn0g = s.second.wn0t;
         int dwg = (((uint8_t)s.second.wn)&(1+2+4+8+16+32)) - wn0g;
         age = dwg*7*86400 + s.second.tow - s.second.t0g * 3600;
-        gpsgststats[age]=s.first;
+        gpsgststats[age]=s.first.second;
 
       }
       if(utcstats.empty()) {
@@ -576,11 +461,9 @@ try
       }
       else {
         int sv = utcstats.begin()->second; // freshest SV
-        long shift = g_svstats[sv].a0 * (1LL<<20) + g_svstats[sv].a1 * utcstats.begin()->first; // in 2^-50 seconds units
-        //        cout<<"sv: "<<sv<<", shift: "<<shift<<" a0: "<< g_svstats[sv].a0 << ", a1: "<< g_svstats[sv].a1 <<", age: "<< utcstats.begin()->first<<endl;
+        long shift = g_svstats[{2,sv}].a0 * (1LL<<20) + g_svstats[{2,sv}].a1 * utcstats.begin()->first; // in 2^-50 seconds units
         ret["utc-offset-ns"] = 1.073741824*ldexp(1.0*shift, -20);
-
-        ret["leap-second-planned"] = (g_svstats[sv].dtLSF != g_svstats[sv].dtLS);
+        ret["leap-second-planned"] = (g_svstats[{2,sv}].dtLSF != g_svstats[{2,sv}].dtLS);
       }
 
       if(gpsgststats.empty()) {
@@ -588,7 +471,7 @@ try
       }
       else {
         int sv = gpsgststats.begin()->second; // freshest SV
-        long shift = g_svstats[sv].a0g * (1L<<16) + g_svstats[sv].a1g * gpsgststats.begin()->first; // in 2^-51 seconds units
+        long shift = g_svstats[{2,sv}].a0g * (1L<<16) + g_svstats[{2,sv}].a1g * gpsgststats.begin()->first; // in 2^-51 seconds units
         
         ret["gps-offset-ns"] = 1.073741824*ldexp(shift, -21);
       }
@@ -599,63 +482,75 @@ try
   
   h2s.addHandler("/svs", [](auto handler, auto req) {
       nlohmann::json ret = nlohmann::json::object();
-      for(const auto& s: g_svstats)
+      for(const auto& s: g_svstats) {
+        nlohmann::json item  = nlohmann::json::object();
+        if(!s.second.tow) // I know, I know, will suck briefly
+          continue;
         if(s.second.completeIOD()) {
-          nlohmann::json item  = nlohmann::json::object();
-          
           item["iod"]=s.second.getIOD();
-          item["sisa"]=humanSisa(s.second.liveIOD().sisa);
-          item["a0"]=s.second.a0;
-          item["a1"]=s.second.a1;
-          item["dtLS"]=s.second.dtLS;
-          item["a0g"]=s.second.a0g;
-          item["a1g"]=s.second.a1g;
-          item["e5bdvs"]=s.second.e5bdvs;
-          item["e1bdvs"]=s.second.e1bdvs;
-          item["e5bhs"]=s.second.e5bhs;
-          item["e1bhs"]=s.second.e1bhs;                    
-
-          nlohmann::json perrecv  = nlohmann::json::object();
-          for(const auto& pr : s.second.perrecv) {
-            nlohmann::json det  = nlohmann::json::object();
-            det["elev"] = pr.second.el;
-            det["db"] = pr.second.db;
-            det["last-seen-s"] = (7*86400*(latestWN() - pr.second.wn) + latestTow() - (int)pr.second.tow);
-            perrecv[to_string(pr.first)]=det;
-          }
-          item["perrecv"]=perrecv;
+          if(s.first.first ==0)
+            item["sisa"]=humanUra(s.second.ura);
+          else
+            item["sisa"]=humanSisa(s.second.liveIOD().sisa);
           item["eph-age-m"] = ephAge(s.second.tow, 60*s.second.liveIOD().t0e)/60.0;
-          item["last-seen-s"] = s.second.tow ? (7*86400*(s.second.wn - s.second.wn) + latestTow() - (int)s.second.tow) : -1;
-
           item["af0"] = s.second.liveIOD().af0;
           item["af1"] = s.second.liveIOD().af1;
           item["af2"] = (int)s.second.liveIOD().af2;
           item["t0c"] = s.second.liveIOD().t0c;
-
+          
           Point our = g_ourpos;
           Point p;
           Point core;
-
+          
           // this should actually use local time!
-          getCoordinates(latestWN(), latestTow(), s.second.liveIOD(), &p);
-
+          getCoordinates(latestWN(2), latestTow(2), s.second.liveIOD(), &p);
+          
           Vector core2us(core, our);
           Vector dx(our, p); //  = x-ourx, dy = y-oury, dz = z-ourz;
-
+          
           // https://ds9a.nl/articles/
           
           double elev = acos ( core2us.inner(dx) / (core2us.length() * dx.length()));
           double deg = 180.0* (elev/M_PI);
           item["elev"] = 90 - deg;
           
-
+          
           item["x"]=p.x;
           item["y"]=p.y;
           item["z"]=p.z;
-          item["wn"] = s.second.wn;
-          item["tow"] = s.second.tow;
-          ret[std::to_string(s.first)] = item;
         }
+
+        item["a0"]=s.second.a0;
+        item["a1"]=s.second.a1;
+        item["dtLS"]=s.second.dtLS;
+        item["a0g"]=s.second.a0g;
+        item["a1g"]=s.second.a1g;
+        item["e5bdvs"]=s.second.e5bdvs;
+        item["e1bdvs"]=s.second.e1bdvs;
+        item["e5bhs"]=s.second.e5bhs;
+        item["e1bhs"]=s.second.e1bhs;                    
+        item["gpshealth"]=s.second.gpshealth;
+        
+        nlohmann::json perrecv  = nlohmann::json::object();
+        for(const auto& pr : s.second.perrecv) {
+          nlohmann::json det  = nlohmann::json::object();
+          det["elev"] = pr.second.el;
+          det["db"] = pr.second.db;
+          det["last-seen-s"] = time(0) - pr.second.t;
+          perrecv[to_string(pr.first)]=det;
+        }
+        item["perrecv"]=perrecv;
+
+        item["last-seen-s"] = s.second.tow ? (7*86400*(latestWN(s.first.first) - s.second.wn) + latestTow(s.first.first) - (int)s.second.tow) : -1;
+        if(s.second.latestDisco >=0) {
+          item["latest-disco"]= s.second.latestDisco;
+        }
+
+        
+        item["wn"] = s.second.wn;
+        item["tow"] = s.second.tow;
+        ret[fmt::sprintf("%c%02d", s.first.first ? 'E' : 'G', s.first.second)] = item;
+      }
       return ret;
     });
   h2s.addDirectory("/", argc > 2 ? argv[2] : "./html/");
@@ -669,24 +564,7 @@ try
     });
   ws.detach();
 
-  
-  ofstream csv("iod.csv");
-  ofstream csv2("toe.csv");
-  csv<<"timestamp sv iod sisa"<<endl;
-  csv2<<"timestamp sv tow toe"<<endl;
-  ofstream gstutc("gstutc.csv");
-  gstutc << "timestamp sv tow t0t age rawshift nsecshift a0 a1" <<endl;
-  ofstream gstgps("gstgps.csv");
-  gstgps << "timestamp sv tow t0g age rawshift nsecshift a0g a1g" <<endl;
-
-  ofstream sisacsv("sisa.csv");
-  
-  sisacsv << "timestamp sv sisa"<<endl;
-
-  ofstream clockcsv("clock.csv");
-  clockcsv <<"timestamp sv af0 af1 af2 t0c age offset"<<endl;
-
-  ofstream dopplercsv("doppler.csv");
+  ofstream dopplercsv("doppler."+to_string(getpid())+".csv");
   dopplercsv<<"timestamp gnssid sv prmes cpmes doppler preddop distance radvel locktimems iod_age prstd cpstd dostd"<<endl;
 
   
@@ -709,108 +587,127 @@ try
     NavMonMessage nmm;
     nmm.ParseFromString(string(buffer, len));
     if(nmm.type() == NavMonMessage::ReceptionDataType) {
+      int gnssid = nmm.rd().gnssid();
       int sv = nmm.rd().gnsssv();
-      g_svstats[sv].perrecv[nmm.sourceid()].db = nmm.rd().db();
-      g_svstats[sv].perrecv[nmm.sourceid()].el = nmm.rd().el();
-      g_svstats[sv].perrecv[nmm.sourceid()].azi = nmm.rd().azi();
+      pair<int,int> id{gnssid, sv};
+      g_svstats[id].perrecv[nmm.sourceid()].db = nmm.rd().db();
+      g_svstats[id].perrecv[nmm.sourceid()].el = nmm.rd().el();
+      g_svstats[id].perrecv[nmm.sourceid()].azi = nmm.rd().azi();
+      g_svstats[id].perrecv[nmm.sourceid()].t = nmm.localutcseconds();
       
-      //      idb.addValue(sv, "db", g_svstats[sv].db);
-      // idb.addValue(sv, "elev", g_svstats[sv].el);
-      // idb.addValue(sv, "azi", g_svstats[sv].azi);            
+
+      // THIS HAS TO SPLIT OUT PER SOURCE
+      idb.addValue(id, "db", nmm.rd().db());
+      if(nmm.rd().el() <= 90 && nmm.rd().el() > 0)
+        idb.addValue(id, "elev", nmm.rd().el());
+      idb.addValue(id, "azi", nmm.rd().azi());            
     }
     else if(nmm.type() == NavMonMessage::GalileoInavType) {
       basic_string<uint8_t> inav((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
       int sv = nmm.gi().gnsssv();
-      g_svstats[sv].wn = nmm.gi().gnsswn();
+      pair<int, int> id={2,sv};
+      g_svstats[id].wn = nmm.gi().gnsswn();
       unsigned int wtype = getbitu(&inav[0], 0, 6);
       if(1) {
         //        cout<<sv <<"\t" << wtype << "\t" << nmm.gi().gnsstow() << "\t"<< nmm.sourceid() << endl;
-        if(g_svstats[sv].tow > nmm.gi().gnsstow()) {
-          cout<<"  wtype "<<wtype<<", was about to set tow backwards for "<<sv<<", "<<g_svstats[sv].tow << " > "<<nmm.gi().gnsstow()<<", " << ((signed)g_svstats[sv].tow - (signed)nmm.gi().gnsstow()) << ", source "<<nmm.sourceid()<<endl;
+        if(g_svstats[id].tow > nmm.gi().gnsstow()) {
+          cout<<"  wtype "<<wtype<<", was about to set tow backwards for "<<sv<<", "<<g_svstats[id].tow << " > "<<nmm.gi().gnsstow()<<", " << ((signed)g_svstats[id].tow - (signed)nmm.gi().gnsstow()) << ", source "<<nmm.sourceid()<<endl;
         }
       }
-      g_svstats[sv].tow = nmm.gi().gnsstow();
+      g_svstats[id].tow = nmm.gi().gnsstow();
 
-      g_svstats[sv].perrecv[nmm.sourceid()].wn = nmm.gi().gnsswn();
-      g_svstats[sv].perrecv[nmm.sourceid()].tow = nmm.gi().gnsstow();
-      
+      //      g_svstats[id].perrecv[nmm.sourceid()].wn = nmm.gi().gnsswn();
+      //      g_svstats[id].perrecv[nmm.sourceid()].tow = nmm.gi().gnsstow();
+      g_svstats[id].perrecv[nmm.sourceid()].t = nmm.localutcseconds();
       //      cout<<"inav for "<<wtype<<" for sv "<<sv<<": ";
       //      for(auto& c : inav)
       //        fmt::printf("%02x ", c);
-      
-
-        
-        g_svstats[sv].addWord(inav);
-        if(g_svstats[sv].e1bhs || g_svstats[sv].e5bhs || g_svstats[sv].e1bdvs || g_svstats[sv].e5bdvs) {
+      //      cout<<"About to add word for galileo sv "<<id.first<<","<<id.second<<": word = "<<wtype<<endl;
+        g_svstats[id].addGalileoWord(inav);
+        if(g_svstats[id].e1bhs || g_svstats[id].e5bhs || g_svstats[id].e1bdvs || g_svstats[id].e5bdvs) {
           if(sv != 18 && sv != 14) 
-            cout << "sv "<<sv<<" health: " << g_svstats[sv].e1bhs <<" " << g_svstats[sv].e5bhs <<" " << g_svstats[sv].e1bdvs <<" "<< g_svstats[sv].e5bdvs <<endl;
+            cout << "sv "<<sv<<" health: " << g_svstats[id].e1bhs <<" " << g_svstats[id].e5bhs <<" " << g_svstats[id].e1bdvs <<" "<< g_svstats[id].e5bdvs <<endl;
         }
         
         if(wtype >=1 && wtype <= 4) { // ephemeris 
           uint16_t iod = getbitu(&inav[0], 6, 10);          
           if(wtype == 3) {
-            idb.addValue(sv, "sisa", g_svstats[sv].iods[iod].sisa);
+            idb.addValue(id, "sisa", g_svstats[id].iods[iod].sisa);
           }
           else if(wtype == 4) {
             
-            idb.addValue(sv, "af0", g_svstats[sv].iods[iod].af0);
-            idb.addValue(sv, "af1", g_svstats[sv].iods[iod].af1);
-            idb.addValue(sv, "af2", g_svstats[sv].iods[iod].af2);
-            idb.addValue(sv, "t0c", g_svstats[sv].iods[iod].t0c);
+            idb.addValue(id, "af0", g_svstats[id].iods[iod].af0);
+            idb.addValue(id, "af1", g_svstats[id].iods[iod].af1);
+            idb.addValue(id, "af2", g_svstats[id].iods[iod].af2);
+            idb.addValue(id, "t0c", g_svstats[id].iods[iod].t0c);
             
-            double age = ephAge(g_svstats[sv].tow, g_svstats[sv].iods[iod].t0c * 60);
+            double age = ephAge(g_svstats[id].tow, g_svstats[id].iods[iod].t0c * 60);
             
-            double offset = ldexp(1000.0*(1.0*g_svstats[sv].iods[iod].af0 + ldexp(age*g_svstats[sv].iods[iod].af1, -12)), -34);
-            idb.addValue(sv, "atomic_offset_ns", 1000000.0*offset);
+            double offset = ldexp(1000.0*(1.0*g_svstats[id].iods[iod].af0 + ldexp(age*g_svstats[id].iods[iod].af1, -12)), -34);
+            idb.addValue(id, "atomic_offset_ns", 1000000.0*offset);
           }
           else
             ;
         }
         else if(wtype == 5) {
-          idb.addValue(sv, "ai0", g_svstats[sv].ai0);
-          idb.addValue(sv, "ai1", g_svstats[sv].ai1);
-          idb.addValue(sv, "ai2", g_svstats[sv].ai2);
+          idb.addValue(id, "ai0", g_svstats[id].ai0);
+          idb.addValue(id, "ai1", g_svstats[id].ai1);
+          idb.addValue(id, "ai2", g_svstats[id].ai2);
           
-          idb.addValue(sv, "sf1", g_svstats[sv].sf1);
-          idb.addValue(sv, "sf2", g_svstats[sv].sf2);
-          idb.addValue(sv, "sf3", g_svstats[sv].sf3);
-          idb.addValue(sv, "sf4", g_svstats[sv].sf4);
-          idb.addValue(sv, "sf5", g_svstats[sv].sf5);
+          idb.addValue(id, "sf1", g_svstats[id].sf1);
+          idb.addValue(id, "sf2", g_svstats[id].sf2);
+          idb.addValue(id, "sf3", g_svstats[id].sf3);
+          idb.addValue(id, "sf4", g_svstats[id].sf4);
+          idb.addValue(id, "sf5", g_svstats[id].sf5);
           
-          idb.addValue(sv, "BGDE1E5a", g_svstats[sv].BGDE1E5a);
-          idb.addValue(sv, "BGDE1E5b", g_svstats[sv].BGDE1E5b);
+          idb.addValue(id, "BGDE1E5a", g_svstats[id].BGDE1E5a);
+          idb.addValue(id, "BGDE1E5b", g_svstats[id].BGDE1E5b);
           
-          idb.addValue(sv, "e1bhs", g_svstats[sv].e1bhs);
-          idb.addValue(sv, "e5bhs", g_svstats[sv].e5bhs);
-          idb.addValue(sv, "e5bdvs", g_svstats[sv].e5bdvs);
-          idb.addValue(sv, "e1bdvs", g_svstats[sv].e1bdvs);
+          idb.addValue(id, "e1bhs", g_svstats[id].e1bhs);
+          idb.addValue(id, "e5bhs", g_svstats[id].e5bhs);
+          idb.addValue(id, "e5bdvs", g_svstats[id].e5bdvs);
+          idb.addValue(id, "e1bdvs", g_svstats[id].e1bdvs);
         }
         else if(wtype == 6) {  // GST-UTC
-          idb.addValue(sv, "a0", g_svstats[sv].a0);
-          idb.addValue(sv, "a1", g_svstats[sv].a1);
+          idb.addValue(id, "a0", g_svstats[id].a0);
+          idb.addValue(id, "a1", g_svstats[id].a1);
+          int dw = (uint8_t)g_svstats[id].wn - g_svstats[id].wn0t;
+          int age = dw * 7 * 86400 + g_svstats[id].tow - g_svstats[id].t0t * 3600;
           
-          g_dtLS = g_svstats[sv].dtLS;
+          long shift = g_svstats[id].a0 * (1LL<<20) + g_svstats[id].a1 * age; // in 2^-50 seconds units
+          idb.addValue(id, "utc_diff_ns", 1.073741824*ldexp(1.0*shift, -20));
+          
+          g_dtLS = g_svstats[id].dtLS;
         }
         else if(wtype == 10) { // GSTT GPS
-          idb.addValue(sv, "a0g", g_svstats[sv].a0g);
-          idb.addValue(sv, "a1g", g_svstats[sv].a1g);
-          idb.addValue(sv, "t0g", g_svstats[sv].t0g);
+          idb.addValue(id, "a0g", g_svstats[id].a0g);
+          idb.addValue(id, "a1g", g_svstats[id].a1g);
+          idb.addValue(id, "t0g", g_svstats[id].t0g);
+          uint8_t wn0g = g_svstats[id].wn0t;
+          int dwg = (((uint8_t)g_svstats[id].wn)&(1+2+4+8+16+32)) - wn0g;
+          int age = dwg*7*86400 + g_svstats[id].tow - g_svstats[id].t0g * 3600;
+
+          long shift = g_svstats[id].a0g * (1L<<16) + g_svstats[id].a1g * age; // in 2^-51 seconds units
+          
+          idb.addValue(id, "gps_gst_offset_ns", 1.073741824*ldexp(shift, -21));
+
+          
         }
 
         for(auto& ent : g_svstats) {
           //        fmt::printf("%2d\t", ent.first);
+          id=ent.first;
           if(ent.second.completeIOD() && ent.second.prevIOD.first >= 0) {
-            time_t t = utcFromGST((int)ent.second.wn, (int)ent.second.tow);
-            sisacsv << t <<" " << ent.first << " " << (unsigned int) ent.second.liveIOD().sisa << endl;
+            //            time_t t = utcFromGST((int)ent.second.wn, (int)ent.second.tow);
             //          cout << t <<" " << ent.first << " " << (unsigned int) ent.second.liveIOD().sisa << "\n";
             
-            double clockage = ephAge(ent.second.tow, ent.second.liveIOD().t0c * 60);
-            double offset = 1.0*ent.second.liveIOD().af0/(1LL<<34) + clockage * ent.second.liveIOD().af1/(1LL<<46);
-            clockcsv << t << " " << ent.first<<" " << ent.second.liveIOD().af0 << " " << ent.second.liveIOD().af1 <<" " << (int)ent.second.liveIOD().af2 <<" " << 935280000 + ent.second.wn *7*86400 + ent.second.liveIOD().t0c * 60 << " " << clockage << " " << offset<<endl;
+            //            double clockage = ephAge(ent.second.tow, ent.second.liveIOD().t0c * 60);
+            //            double offset = 1.0*ent.second.liveIOD().af0/(1LL<<34) + clockage * ent.second.liveIOD().af1/(1LL<<46);
+
             int ephage = ephAge(ent.second.tow, ent.second.prevIOD.second.t0e * 60);
             if(ent.second.liveIOD().sisa != ent.second.prevIOD.second.sisa) {
               
-              cout<<humanTime(ent.second.wn, ent.second.tow)<<" sv "<<ent.first<<" changed sisa from "<<(unsigned int) ent.second.prevIOD.second.sisa<<" ("<<
+              cout<<humanTime(ent.second.wn, ent.second.tow)<<" gnssid "<<ent.first.first<<" sv "<<ent.first.second<<" changed sisa from "<<(unsigned int) ent.second.prevIOD.second.sisa<<" ("<<
                 humanSisa(ent.second.prevIOD.second.sisa)<<") to " << (unsigned int)ent.second.liveIOD().sisa << " ("<<
                 humanSisa(ent.second.liveIOD().sisa)<<"), lastseen = "<< (ephage/3600.0) <<"h"<<endl;
             }
@@ -825,17 +722,21 @@ try
             
             double hours = ((ent.second.liveIOD().t0e - ent.second.prevIOD.second.t0e)/60.0);
             double disco = Vector(p, oldp).length();
-            cout<<ent.first<<" discontinuity after "<< hours<<" hours: "<< disco <<endl;
-            idb.addValue(sv, "iod-actual", ent.second.getIOD());
-            idb.addValue(sv, "iod-hours", hours);
+            cout<<id.first<<","<<id.second<<" discontinuity after "<< hours<<" hours: "<< disco <<endl;
+            idb.addValue(id, "iod-actual", ent.second.getIOD());
+            idb.addValue(id, "iod-hours", hours);
             
             
-            if(hours < 4)
-              idb.addValue(sv, "eph-disco", disco);
+            if(hours < 4) {
+              idb.addValue(id, "eph-disco", disco);
+              g_svstats[id].latestDisco= disco;
+            }
+            else
+              g_svstats[id].latestDisco= -1;
             
             
             if(0 && hours < 2) {
-              ofstream orbitcsv("orbit."+to_string(ent.first)+"."+to_string(ent.second.prevIOD.first)+"-"+to_string(ent.second.getIOD())+".csv");
+              ofstream orbitcsv("orbit."+to_string(id.first)+"."+to_string(id.second)+"."+to_string(ent.second.prevIOD.first)+"-"+to_string(ent.second.getIOD())+".csv");
               
               orbitcsv << "timestamp x y z oldx oldy oldz\n";
               orbitcsv << fixed;
@@ -862,24 +763,30 @@ try
     }
     else if(nmm.type() == NavMonMessage::RFDataType) {
       int sv = nmm.rfd().gnsssv();
-      if(nmm.rfd().gnssid() ==2 && g_svstats[sv].completeIOD()) {
+      pair<int,int> id{nmm.rfd().gnssid(), nmm.rfd().gnsssv()};
+      if(!nmm.rfd().gnssid()) {// GPS
+        dopplercsv << std::fixed << utcFromGST(nmm.rfd().rcvwn(), nmm.rfd().rcvtow()) <<" " << nmm.rfd().gnssid() <<" " <<sv<<" "<<nmm.rfd().pseudorange()<<" "<< nmm.rfd().carrierphase() <<" " << nmm.rfd().doppler()<<" " << 0 << " " <<  0 << " " << 0 <<" " << nmm.rfd().locktimems()<<" " << 0 << " " << nmm.rfd().prstd() << " " << nmm.rfd().cpstd() <<" " << 
+          nmm.rfd().dostd() << endl;
+        
+      }
+      else if(nmm.rfd().gnssid() ==2 && g_svstats[id].completeIOD()) {
         Point sat;
         Point us=g_ourpos;
 
         // be careful with time here - we need to evaluate at the timestamp of this RFDataType update
         // which might be newer than .tow in g_svstats
-        getCoordinates(nmm.rfd().rcvwn(), nmm.rfd().rcvtow(), g_svstats[sv].liveIOD(), &sat);
+        getCoordinates(nmm.rfd().rcvwn(), nmm.rfd().rcvtow(), g_svstats[id].liveIOD(), &sat);
         Point core;
         Vector us2sat(us, sat);
         Vector speed;
-        getSpeed(nmm.rfd().rcvwn(), nmm.rfd().rcvtow(), g_svstats[sv].liveIOD(), &speed);
+        getSpeed(nmm.rfd().rcvwn(), nmm.rfd().rcvtow(), g_svstats[id].liveIOD(), &speed);
         //        cout<<sv<<" radius: "<<Vector(core, sat).length()<<",  distance: "<<us2sat.length()<<", orbital velocity: "<<speed.length()/1000.0<<" km/s, ";
         
         Vector core2us(core, us);
         Vector dx(us, sat); //  = x-ourx, dy = y-oury, dz = z-ourz;
         //          double elev = acos ( core2us.inner(dx) / (core2us.length() * dx.length()));
         //double deg = 180.0* (elev/M_PI);
-        //          cout <<"elev: "<<90 - deg<< " ("<<g_svstats[sv].el<<")\n";
+        //          cout <<"elev: "<<90 - deg<< " ("<<g_svstats[id].el<<")\n";
         
         us2sat.norm();
         double radvel=us2sat.inner(speed);
@@ -888,14 +795,18 @@ try
         double preddop = -galileol1f*radvel/c;
         
         // be careful with time here - 
-        double ephage = ephAge(nmm.rfd().rcvtow(), g_svstats[sv].liveIOD().t0e*60);
+        double ephage = ephAge(nmm.rfd().rcvtow(), g_svstats[id].liveIOD().t0e*60);
         //        cout<<"Radial velocity: "<< radvel<<", predicted doppler: "<< preddop << ", measured doppler: "<<nmm.rfd().doppler()<<endl;
-        dopplercsv << std::fixed << utcFromGST(g_svstats[sv].wn, nmm.rfd().rcvtow()) <<" " << nmm.rfd().gnssid() <<" " <<sv<<" "<<nmm.rfd().pseudorange()<<" "<< nmm.rfd().carrierphase() <<" " << nmm.rfd().doppler()<<" " << preddop << " " << Vector(us, sat).length() << " " <<radvel <<" " << nmm.rfd().locktimems()<<" " <<ephage << " " << nmm.rfd().prstd() << " " << nmm.rfd().cpstd() <<" " << 
+        dopplercsv << std::fixed << utcFromGST(nmm.rfd().rcvwn(), nmm.rfd().rcvtow()) <<" " << nmm.rfd().gnssid() <<" " <<sv<<" "<<nmm.rfd().pseudorange()<<" "<< nmm.rfd().carrierphase() <<" " << nmm.rfd().doppler()<<" " << preddop << " " << Vector(us, sat).length() << " " <<radvel <<" " << nmm.rfd().locktimems()<<" " <<ephage << " " << nmm.rfd().prstd() << " " << nmm.rfd().cpstd() <<" " << 
           nmm.rfd().dostd() << endl;
       }
-
-
-      
+    }
+    else if(nmm.type()== NavMonMessage::GPSInavType) {
+      auto cond = getCondensedGPSMessage(std::basic_string<uint8_t>((uint8_t*)nmm.gpsi().contents().c_str(), nmm.gpsi().contents().size()));
+      pair<int,int> id{nmm.gpsi().gnssid(), nmm.gpsi().gnsssv()};
+      auto& svstat = g_svstats[id];
+      parseGPSMessage(cond, svstat);
+      g_svstats[id].perrecv[nmm.sourceid()].t = nmm.localutcseconds();
     }
     else {
       cout<<"Unknown type "<< (int)nmm.type()<<endl;

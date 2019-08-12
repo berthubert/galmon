@@ -20,6 +20,8 @@
 #include "galileo.hh"
 #include <arpa/inet.h>
 #include "navmon.pb.h"
+#include "ephemeris.hh"
+#include "gps.hh"
 struct timespec g_gstutc;
 uint16_t g_wn;
 using namespace std;
@@ -32,6 +34,8 @@ uint16_t g_srcid{2};
 namespace {
   struct EofException{};
 }
+
+Point g_ourpos;
 
 size_t readn2(int fd, void* buffer, size_t len)
 {
@@ -152,17 +156,29 @@ public:
   std::basic_string<uint8_t> d_raw;
 };
 
+bool g_fromFile{false};
+
 std::pair<UBXMessage, struct timeval> getUBXMessage(int fd)
 {
+  static int logfile;
+  if(!logfile && !g_fromFile) {
+    logfile = open("./logfile", O_WRONLY|O_CREAT|O_APPEND, 0600);
+    if(!logfile)
+      throw std::runtime_error("Failed to open logfile for writing");
+  }
   uint8_t marker[2]={0};
   for(;;) {
     marker[0] = marker[1];
     int res = readn2(fd, marker+1, 1);
+
     if(res < 0)
       throw EofException();
     
     //    cerr<<"marker now: "<< (int)marker[0]<<" " <<(int)marker[1]<<endl;
     if(marker[0]==0xb5 && marker[1]==0x62) { // bingo
+
+
+      
       struct timeval tv;
       gettimeofday(&tv, 0);
       basic_string<uint8_t> msg;
@@ -172,12 +188,18 @@ std::pair<UBXMessage, struct timeval> getUBXMessage(int fd)
       msg.append(b, 4); // class, type, len1, len2
 
 
+      
+
       uint16_t len = b[2] + 256*b[3];
       //      cerr<<"Got class "<<(int)msg[2]<<" type "<<(int)msg[3]<<", len = "<<len<<endl;
       uint8_t buffer[len+2];
       res=readn2(fd, buffer, len+2);
-      msg.append(buffer, len+2); // checksum
+
+
       
+      msg.append(buffer, len+2); // checksum
+      if(!g_fromFile)
+        writen2(logfile, msg.c_str(), msg.size());      
       return make_pair(UBXMessage(msg), tv);
     }
   }                                                                       
@@ -254,18 +276,19 @@ int main(int argc, char** argv)
   }
   struct termios oldtio,newtio;                                           
   int fd;
-  bool fromFile=false;
+
   if(string(argv[1]) != "stdin" && string(argv[1]) != "/dev/stdin" && isCharDevice(argv[1]))
     fd = open(argv[1], O_RDWR | O_NOCTTY );
   else {
-    fromFile = true;
+    g_fromFile = true;
+    
     fd = open(argv[1], O_RDONLY );
   }
   if (fd <0) {perror(argv[1]); exit(-1); }                            
   
   g_srcid = atoi(argv[2]);
   
-  if(!fromFile) {
+  if(!g_fromFile) {
     tcgetattr(fd,&oldtio); /* save current port settings */                 
     
     bzero(&newtio, sizeof(newtio));                                         
@@ -309,9 +332,20 @@ int main(int argc, char** argv)
     else
       cerr<<"Got nack on rate setting"<<endl;
     
-    msg = buildUbxMessage(0x06, 0x01, {0x02, 89});
+    //                                  ver   RO   maxch cfgs
+    msg = buildUbxMessage(0x06, 0x3e, {0x00, 0x00, 0xff, 0x02,
+          //                            GPS   min  max   res   x1   x2    x3,   x4
+                                        0x00, 0x04, 0x08, 0,  0x01, 0x00, 0x01, 0x00,
+          //                            GAL   min  max   res   x1   x2    x3,   x4
+                                        0x00, 0x04, 0x08, 0,  0x01, 0x00, 0x01, 0x00
+
+          });
     writen2(fd, msg.c_str(), msg.size());
-    um=waitForUBX(fd, 2, 0x06, 0x01); // ignore
+    
+    if(waitForUBXAckNack(fd, 2))
+      cerr<<"Got ack on GNSS setting"<<endl;
+    else
+      cerr<<"Got nack on GNSS setting"<<endl;
     
     cerr<<"Disabling NMEA"<<endl;
     msg = buildUbxMessage(0x06, 0x00, {0x03,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x01,0x00,0x00,0x00,0x00,0x00});
@@ -330,16 +364,16 @@ int main(int argc, char** argv)
       cerr<<(int)c<< " ";
     cerr<<endl;
     
-    cerr<<"Enabling UBX-RXM-RAWX"<<endl;
+    cerr<<"Enabling UBX-RXM-RAWX"<<endl; // RF doppler
     enableUBXMessageUSB(fd, 0x02, 0x15);
     
-    cerr<<"Enabling UBX-RXM-SFRBX"<<endl;
+    cerr<<"Enabling UBX-RXM-SFRBX"<<endl; // raw navigation frames
     enableUBXMessageUSB(fd, 0x02, 0x13);
     
-    cerr<<"Enabling UBX-NAV-POSECEF"<<endl;
+    cerr<<"Enabling UBX-NAV-POSECEF"<<endl; // position
     enableUBXMessageUSB(fd, 0x01, 0x01);
     
-    cerr<<"Enabling UBX-NAV-SAT"<<endl;
+    cerr<<"Enabling UBX-NAV-SAT"<<endl;  // satellite reception details
     enableUBXMessageUSB(fd, 0x01, 0x35);
     
     cerr<<"Enabling UBX-NAV-PVT"<<endl; // position, velocity, time fix
@@ -407,9 +441,9 @@ int main(int argc, char** argv)
 
         
         double seconds= pvt.sec + pvt.nano/1000000000.0;
-        fmt::fprintf(stderr, "Satellite UTC: %02d:%02d:%06.4f -> %.4f or %d:%f\n", tm.tm_hour, tm.tm_min, seconds, satutc, timegm(&tm), pvt.nano/1000.0);
+        //        fmt::fprintf(stderr, "Satellite UTC: %02d:%02d:%06.4f -> %.4f or %d:%f\n", tm.tm_hour, tm.tm_min, seconds, satutc, timegm(&tm), pvt.nano/1000.0);
 
-        if(!fromFile) {
+        if(!g_fromFile) {
           struct tm ourtime;
           time_t ourt = timestamp.tv_sec;
           gmtime_r(&ourt, &ourtime);
@@ -417,7 +451,7 @@ int main(int argc, char** argv)
           double ourutc = ourt + timestamp.tv_usec/1000000.0;
           
           seconds = ourtime.tm_sec + timestamp.tv_usec/1000000.0;
-          fmt::fprintf(stderr, "Our UTC      : %02d:%02d:%06.4f -> %.4f or %d:%f -> delta = %.4fs\n", tm.tm_hour, tm.tm_min, seconds, ourutc, timestamp.tv_sec, 1.0*timestamp.tv_usec, ourutc - satutc);
+          //          fmt::fprintf(stderr, "Our UTC      : %02d:%02d:%06.4f -> %.4f or %d:%f -> delta = %.4fs\n", tm.tm_hour, tm.tm_min, seconds, ourutc, timestamp.tv_sec, 1.0*timestamp.tv_usec, ourutc - satutc);
         }
       }
       else if(msg.getClass() == 0x02 && msg.getType() == 0x15) {  // RAWX
@@ -447,7 +481,7 @@ int main(int argc, char** argv)
           nmm.set_type(NavMonMessage::RFDataType);
           nmm.set_localutcseconds(g_gstutc.tv_sec);
           nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
-          nmm.set_sourceid(g_srcid); // XXX source id
+          nmm.set_sourceid(g_srcid); 
 
           nmm.mutable_rfd()->set_gnssid(gnssid);
           nmm.mutable_rfd()->set_gnsssv(sv);
@@ -479,11 +513,13 @@ int main(int argc, char** argv)
             << p.ecefY / 100000.0<<", "
             << p.ecefZ / 100000.0<<") +- "<<p.pAcc<<" cm"<<endl;
 
+        g_ourpos = {p.ecefX/100.0, p.ecefY/100.0, p.ecefZ/100.0};
+        
         NavMonMessage nmm;
         nmm.set_type(NavMonMessage::ObserverPositionType);
         nmm.set_localutcseconds(g_gstutc.tv_sec);
         nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
-        nmm.set_sourceid(g_srcid); // XXX source id
+        nmm.set_sourceid(g_srcid); 
         nmm.mutable_op()->set_x(p.ecefX /100.0);
         nmm.mutable_op()->set_y(p.ecefY /100.0);
         nmm.mutable_op()->set_z(p.ecefZ /100.0);
@@ -498,30 +534,47 @@ int main(int argc, char** argv)
         
         try {
           pair<int,int> id = make_pair(payload[0], payload[1]);
-          if(id.first != 2)
-            continue; // not Galileo
+          if(id.first == 0) {
+            NavMonMessage nmm;
+            nmm.set_type(NavMonMessage::GPSInavType);
+            nmm.set_localutcseconds(g_gstutc.tv_sec);
+            nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
+            nmm.set_sourceid(g_srcid);         
+            //            cerr<<"GPS frame, numwords: "<<(int)payload[4]<<", version: "<<(int)payload[6]<<endl;
+            unsigned int wn{18}, tow;
+            auto gpsframe = getGPSFromSFRBXMsg(id.second, payload);
+            auto cond = getCondensedGPSMessage(gpsframe);
+            tow = 1.5*(getbitu(&cond[0], 24, 17)*4);
+            nmm.mutable_gpsi()->set_gnsswn(wn);   // XXX this sucks
+            nmm.mutable_gpsi()->set_gnsstow(tow); // "with 6 second increments" -- needs to be adjusted
+            nmm.mutable_gpsi()->set_gnssid(id.first);
+            nmm.mutable_gpsi()->set_gnsssv(id.second);
+            nmm.mutable_gpsi()->set_contents(string((char*)gpsframe.c_str(), gpsframe.size()));
+            emitNMM(1, nmm);
+            continue;
+          }
           auto inav = getInavFromSFRBXMsg(payload);
           unsigned int wtype = getbitu(&inav[0], 0, 6);
           tv[id] = timestamp;
 
-          cerr<<"gnssid "<<id.first<<" sv "<<id.second<<" " << wtype << endl;
+          //          cerr<<"gnssid "<<id.first<<" sv "<<id.second<<" " << wtype << endl;
           uint32_t satTOW;
           int msgTOW{0};
           if(getTOWFromInav(inav, &satTOW, &g_wn)) { // 0, 6, 5
-            cerr<<"   "<<wtype<<" sv "<<id.second<<" tow "<<satTOW << " % 30 = "<< satTOW % 30<<", implied start of cycle: "<<(satTOW - (satTOW %30)) <<endl;
+            //            cerr<<"   "<<wtype<<" sv "<<id.second<<" tow "<<satTOW << " % 30 = "<< satTOW % 30<<", implied start of cycle: "<<(satTOW - (satTOW %30)) <<endl;
             msgTOW = satTOW;
             curCycleTOW = satTOW - (satTOW %30);
           }
           else {
             if(curCycleTOW < 0) // did not yet have a start of cycle
               continue;
-            cerr<<"   "<<wtype<<" sv "<<id.second<<" tow ";
+            //            cerr<<"   "<<wtype<<" sv "<<id.second<<" tow ";
             if(wtype == 2) {
-              cerr<<"infered to be 1 "<<curCycleTOW + 31<<endl;
+              //              cerr<<"infered to be 1 "<<curCycleTOW + 31<<endl;
               msgTOW = curCycleTOW + 31;
             }
             else if(wtype == 4) {
-              cerr<<"infered to be 3 "<<curCycleTOW + 33<<endl;
+              //              cerr<<"infered to be 3 "<<curCycleTOW + 33<<endl;
               msgTOW = curCycleTOW + 33;
             } // next have '6' which sets TOW
             else if(wtype==7 || wtype == 9) {
@@ -569,36 +622,26 @@ int main(int argc, char** argv)
       else if(msg.getClass() == 1 && msg.getType() == 0x35) { // UBX-NAV-SAT
         //        cerr<< "Info for "<<(int) payload[5]<<" svs: \n";
         for(unsigned int n = 0 ; n < payload[5]; ++n) {
-          /*
-          cerr << "  "<<(payload[8+12*n] ? 'E' : 'G') << (int)payload[9+12*n] <<" db=";
-          cerr << (int)payload[10+12*n]<<" elev="<<(int)(char)payload[11+12*n]<<" azi=";
-          cerr << ((int)payload[13+12*n]*256 + payload[12+12*n])<<" prres="<< *((int16_t*)(payload.c_str()+ 14 +12*n)) *0.1 << " signal="<< ((int)(payload[16+12*n])&7) << " used="<<  (payload[16+12*n]&8);
+          int gnssid = payload[8+12*n];
+          int sv = payload[9+12*n];
+
+          auto el = (int)(char)payload[11+12*n];
+          auto azi = ((int)payload[13+12*n]*256 + payload[12+12*n]);
+          auto db = (int)payload[10+12*n];
+          //          cerr <<"gnssid "<<gnssid<<" sv "<<sv<<" el "<<el<<endl;
+          NavMonMessage nmm;
+          nmm.set_sourceid(g_srcid);
+          nmm.set_localutcseconds(g_gstutc.tv_sec);
+          nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
           
-          fmt::fprintf(stderr, " | %02x %02x %02x %02x\n", (int)payload[16+12*n], (int)payload[17+12*n],
-                      (int)payload[18+12*n], (int)payload[19+12*n]);
-          */
-          if(payload[8+12*n]==2) { // galileo
-            int sv = payload[9+12*n];
-            auto el = (int)(char)payload[11+12*n];
-            auto azi = ((int)payload[13+12*n]*256 + payload[12+12*n]);
-            auto db = (int)payload[10+12*n];
-
-            NavMonMessage nmm;
-            nmm.set_sourceid(g_srcid);
-            nmm.set_localutcseconds(g_gstutc.tv_sec);
-            nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
-
-            nmm.set_type(NavMonMessage::ReceptionDataType);
-            nmm.mutable_rd()->set_gnssid(payload[8+12*n]);
-            nmm.mutable_rd()->set_gnsssv(sv);
-            nmm.mutable_rd()->set_db(db);
-            nmm.mutable_rd()->set_el(el);
-            nmm.mutable_rd()->set_azi(azi);
-            nmm.mutable_rd()->set_prres(*((int16_t*)(payload.c_str()+ 14 +12*n)) *0.1);
-            emitNMM(1, nmm);
-            
-            
-          }
+          nmm.set_type(NavMonMessage::ReceptionDataType);
+          nmm.mutable_rd()->set_gnssid(gnssid);
+          nmm.mutable_rd()->set_gnsssv(sv);
+          nmm.mutable_rd()->set_db(db);
+          nmm.mutable_rd()->set_el(el);
+          nmm.mutable_rd()->set_azi(azi);
+          nmm.mutable_rd()->set_prres(*((int16_t*)(payload.c_str()+ 14 +12*n)) *0.1);
+          emitNMM(1, nmm);
         }
       }
 
@@ -608,7 +651,7 @@ int main(int argc, char** argv)
       cerr<<"Bad UBX checksum, skipping message"<<endl;
     }
   }
-  if(!fromFile)
+  if(!g_fromFile)
     tcsetattr(fd,TCSANOW,&oldtio);                                          
 }                                                                         
 

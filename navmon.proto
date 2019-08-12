@@ -6,6 +6,7 @@ message NavMonMessage {
     ObserverPositionType = 2;
     GalileoInavType = 3;
     RFDataType = 4;
+    GPSInavType = 5;
   }
 
   required uint64 sourceID = 1;
@@ -15,6 +16,15 @@ message NavMonMessage {
   required uint64 localUtcNanoseconds = 4;
 
   message GalileoInav {
+	required uint32 gnssWN =1;
+  	required uint32 gnssTOW =2; // INTEGERS!
+
+	required uint32 gnssID =3;
+	required uint32 gnssSV =4;
+	required bytes contents =5;
+  }
+
+  message GPSInav {
 	required uint32 gnssWN =1;
   	required uint32 gnssTOW =2; // INTEGERS!
 
@@ -58,4 +68,5 @@ message NavMonMessage {
   optional ReceptionData rd=6;  
   optional RFData rfd=7;
   optional ObserverPosition op=8;
+  optional GPSInav gpsi=9;
 }
