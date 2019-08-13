@@ -54,7 +54,7 @@ string humanSisa(uint8_t sisa)
 string humanUra(uint8_t ura)
 {
   if(ura < 6)
-    return fmt::sprintf("%d cm", (int)(100*pow(2, 1+ura/2.0)));
+    return fmt::sprintf("%d cm", (int)(100*pow(2.0, 1.0+1.0*ura/2.0)));
   else if(ura < 15)
     return fmt::sprintf("%d m", (int)(pow(2, ura-2)));
   return "NO URA AVAILABLE";
@@ -547,8 +547,10 @@ try
           continue;
         if(s.second.completeIOD()) {
           item["iod"]=s.second.getIOD();
-          if(s.first.first ==0)
+          if(s.first.first ==0) {
             item["sisa"]=humanUra(s.second.ura);
+            //            cout<<"Asked to convert "<<s.second.ura<<" for sv "<<s.first.first<<","<<s.first.second<<endl;
+          }
           else
             item["sisa"]=humanSisa(s.second.liveIOD().sisa);
           item["eph-age-m"] = ephAge(s.second.tow, s.second.liveIOD().t0e)/60.0;
@@ -589,7 +591,7 @@ try
         item["a0"]=s.second.a0;
         item["a1"]=s.second.a1;
         item["dtLS"]=s.second.dtLS;
-        if(s.first.first == 2) {
+        if(s.first.first == 2) {  // galileo
           item["a0g"]=s.second.a0g;
           item["a1g"]=s.second.a1g;
           item["e5bdvs"]=s.second.e5bdvs;
@@ -680,9 +682,9 @@ try
       unsigned int wtype = getbitu(&inav[0], 0, 6);
       if(1) {
         //        cout<<sv <<"\t" << wtype << "\t" << nmm.gi().gnsstow() << "\t"<< nmm.sourceid() << endl;
-        if(g_svstats[id].tow > nmm.gi().gnsstow()) {
+        /*        if(g_svstats[id].tow > nmm.gi().gnsstow()) {
           cout<<"  wtype "<<wtype<<", was about to set tow backwards for "<<sv<<", "<<g_svstats[id].tow << " > "<<nmm.gi().gnsstow()<<", " << ((signed)g_svstats[id].tow - (signed)nmm.gi().gnsstow()) << ", source "<<nmm.sourceid()<<endl;
-        }
+          }*/
       }
       g_svstats[id].tow = nmm.gi().gnsstow();
 
@@ -895,11 +897,16 @@ try
         idb.addValue(id, "af1", 8* svstat.af1); // scaled to galileo units - native gps: 2^-43
         idb.addValue(id, "af2", 16* svstat.af2); // scaled to galileo units
         idb.addValue(id, "t0c", 16 * svstat.t0c);
+        //        cout<<"Got ura "<<svstat.ura<<" for sv "<<id.first<<","<<id.second<<endl;
+        idb.addValue(id, "ura", svstat.ura);
 
         double age = ephAge(g_svstats[id].tow, g_svstats[id].t0c * 16);
         
         double offset = ldexp(1000.0*(1.0*g_svstats[id].af0 + ldexp(age*g_svstats[id].af1, -12)), -31);
         idb.addValue(id, "atomic_offset_ns", 1000000.0*offset);
+      }
+      else if(frame==2) {
+        idb.addValue(id, "gpshealth", g_svstats[id].gpshealth);
       }
       else if(frame==4 && page==18) {
         idb.addValue(id, "a0", g_svstats[id].a0);
