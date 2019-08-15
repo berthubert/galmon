@@ -2,12 +2,12 @@ CXXFLAGS:= -std=gnu++17 -Wall -O3 -MMD -MP -ggdb -fno-omit-frame-pointer  -Iext/
 
 PROGRAMS = navparse ubxtool navnexus navrecv navdump
 
-all: $(PROGRAMS)
+all: navmon.pb.cc $(PROGRAMS)
 
 -include *.d
 
 clean:
-	rm -f *~ *.o *.d ext/*/*.o $(PROGRAMS)
+	rm -f *~ *.o *.d ext/*/*.o $(PROGRAMS) navmon.pb.h navmon.pb.cc
 
 H2OPP=ext/powerblog/h2o-pp.o
 SIMPLESOCKETS=ext/powerblog/ext/simplesocket/swrappers.o ext/powerblog/ext/simplesocket/sclasses.o  ext/powerblog/ext/simplesocket/comboaddress.o 
@@ -26,11 +26,9 @@ navrecv: navrecv.o ext/fmt-5.2.1/src/format.o $(SIMPLESOCKETS) navmon.pb.o stora
 	$(CXX) -std=gnu++17 $^ -o $@ -pthread -lprotobuf  
 
 
-
-
-navmon.pb.h: navmon.proto
+navmon.pb.cc: navmon.proto
 	protoc --cpp_out=./ navmon.proto
 
-ubxtool: ubxtool.o ubx.o bits.o ext/fmt-5.2.1/src/format.o galileo.o navmon.pb.o  gps.o
+ubxtool: navmon.pb.o ubxtool.o ubx.o bits.o ext/fmt-5.2.1/src/format.o galileo.o  gps.o
 	$(CXX) -std=gnu++17 $^ -o $@ -lprotobuf
 
