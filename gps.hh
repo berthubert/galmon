@@ -5,7 +5,8 @@
 std::basic_string<uint8_t> getCondensedGPSMessage(std::basic_string_view<uint8_t> payload);
 
 // expects input as 24 bit read to to use messages, returns frame number
-int parseGPSMessage(std::basic_string_view<uint8_t> cond, auto& out, uint8_t* pageptr=0)
+template<typename T>
+int parseGPSMessage(std::basic_string_view<uint8_t> cond, T& out, uint8_t* pageptr=0)
 {
   using namespace std;
   int frame = getbitu(&cond[0], 24+19, 3);

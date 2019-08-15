@@ -11,6 +11,7 @@
 #include <string>
 #include <stdint.h>
 #include "ubx.hh"
+
 #include <iostream>
 #include <fstream>
 #include <string.h>
@@ -20,7 +21,6 @@
 #include "galileo.hh"
 #include <arpa/inet.h>
 #include "navmon.pb.h"
-#include "ephemeris.hh"
 #include "gps.hh"
 struct timespec g_gstutc;
 uint16_t g_wn;
@@ -28,14 +28,12 @@ using namespace std;
 
 uint16_t g_srcid{2};
 
-#define BAUDRATE B921600 
+#define BAUDRATE B921600
 #define MODEMDEVICE "/dev/ttyACM0"
 
 namespace {
   struct EofException{};
 }
-
-Point g_ourpos;
 
 size_t readn2(int fd, void* buffer, size_t len)
 {
@@ -513,7 +511,7 @@ int main(int argc, char** argv)
             << p.ecefY / 100000.0<<", "
             << p.ecefZ / 100000.0<<") +- "<<p.pAcc<<" cm"<<endl;
 
-        g_ourpos = {p.ecefX/100.0, p.ecefY/100.0, p.ecefZ/100.0};
+//        g_ourpos = {p.ecefX/100.0, p.ecefY/100.0, p.ecefZ/100.0};
         
         NavMonMessage nmm;
         nmm.set_type(NavMonMessage::ObserverPositionType);
