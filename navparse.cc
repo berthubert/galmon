@@ -628,11 +628,11 @@ try
     });
   h2s.addDirectory("/", argc > 2 ? argv[2] : "./html/");
 
-  int port = argc > 1 ? atoi(argv[1]) : 29599;
-  std::thread ws([&h2s, port]() {
+  const char *address = argc > 1 ? argv[1] : "127.0.0.1:29599";
+  std::thread ws([&h2s, address]() {
       auto actx = h2s.addContext();
-      h2s.addListener(ComboAddress("::", port), actx);
-      cout<<"Listening on port "<< port <<endl;
+      h2s.addListener(ComboAddress(address), actx);
+      cout<<"Listening on "<< address <<endl;
       h2s.runLoop();
     });
   ws.detach();
