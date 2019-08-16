@@ -28,8 +28,7 @@ using namespace std;
 
 uint16_t g_srcid{2};
 
-#define BAUDRATE B921600
-#define MODEMDEVICE "/dev/ttyACM0"
+#define BAUDRATE B115200
 
 namespace {
   struct EofException{};
@@ -427,7 +426,7 @@ int main(int argc, char** argv)
         tm.tm_sec = pvt.sec;
 
         uint32_t satt = timegm(&tm);
-        double satutc = timegm(&tm) + pvt.nano/1000000000.0; // negative is no problem here
+        //double satutc = timegm(&tm) + pvt.nano/1000000000.0; // negative is no problem here
         if(pvt.nano < 0) {
           pvt.sec--;
           satt--;
@@ -446,7 +445,7 @@ int main(int argc, char** argv)
           time_t ourt = timestamp.tv_sec;
           gmtime_r(&ourt, &ourtime);
           
-          double ourutc = ourt + timestamp.tv_usec/1000000.0;
+          //double ourutc = ourt + timestamp.tv_usec/1000000.0;
           
           seconds = ourtime.tm_sec + timestamp.tv_usec/1000000.0;
           //          fmt::fprintf(stderr, "Our UTC      : %02d:%02d:%06.4f -> %.4f or %d:%f -> delta = %.4fs\n", tm.tm_hour, tm.tm_min, seconds, ourutc, timestamp.tv_sec, 1.0*timestamp.tv_usec, ourutc - satutc);
@@ -473,7 +472,7 @@ int main(int argc, char** argv)
           uint8_t prStddev = payload[43+23*n] & 0xf;
           uint8_t cpStddev = payload[44+23*n] & 0xf;
           uint8_t doStddev = payload[45+23*n] & 0xf;
-          uint8_t trkStat = payload[46+23*n] & 0xf;
+          //uint8_t trkStat = payload[46+23*n] & 0xf;
 
           NavMonMessage nmm;
           nmm.set_type(NavMonMessage::RFDataType);

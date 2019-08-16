@@ -348,14 +348,16 @@ struct InfluxPusher
   explicit InfluxPusher(std::string_view dbname) : d_dbname(dbname)
   {
   }
-  void addValue( const pair<pair<int,int>,SVStat>& ent, string_view name, auto value)
+  template <typename T>
+  void addValue( const pair<pair<int,int>,SVStat>& ent, string_view name, T value)
   {
     d_buffer+= string(name)+",gnssid="+to_string(ent.first.first)+ +",sv=" +to_string(ent.first.second)+" value="+to_string(value)+
       " "+to_string(nanoTime(ent.first.first, ent.second.wn, ent.second.tow))+"\n";
     checkSend();
   }
   
-  void addValue(pair<int,int> id, string_view name, auto value)
+  template <typename T>
+  void addValue(pair<int,int> id, string_view name, T value)
   {
     if(g_svstats[id].wn ==0 && g_svstats[id].tow == 0)
       return;
