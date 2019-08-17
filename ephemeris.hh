@@ -1,13 +1,14 @@
 #pragma once
 #include "minivec.hh"
 
-void getCoordinates(int wn, double tow, const auto& iod, Point* p, bool quiet=true)
+template<typename T>
+void getCoordinates(int wn, double tow, T& iod, Point* p, bool quiet=true)
 {
   using namespace std;
   // here goes
 
-  constexpr double mu = 3.986004418 * pow(10.0, 14.0);
-  constexpr double omegaE = 7.2921151467 * pow(10.0, -5);
+  const double mu = 3.986004418 * pow(10.0, 14.0);
+  const double omegaE = 7.2921151467 * pow(10.0, -5);
   
   double sqrtA = 1.0*iod.sqrtA / (1ULL<<19);
   double deltan = M_PI * 1.0*iod.deltan / (1LL<<43);
