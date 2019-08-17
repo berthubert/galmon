@@ -1,8 +1,8 @@
 #pragma once
 #include "minivec.hh"
 
-template <typename T>
-void getCoordinates(int wn, double tow, const T& iod, Point* p, bool quiet=true)
+template<typename T>
+void getCoordinates(int wn, double tow, T& iod, Point* p, bool quiet=true)
 {
   using namespace std;
   // here goes

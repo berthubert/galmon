@@ -22,7 +22,7 @@ using namespace std;
 
 static std::string humanTime(time_t t)
 {
-  struct tm tm;
+  struct tm tm={0};
   gmtime_r(&t, &tm);
 
   char buffer[80];
@@ -67,7 +67,10 @@ int main(int argc, char** argv)
       uint8_t page;
       int frame=parseGPSMessage(cond, gs, &page);
       cout<<"GPS "<<sv<<": ";
-      if(frame == 2) {
+      if(frame == 1) {
+        cout << "gpshealth = "<<(int)gs.gpshealth;
+      }
+      else if(frame == 2) {
         cout << "t0e = "<<gs.iods.begin()->second.t0e;
       }
       cout<<"\n";
