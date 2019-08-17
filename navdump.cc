@@ -62,7 +62,15 @@ int main(int argc, char** argv)
     }
     else if(nmm.type() == NavMonMessage::GPSInavType) {
       int sv = nmm.gpsi().gnsssv();
-      cout<<"GPS "<<sv<<endl;
+      auto cond = getCondensedGPSMessage(std::basic_string<uint8_t>((uint8_t*)nmm.gpsi().contents().c_str(), nmm.gpsi().contents().size()));
+      struct GPSState gs;
+      uint8_t page;
+      int frame=parseGPSMessage(cond, gs, &page);
+      cout<<"GPS "<<sv<<": ";
+      if(frame == 2) {
+        cout << "t0e = "<<gs.iods.begin()->second.t0e;
+      }
+      cout<<"\n";
     }
 
     else if(nmm.type() == NavMonMessage::ObserverPositionType) {
