@@ -1,4 +1,5 @@
 #pragma once
+#include <bitset>
 #include <string>
 #include <map>
 #include "bits.hh"
