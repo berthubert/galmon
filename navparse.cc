@@ -198,14 +198,14 @@ uint16_t SVStat::getIOD() const
   for(const auto& iod : iods)
     if(iod.second.complete())
       return iod.first;
-  throw std::runtime_error("Asked for unknown IOD");
+  throw std::runtime_error("Asked for live IOD number, don't have one yet");
 }
 
 SVIOD SVStat::liveIOD() const
 {
   if(auto iter = iods.find(getIOD()); iter != iods.end())
     return iter->second;
-  throw std::runtime_error("Asked for unknown IOD");
+  throw std::runtime_error("Asked for live IOD, don't have one yet");
 }
 
 void SVStat::checkCompleteAndClean(int iod)
@@ -216,8 +216,10 @@ void SVStat::checkCompleteAndClean(int iod)
         prevIOD=i;
     }
     SVIOD latest = iods[iod];
-    iods.clear();
-    iods[iod] = latest;
+    
+    decltype(iods) newiods;   // XXX race condition here, 
+    newiods[iod]=latest;
+    iods.swap(newiods);       // try to keep it brief
   }
 }
 
