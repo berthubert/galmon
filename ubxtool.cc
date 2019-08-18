@@ -538,9 +538,15 @@ int main(int argc, char** argv)
             nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
             nmm.set_sourceid(g_srcid);         
             //            cerr<<"GPS frame, numwords: "<<(int)payload[4]<<", version: "<<(int)payload[6]<<endl;
-            unsigned int wn{2048+18}, tow;
+            static int wn, tow;
             auto gpsframe = getGPSFromSFRBXMsg(id.second, payload);
             auto cond = getCondensedGPSMessage(gpsframe);
+            auto frameno = getbitu(&cond[0], 24+19, 3);
+            if(frameno == 1)
+              wn = 2048 + getbitu(&cond[0], 2*24, 10);
+            if(!wn) 
+              continue; // can't file this yet
+              
             tow = 1.5*(getbitu(&cond[0], 24, 17)*4);
             nmm.mutable_gpsi()->set_gnsswn(wn);   // XXX this sucks
             nmm.mutable_gpsi()->set_gnsstow(tow); // "with 6 second increments" -- needs to be adjusted

@@ -1,8 +1,11 @@
 #pragma once
 #include "minivec.hh"
+#include <iostream>
+
+int ephAge(int tow, int t0e);
 
 template<typename T>
-void getCoordinates(int wn, double tow, T& iod, Point* p, bool quiet=true)
+void getCoordinates(int wn, double tow, const T& iod, Point* p, bool quiet=true)
 {
   using namespace std;
   // here goes
@@ -66,7 +69,7 @@ void getCoordinates(int wn, double tow, T& iod, Point* p, bool quiet=true)
   double A3 = pow(sqrtA, 6.0);
 
   double n0 = sqrt(mu/A3);
-  double tk = tow - t0e; // in seconds, should do ephAge
+  double tk = ephAge(tow, t0e); // in seconds, should do ephAge
 
   double n = n0 + deltan;
   if(!quiet)

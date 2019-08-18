@@ -66,12 +66,12 @@ int main(int argc, char** argv)
       struct GPSState gs;
       uint8_t page;
       int frame=parseGPSMessage(cond, gs, &page);
-      cout<<"GPS "<<sv<<": ";
+      cout<<"GPS "<<sv<<": "<<gs.tow<<" ";
       if(frame == 1) {
-        cout << "gpshealth = "<<(int)gs.gpshealth;
+        cout << "gpshealth = "<<(int)gs.gpshealth<<", wn "<<gs.wn;
       }
       else if(frame == 2) {
-        cout << "t0e = "<<gs.iods.begin()->second.t0e;
+        cout << "t0e = "<<gs.iods.begin()->second.t0e << " " <<ephAge(gs.tow, gs.iods.begin()->second.t0e);
       }
       cout<<"\n";
     }
