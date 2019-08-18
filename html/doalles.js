@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "iod", "eph-age-m", "latest-disco", "sisa", "e1bhs", "e1bdvs", "e5bhs", "e5bdvs", "gpshealth", "a0", "a1","a0g", "a1g", "sources", "db", "elev", "last-seen-s"];    
+    var columns = ["sv", "iod", "eph-age-m", "latest-disco", "sisa", "delta_hz_corr", "e1bhs", "e1bdvs", "e5bhs", "e5bdvs", "gpshealth", "a0", "a1","a0g", "a1g", "sources", "db", "elev", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -22,7 +22,12 @@ function maketable(str, arr)
         .data(columns)
         .enter()
         .append("th")
-        .text(function(column) { return column; });
+        .text(function(column) {
+            if(column == "delta_hz_corr")
+                return "ΔHz";
+            else
+                return column;
+        });
     
     var cells = rows.selectAll("td").
         data(function(row) {
@@ -38,7 +43,10 @@ function maketable(str, arr)
                     else
                         ret.value="";
                 }
+                else if(row[column] != null && (column == "delta_hz_corr" || column =="delta_hz")) {
 
+                    ret.value = row[column].toFixed(0);
+                }
                 else if(column == "last-seen-s") {
                     var b = moment.duration(row[column], 's');
                     ret.value = b.humanize();
@@ -102,7 +110,7 @@ function update()
 
     
     d3.json("global", function(d) {
-        d3.select('#facts').html("Galileo-UTC offset: <b>"+d["utc-offset-ns"].toFixed(2)+"</b> ns, Galileo-GPS offset: <b>"+d["gps-offset-ns"].toFixed(2)+"</b> ns<b>, "+d["leap-seconds"]+"</b> leap seconds");
+        d3.select('#facts').html("Galileo-UTC offset: <b>"+d["utc-offset-ns"].toFixed(2)+"</b> ns, Galileo-GPS offset: <b>"+d["gps-offset-ns"].toFixed(2)+"</b> ns, GPS UTC offset: <b>"+d["gps-utc-offset-ns"].toFixed(2)+"</b>. "+d["leap-seconds"]+"</b> leap seconds");
         lastseen = moment(1000*d["last-seen"]);
         d3.select("#freshness").html(lastseen.fromNow());
     });

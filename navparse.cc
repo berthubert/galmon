@@ -414,37 +414,6 @@ std::string humanTime(int wn, int tow)
   return buffer;
 }
 
-/* |            t0e tow     |  - > tow - t0e, <3.5 days, so ok
-
-   | t0e                tow |   -> tow - t0e > 3.5 days, so 
-                                   7*86400 - tow + t0e
-
-   |         tow t0e        |   -> 7*86400 - tow + t0e > 3.5 days, so
-                                  tow - t0e (negative age)
-
-   | tow               t0e  |   -> 7*86400 - tow + t0e < 3.5 days, ok
-*/
-
-int ephAge(int tow, int t0e)
-{
-  unsigned int diff;
-  unsigned int halfweek = 0.5*7*86400;
-  if(t0e < tow) {
-    diff = tow - t0e;
-    if(diff < halfweek)
-      return diff;
-    else
-      return (7*86400 - tow) + t0e;
-  }
-  else { // "t0e in future"
-    diff = 7*86400 - t0e + tow;
-    if(diff < halfweek)
-      return diff;
-    else
-      return tow - t0e; // in the future, negative age
-  }
-}
-
 std::optional<double> getHzCorrection(time_t now)
 {
   int galcount{0}, gpscount{0}, allcount{0};
@@ -496,12 +465,25 @@ try
       catch(...)
         {}
       
-      map<int, int> utcstats, gpsgststats;
+      map<int, int> utcstats, gpsgststats, gpsutcstats;
       for(const auto& s: g_svstats) {
         if(!s.second.wn) // this will suck in 20 years
           continue;
-        if(s.first.first != 2) // Galileo only
+
+        //Galileo-UTC offset: 3.22 ns, Galileo-GPS offset: 7.67 ns, 18 leap seconds
+
+
+        if(s.first.first == 0) { // GPS
+          int sv = s.first.second;
+          int dw = (uint8_t)g_svstats[{0,sv}].wn - g_svstats[{0,sv}].wn0t;
+          int age = dw * 7 * 86400 + g_svstats[{0,sv}].tow - g_svstats[{0,sv}].t0t; // t0t is PRESCALED
+          
+          
+
+          gpsutcstats[age]=s.first.second;
           continue;
+        }
+
         int dw = (uint8_t)s.second.wn - s.second.wn0t;
         int age = dw * 7 * 86400 + s.second.tow - s.second.t0t; // t0t is pre-scaled
         utcstats[age]=s.first.second;
@@ -532,6 +514,17 @@ try
         ret["gps-offset-ns"] = 1.073741824*ldexp(shift, -21);
       }
 
+      if(gpsutcstats.empty()) {
+        ret["gps-utc-offset-ns"]=nullptr;
+      }
+      else {
+        int sv = gpsutcstats.begin()->second; // freshest SV
+        long shift = g_svstats[{0,sv}].a0 * (1LL<<20) + g_svstats[{0,sv}].a1 * gpsutcstats.begin()->first; // In 2^-50 seconds units
+
+        ret["gps-utc-offset-ns"] = 1.073741824*ldexp(shift, -20);
+      }
+
+      
       
       return ret;
     });
