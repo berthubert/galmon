@@ -16,7 +16,7 @@ navparse: navparse.o ext/fmt-5.2.1/src/format.o $(H2OPP) $(SIMPLESOCKETS) minicu
 	$(CXX) -std=gnu++17 $^ -o $@ -pthread -L/usr/local/lib -lh2o-evloop -lssl -lcrypto -lz  -lcurl -lprotobuf  # -lwslay
 
 navdump: navdump.o ext/fmt-5.2.1/src/format.o bits.o navmon.pb.o gps.o ephemeris.o 
-	$(CXX) -std=gnu++17 $^ -o $@ -pthread  -lprotobuf
+	$(CXX) -std=gnu++17 $^ -o $@ -pthread  -L/usr/local/lib -lprotobuf
 
 navnexus: navnexus.o ext/fmt-5.2.1/src/format.o  $(SIMPLESOCKETS) ubx.o bits.o navmon.pb.o storage.o
 	$(CXX) -std=gnu++17 $^ -o $@ -pthread -L/usr/local/lib -lprotobuf
