@@ -6,5 +6,7 @@ std::basic_string<uint8_t> buildUbxMessage(uint8_t ubxClass, uint8_t ubxType, st
 std::basic_string<uint8_t> buildUbxMessage(uint8_t ubxClass, uint8_t ubxType, const std::initializer_list<uint8_t>& str);
 
 std::basic_string<uint8_t> getInavFromSFRBXMsg(std::basic_string_view<uint8_t> msg);
-std::basic_string<uint8_t> getGPSFromSFRBXMsg(int sv, std::basic_string_view<uint8_t> msg);
+std::basic_string<uint8_t> getGPSFromSFRBXMsg(std::basic_string_view<uint8_t> msg);
+std::basic_string<uint8_t> getGlonassFromSFRBXMsg(std::basic_string_view<uint8_t> msg);
+std::basic_string<uint8_t> getBeidouFromSFRBXMsg(std::basic_string_view<uint8_t> msg);
 struct CRCMismatch{};

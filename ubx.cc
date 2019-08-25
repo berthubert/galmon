@@ -88,7 +88,8 @@ basic_string<uint8_t> getInavFromSFRBXMsg(std::basic_string_view<uint8_t> msg)
   return inav;
 }
 
-basic_string<uint8_t> getGPSFromSFRBXMsg(int sv, std::basic_string_view<uint8_t> msg)
+// XXX this should do the parity check
+basic_string<uint8_t> getGPSFromSFRBXMsg(std::basic_string_view<uint8_t> msg)
 {
   // byte order adjustment
   std::basic_string<uint8_t> payload;
@@ -100,3 +101,28 @@ basic_string<uint8_t> getGPSFromSFRBXMsg(int sv, std::basic_string_view<uint8_t>
   return payload;
 }
 
+// note, this returns the fourth UBX specific word with derived data, feel free to ignore!
+basic_string<uint8_t> getGlonassFromSFRBXMsg(std::basic_string_view<uint8_t> msg)
+{
+  // byte order adjustment
+  std::basic_string<uint8_t> payload;
+  for(unsigned int i = 0 ; i < (msg.size() - 8) / 4; ++i)
+    for(int j=1; j <= 4; ++j)
+      payload.append(1, msg[8 + (i+1) * 4 -j]);
+
+
+  return payload;
+}
+
+// note, this returns the fourth UBX specific word with derived data, feel free to ignore!
+basic_string<uint8_t> getBeidouFromSFRBXMsg(std::basic_string_view<uint8_t> msg)
+{
+  // byte order adjustment
+  std::basic_string<uint8_t> payload;
+  for(unsigned int i = 0 ; i < (msg.size() - 8) / 4; ++i)
+    for(int j=1; j <= 4; ++j)
+      payload.append(1, msg[8 + (i+1) * 4 -j]);
+
+
+  return payload;
+}
