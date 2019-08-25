@@ -7,6 +7,8 @@ message NavMonMessage {
     GalileoInavType = 3;
     RFDataType = 4;
     GPSInavType = 5;
+    BeidouInavType = 6;
+    GLONASSInavType = 7;            
   }
 
   required uint64 sourceID = 1;
@@ -32,7 +34,17 @@ message NavMonMessage {
 	required uint32 gnssSV =4;
 	required bytes contents =5;
   }
-  
+
+  message BeidouInav {
+	required uint32 gnssWN =1;
+  	required uint32 gnssTOW =2; // INTEGERS!
+
+	required uint32 gnssID =3;
+	required uint32 gnssSV =4;
+	required bytes contents =5;
+  }
+
+
   message ReceptionData {
         required uint32 gnssID =1;
 	required uint32 gnssSV =2;
@@ -69,4 +81,5 @@ message NavMonMessage {
   optional RFData rfd=7;
   optional ObserverPosition op=8;
   optional GPSInav gpsi=9;
+  optional BeidouInav bi=10;    
 }
