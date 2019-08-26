@@ -35,6 +35,19 @@ function maketable(str, arr)
                 var ret={};
                 ret.column = column;
                 ret.color=null;
+                if(column == "sv") {
+                    if(row["gnssid"] == 0)
+                        ret.value='<img src="ext/gps.png"/>';
+                    else if(row["gnssid"] == 2)
+                        ret.value='<img src="ext/gal.png"/>';
+                    else if(row["gnssid"] == 3)
+                        ret.value='<img src="ext/bei.png"/>';
+                    else if(row["gnssid"] == 6)
+                        ret.value='<img src="ext/glo.png"/>';
+                    
+                    ret.value += "&nbsp;"+row.sv;
+                }
+                else
                 if(column == "eph-age-m") {
                     if(row[column] != null) {
                         var b = moment.duration(-row[column], 'm');
@@ -83,7 +96,7 @@ function maketable(str, arr)
                 return ret;
             })
         })
-        .enter().append("td").text(function(d) { return d.value; }).attr("align", "right").style("background-color", function(d) {
+        .enter().append("td").html(function(d) { return d.value; }).attr("align", "right").style("background-color", function(d) {
             return d.color;
         });
 
