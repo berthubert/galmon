@@ -45,7 +45,7 @@ vector<uint64_t> getSources()
     }
     if(result->d_name[0] != '.') {
       uint64_t src;
-      if(sscanf(result->d_name, "%08lx", &src)==1)
+      if(sscanf(result->d_name, "%08llx", &src)==1)
         ret.push_back(src);
     }
   }

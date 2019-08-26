@@ -22,7 +22,7 @@ struct BeidouMessage
   };
 
   
-  int fraid, sow; // part of every message (thanks!)
+  int fraid{-1}, sow{-1}; // part of every message (thanks!)
   
   int parse(std::basic_string_view<uint8_t> cond, uint8_t* pageno)
   {
@@ -99,6 +99,7 @@ struct BeidouMessage
     e = bbitu(133,32);
     cus = bbits(181, 18);
     crc = bbits(199, 18);
+    crs = bbits(225, 18);
     sqrtA = bbitu(251, 32);
     
     t0eMSB = bbitu(291, 2);
@@ -126,7 +127,7 @@ struct BeidouMessage
     i0 = bbits(66, 32);
     cic = bbits(106, 18);
     omegadot = bbits(132, 24);
-    cis = bbits(160, 18);
+    cis = bbits(164, 18);
     idot = bbits(190, 14);
     Omega0 = bbits(212, 32);
     omega = bbits(252, 32);

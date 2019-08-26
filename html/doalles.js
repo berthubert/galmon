@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "iod", "eph-age-m", "latest-disco", "sisa", "delta_hz_corr", "e1bhs", "e1bdvs", "e5bhs", "e5bdvs", "gpshealth", "a0", "a1","a0g", "a1g", "sources", "db", "elev", "last-seen-s"];    
+    var columns = ["sv", "iod", "aode", "eph-age-m", "latest-disco", "sisa", "delta_hz_corr", "health", "a0", "a1","a0g", "a1g", "sources", "db", "elev", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -61,28 +61,20 @@ function maketable(str, arr)
                 }
                 else if(column == "latest-disco" && row[column] != null) 
                     ret.value = ((100*row[column]).toFixed(2))+" cm";
-                else if(column == "e1bdvs" || column =="e5bdvs")  {                    
-                    if(row[column] == 0)
-                        ret.value = "valid";
-                    else if(row[column] == 1)
-                        ret.value = "working no guarantee"                
-                }
-                else if(column == "e1bhs" || column =="e5bhs")  {
-                    if(row[column] == 0)
-                        ret.value = "ok";
-                    else if(row[column] == 1)
-                        ret.value = "out of service"
-                    else if(row[column] == 2)
-                        ret.value = "will be out of service"
-                    else if(row[column] == 3) {
+                else if(column == "health")  {
+                    ret.value = row[column];
+                    console.log(row["healthissue"]);
+                    if(row["healthissue"] == 1) {
                         ret.color="orange";
-                        ret.value = "test"
+                    }
+                    if(row["healthissue"] == 2) {
+                        ret.color="red";
                     }
                 }                
                 else {
                     ret.value= row[column];
                 }
-                if(column == "eph-age-m" && row[column] > 30 && row["last-seen-s"] < 120)
+                if(column == "eph-age-m" && row[column] > 60 && row["last-seen-s"] < 120)
                     ret.color="orange";
                 if(column == "sisa" && parseInt(row[column]) > 312)
                     ret.color="#ffaaaa";

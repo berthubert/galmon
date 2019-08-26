@@ -10,30 +10,30 @@ void getCoordinates(int wn, double tow, const T& iod, Point* p, bool quiet=true)
   using namespace std;
   // here goes
 
-  const double mu = 3.986004418 * pow(10.0, 14.0);
-  const double omegaE = 7.2921151467 * pow(10.0, -5);
+  const double mu = iod.getMu(); 
+  const double omegaE = iod.getOmegaE();
   
-  double sqrtA = 1.0*iod.sqrtA / (1ULL<<19);
-  double deltan = M_PI * 1.0*iod.deltan / (1LL<<43);
-  double t0e = iod.t0e; // t0e is PRE-SCALED
-  double m0 = M_PI * 1.0*iod.m0 / (1LL<<31);
-  double e = 1.0*iod.e / (1ULL<<33);
-  double omega = M_PI * 1.0*iod.omega / (1LL<<31);
+  const double sqrtA = iod.getSqrtA(); 
+  const double deltan = iod.getDeltan(); 
+  const double t0e = iod.getT0e(); 
+  const double m0 = iod.getM0();
+  const double e = iod.getE();
+  const double omega = iod.getOmega();
 
-  double cuc = 1.0*iod.cuc / (1LL<<29);
-  double cus = 1.0*iod.cus / (1LL<<29);
+  const double cuc = iod.getCuc();
+  const double cus = iod.getCus();
 
-  double crc = 1.0*iod.crc / (1LL<<5);
-  double crs = 1.0*iod.crs / (1LL<<5);
+  const double crc = iod.getCrc();
+  const double crs = iod.getCrs();
 
-  double cic = 1.0*iod.cic / (1LL<<29);
-  double cis = 1.0*iod.cis / (1LL<<29);
+  const double cic = iod.getCic();
+  const double cis = iod.getCis();
 
-  double idot = M_PI * 1.0*iod.idot / (1LL<<43);
-  double i0 = M_PI * 1.0*iod.i0 / (1LL << 31);
+  const double idot = iod.getIdot();
+  const double i0 = iod.getI0();
 
-  double Omegadot = M_PI * 1.0*iod.omegadot / (1LL << 43);
-  double Omega0 = M_PI * 1.0*iod.omega0 / (1LL << 31);
+  const double Omegadot = iod.getOmegadot();
+  const double Omega0 = iod.getOmega0();
   
   // NO IOD BEYOND THIS POINT!
   if(!quiet) {

@@ -19,9 +19,11 @@
 #include "navmon.pb.h"
 #include "ephemeris.hh"
 #include "gps.hh"
+#include "glonass.hh"
+#include "beidou.hh"
+
 #include <optional>
 using namespace std;
-
 struct EofException{};
 
 Point g_ourpos(3922.505 * 1000,  290.116 * 1000, 5004.189 * 1000);
@@ -89,6 +91,34 @@ struct SVIOD
       return words[2] && words[3];
   }
   void addGalileoWord(std::basic_string_view<uint8_t> page);
+
+  double getMu() const
+  {
+    if(gnssid == 2) return 3.986004418 * pow(10.0, 14.0);
+    if(gnssid == 0) return 3.986005    * pow(10.0, 14.0);
+    throw std::runtime_error("getMu() called for unsupported gnssid "+to_string(gnssid));
+  } // m^3/s^2
+  // same for galileo & gps
+  double getOmegaE()    const { return 7.2921151467 * pow(10.0, -5.0);} // rad/s
+
+  uint32_t getT0e() const { return t0e; }
+  double getSqrtA() const { return ldexp(sqrtA,     -19);   }
+  double getE()     const { return ldexp(e,         -33);   }
+  double getCuc()   const { return ldexp(cuc,       -29);   } // radians
+  double getCus()   const { return ldexp(cus,       -29);   } // radians
+  double getCrc()   const { return ldexp(crc,        -5);   } // meters
+  double getCrs()   const { return ldexp(crs,        -5);   } // meters
+  double getM0()    const { return ldexp(m0 * M_PI, -31);   } // radians
+  double getDeltan()const { return ldexp(deltan *M_PI, -43); } //radians/s
+  double getI0()        const { return ldexp(i0 * M_PI,       -31);   } // radians
+  double getCic()       const { return ldexp(cic,             -29);   } // radians
+  double getCis()       const { return ldexp(cis,             -29);   } // radians
+  double getOmegadot()  const { return ldexp(omegadot * M_PI, -43);   } // radians/s
+  double getOmega0()    const { return ldexp(omega0 * M_PI,   -31);   } // radians
+  double getIdot()      const { return ldexp(idot * M_PI,     -43);   } // radians/s
+  double getOmega()     const { return ldexp(omega * M_PI,    -31);   } // radians
+
+  
 };
 
 void SVIOD::addGalileoWord(std::basic_string_view<uint8_t> page)
@@ -165,6 +195,12 @@ struct SVStat
   uint8_t dn; // leap second day number
   //   1  2^-31 2^-43 2^-55   16 second
   int ura, af0, af1,  af2,   t0c; // GPS parameters that should not be here XXX
+
+  // beidou:
+  int t0eMSB{-1}, t0eLSB{-1}, aode{-1};
+  BeidouMessage beidouMessage, oldBeidouMessage;
+  BeidouMessage lastBeidouMessage2;
+  
   map<uint64_t, SVPerRecv> perrecv;
   pair<uint32_t, double> deltaHz;
   double latestDisco{-1};
@@ -349,15 +385,19 @@ struct InfluxPusher
 {
   explicit InfluxPusher(std::string_view dbname) : d_dbname(dbname)
   {
+    if(dbname=="null")
+      cout<<"Not sending data to influxdb"<<endl;
   }
-  void addValue( const pair<pair<int,int>,SVStat>& ent, string_view name, auto value)
+  template<typename T>
+  void addValue( const pair<pair<int,int>,SVStat>& ent, string_view name, const T& value)
   {
     d_buffer+= string(name)+",gnssid="+to_string(ent.first.first)+ +",sv=" +to_string(ent.first.second)+" value="+to_string(value)+
       " "+to_string(nanoTime(ent.first.first, ent.second.wn, ent.second.tow))+"\n";
     checkSend();
   }
-  
-  void addValue(pair<int,int> id, string_view name, auto value)
+
+  template<typename T>
+  void addValue(pair<int,int> id, string_view name, const T& value)
   {
     if(g_svstats[id].wn ==0 && g_svstats[id].tow == 0)
       return;
@@ -392,7 +432,8 @@ struct InfluxPusher
 
   ~InfluxPusher()
   {
-    doSend(d_buffer);
+    if(d_dbname != "null")
+      doSend(d_buffer);
   }
   
   std::string d_buffer;
@@ -446,6 +487,36 @@ std::optional<double> getHzCorrection(time_t now)
   return allHzCorr;
 }
 
+char getGNSSChar(int id)
+{
+  if(id==0)
+    return 'G';
+  if(id==2)
+    return 'E';
+  if(id==3)
+    return 'C';
+  if(id==6)
+    return 'R';
+  else
+    return '0'+id;
+}
+
+double getElevation(const Point& p)
+{
+  Point our = g_ourpos;
+  Point core{0,0,0};
+  
+  Vector core2us(core, our);
+  Vector dx(our, p); //  = x-ourx, dy = y-oury, dz = z-ourz;
+  
+  // https://ds9a.nl/articles/
+  
+  double elev = acos ( core2us.inner(dx) / (core2us.length() * dx.length()));
+  double deg = 180.0* (elev/M_PI);
+  return 90.0 - deg;
+}
+
+
 int main(int argc, char** argv)
 try
 {
@@ -478,8 +549,6 @@ try
           int dw = (uint8_t)g_svstats[{0,sv}].wn - g_svstats[{0,sv}].wn0t;
           int age = dw * 7 * 86400 + g_svstats[{0,sv}].tow - g_svstats[{0,sv}].t0t; // t0t is PRESCALED
           
-          
-
           gpsutcstats[age]=s.first.second;
           continue;
         }
@@ -532,17 +601,23 @@ try
   h2s.addHandler("/svs", [](auto handler, auto req) {
       nlohmann::json ret = nlohmann::json::object();
 
-
-
       auto hzCorrection = getHzCorrection(time(0));
       
       for(const auto& s: g_svstats) {
         nlohmann::json item  = nlohmann::json::object();
         if(!s.second.tow) // I know, I know, will suck briefly
           continue;
+
+        item["gnssid"] = s.first.first;
+        item["svid"] = s.first.second;
+        if(s.first.first == 3) {
+          item["sisa"]=humanUra(s.second.ura);
+          if(s.second.t0eMSB >= 0 && s.second.t0eLSB >=0)
+            item["eph-age-m"] = ephAge(s.second.tow, 8.0*((s.second.t0eMSB<<15) + s.second.t0eLSB))/60.0;
+        }
         if(s.second.completeIOD()) {
           item["iod"]=s.second.getIOD();
-          if(s.first.first ==0) {
+          if(s.first.first == 0 || s.first.first == 3) {
             item["sisa"]=humanUra(s.second.ura);
             //            cout<<"Asked to convert "<<s.second.ura<<" for sv "<<s.first.first<<","<<s.first.second<<endl;
           }
@@ -564,8 +639,6 @@ try
           Vector core2us(core, our);
           Vector dx(our, p); //  = x-ourx, dy = y-oury, dz = z-ourz;
           
-          // https://ds9a.nl/articles/
-          
           double elev = acos ( core2us.inner(dx) / (core2us.length() * dx.length()));
           double deg = 180.0* (elev/M_PI);
           item["elev"] = 90 - deg;
@@ -580,22 +653,46 @@ try
             if(hzCorrection)
               item["delta_hz_corr"] = s.second.deltaHz.second - *hzCorrection;
           }
-          
         }
 
         item["a0"]=s.second.a0;
         item["a1"]=s.second.a1;
         item["dtLS"]=s.second.dtLS;
+
+        if(s.first.first == 3) {  // beidou
+          item["a0g"]=s.second.a0g;
+          item["a1g"]=s.second.a1g;
+          if(s.second.aode > 0)
+            item["aode"]=s.second.aode;
+        }
+
+        
         if(s.first.first == 2) {  // galileo
           item["a0g"]=s.second.a0g;
           item["a1g"]=s.second.a1g;
+          vector<string> options{"ok", "out of service", "will be out of service", "test"};
+          item["health"] =
+            options[s.second.e1bhs]                       +"/" +
+            options[s.second.e5bhs]                       +"/" +
+            (s.second.e1bdvs ? "no guarantee" : "val") +"/"+
+            (s.second.e5bdvs ? "no guarantee" : "val");
           item["e5bdvs"]=s.second.e5bdvs;
           item["e1bdvs"]=s.second.e1bdvs;
           item["e5bhs"]=s.second.e5bhs;
           item["e1bhs"]=s.second.e1bhs;
+          item["healthissue"]=0;
+          if(s.second.e1bhs == 2 || s.second.e5bhs == 2)
+            item["healthissue"] = 1;
+          if(s.second.e1bhs == 3 || s.second.e5bhs == 3)
+            item["healthissue"] = 1;
+          if(s.second.e1bdvs || s.second.e5bdvs || s.second.e1bhs == 1 || s.second.e5bhs == 1)
+            item["healthissue"] = 2;
+          
         }
-        else
-          item["gpshealth"]=s.second.gpshealth;
+        else if(s.first.first == 0 || s.first.first == 3) {// gps or beidou 
+          item["health"]= s.second.gpshealth ? ("NOT OK: "+to_string(s.second.gpshealth)) : string("OK");
+          item["healthissue"]= 2* !!s.second.gpshealth;
+        }
         
         nlohmann::json perrecv  = nlohmann::json::object();
         for(const auto& pr : s.second.perrecv) {
@@ -607,6 +704,7 @@ try
         }
         item["perrecv"]=perrecv;
 
+        // xxx this is silly, should use local time
         item["last-seen-s"] = s.second.tow ? (7*86400*(latestWN(s.first.first) - s.second.wn) + latestTow(s.first.first) - (int)s.second.tow) : -1;
         if(s.second.latestDisco >=0) {
           item["latest-disco"]= s.second.latestDisco;
@@ -615,7 +713,7 @@ try
         
         item["wn"] = s.second.wn;
         item["tow"] = s.second.tow;
-        ret[fmt::sprintf("%c%02d", s.first.first ? 'E' : 'G', s.first.second)] = item;
+        ret[fmt::sprintf("%c%02d", getGNSSChar(s.first.first), s.first.second)] = item;
       }
       return ret;
     });
@@ -659,8 +757,6 @@ try
       g_svstats[id].perrecv[nmm.sourceid()].db = nmm.rd().db();
       g_svstats[id].perrecv[nmm.sourceid()].el = nmm.rd().el();
       g_svstats[id].perrecv[nmm.sourceid()].azi = nmm.rd().azi();
-
-      
 
       // THIS HAS TO SPLIT OUT PER SOURCE
       idb.addValue(id, "db", nmm.rd().db());
@@ -918,6 +1014,60 @@ try
       g_svstats[id].wn = nmm.gpsi().gnsswn();
       if(g_svstats[id].wn < 512)
         g_svstats[id].wn += 2048;
+    }
+    else if(nmm.type()== NavMonMessage::BeidouInavType) {
+      pair<int,int> id{nmm.bi().gnssid(), nmm.bi().gnsssv()};
+
+      g_svstats[id].perrecv[nmm.sourceid()].t = nmm.localutcseconds();
+      
+      auto& svstat = g_svstats[id];
+      uint8_t pageno;
+      auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bi().contents().c_str(), nmm.bi().contents().size()));
+      auto& bm = svstat.beidouMessage;
+      
+      int fraid=bm.parse(cond, &pageno);
+      svstat.tow = nmm.bi().gnsstow();
+      svstat.wn = nmm.bi().gnsswn();
+      if(fraid == 1) {
+        svstat.ura = bm.urai;
+        svstat.gpshealth = bm.sath1;
+        svstat.af0 = bm.a0;
+        svstat.af1 = bm.a1;
+        svstat.af2 = bm.a2;
+        svstat.aode = bm.aode;
+      }
+      if(fraid == 2) {
+        svstat.lastBeidouMessage2 = bm;
+        svstat.t0eMSB = bm.t0eMSB;
+      }
+      if(fraid == 3) {
+        svstat.t0eLSB = bm.t0eLSB;
+        Point oldpoint, newpoint;
+        if(bm.sow - svstat.lastBeidouMessage2.sow == 6 && svstat.oldBeidouMessage.sow >= 0 && svstat.oldBeidouMessage.getT0e() != svstat.beidouMessage.getT0e()) {
+          getCoordinates(svstat.wn, svstat.tow, svstat.oldBeidouMessage, &oldpoint);
+          getCoordinates(svstat.wn, svstat.tow, bm, &newpoint);
+          Vector jump(oldpoint ,newpoint);
+          cout<<fmt::sprintf("Discontinuity C%02d (%f,%f,%f) -> (%f, %f, %f), jump: %f, seconds: %f\n",
+                             id.second, oldpoint.x, oldpoint.y, oldpoint.z,
+                             newpoint.x, newpoint.y, newpoint.z, jump.length(), (double)bm.getT0e() - svstat.oldBeidouMessage.getT0e());
+          svstat.latestDisco = jump.length();
+        }
+        svstat.oldBeidouMessage = bm;
+      }
+      if(fraid==5 && pageno == 9) {
+        svstat.a0g = bm.a0gps;
+        svstat.a1g = bm.a1gps;        
+      }
+
+      if(fraid==5 && pageno == 10) {
+        svstat.a0 = bm.a0utc;
+        svstat.a1 = bm.a1utc;        
+      }
+      Point core, sat;
+
+      getCoordinates(svstat.wn, svstat.tow, bm, &sat);
+      Vector l(core, sat);      
+      cout<<"C"<<id.second<< " "<<bm.sow<<" "<<(bm.sow % 30 )<<" FraID "<<fraid<<" "<<fmt::format("({0}, {1}, {2})", sat.x, sat.y, sat.z) <<", r: "<<l.length()<<" elev: "<<getElevation(sat)<<endl;
     }
     else {
       cout<<"Unknown type "<< (int)nmm.type()<<endl;
