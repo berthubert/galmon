@@ -15,6 +15,14 @@ int getbits(const unsigned char *buff, int pos, int len)
     return (int)(bits|(~0u<<len)); /* extend sign */
 }
 
+int getbitsglonass(const unsigned char *buff, int pos, int len)
+{
+    int val = getbitu(buff,pos+1,len-1);
+
+    return getbitu(buff,pos,1) ? - val : val;
+}
+
+
 void setbitu(unsigned char *buff, int pos, int len, unsigned int data)
 {
     unsigned int mask=1u<<(len-1);

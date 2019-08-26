@@ -17,6 +17,9 @@
 #include "navmon.pb.h"
 #include "ephemeris.hh"
 #include "gps.hh"
+#include "glonass.hh"
+#include "beidou.hh"
+
 #include <unistd.h>
 using namespace std;
 
@@ -75,7 +78,15 @@ int main(int argc, char** argv)
       }
       cout<<"\n";
     }
+    else if(nmm.type() == NavMonMessage::BeidouInavType) {
+      int sv = nmm.bi().gnsssv();
+      auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bi().contents().c_str(), nmm.bi().contents().size()));
+      BeidouMessage bm;
+      uint8_t pageno;
+      int fraid = bm.parse(cond, &pageno);
+      cout<<"BeiDou "<<sv<<": "<<bm.sow<<", FraID "<<fraid<<endl;
 
+    }
     else if(nmm.type() == NavMonMessage::ObserverPositionType) {
       cout<<"ECEF"<<endl;
       // XXX!! this has to deal with source id!
