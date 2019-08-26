@@ -36,15 +36,18 @@ function maketable(str, arr)
                 ret.column = column;
                 ret.color=null;
                 if(column == "sv") {
+                    var img="";
                     if(row["gnssid"] == 0)
-                        ret.value='<img src="ext/gps.png"/>';
+                        img="ext/gps.png";
                     else if(row["gnssid"] == 2)
-                        ret.value='<img src="ext/gal.png"/>';
+                        img='ext/gal.png';
                     else if(row["gnssid"] == 3)
-                        ret.value='<img src="ext/bei.png"/>';
+                        img='ext/bei.png';
                     else if(row["gnssid"] == 6)
-                        ret.value='<img src="ext/glo.png"/>';
+                        img='ext/glo.png';
                     
+                    ret.value = '<img width="16" height="16" src="//ds9a.nl/tmp/'+ img +'"/>';
+//                    ret.value="";
                     ret.value += "&nbsp;"+row.sv;
                 }
                 else
