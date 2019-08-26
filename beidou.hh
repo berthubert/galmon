@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include "bits.hh"
 #include <math.h>
+#include <stdexcept>
+
 std::basic_string<uint8_t> getCondensedBeidouMessage(std::basic_string_view<uint8_t> payload);
 int beidouBitconv(int their);
 
