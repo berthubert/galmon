@@ -356,8 +356,9 @@ int main(int argc, char** argv)
   CLI::App app("ubxtool");
     
   vector<std::string> serial;
-  bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true};
+  bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true}, doReset{false};
   app.add_option("serial", serial, "Serial");
+  app.add_flag("--reset", doReset, "Reset UBX device");
   app.add_flag("--beidou,-c", doBeidou, "Enable BeiDou reception");
   app.add_flag("--gps,-g", doGPS, "Enable GPS reception");
   app.add_flag("--glonass,-r", doGlonass, "Enable Glonass reception");
@@ -386,26 +387,26 @@ int main(int argc, char** argv)
       readSome(fd);
       
       std::basic_string<uint8_t> msg;
-      if(0) {
-      cerr<<"Sending a soft reset"<<endl;
-      msg = buildUbxMessage(0x06, 0x04, {0x00, 0x00, 0x01, 0x00});
-      writen2(fd, msg.c_str(), msg.size());
-      usleep(100000);
-      close(fd);
-      for(int n=0 ; n< 20; ++n) {
-        cerr<<"Waiting for device to come back"<<endl;
-        try {
-          fd = initFD(serial[0].c_str());
-          readSome(fd);          
-        }
-        catch(...)
-          {
-            cerr<<"Not yet back"<<endl;
-            usleep(400000);
-            continue;
+      if(doReset) {
+        cerr<<"Sending a soft reset"<<endl;
+        msg = buildUbxMessage(0x06, 0x04, {0x00, 0x00, 0x01, 0x00});
+        writen2(fd, msg.c_str(), msg.size());
+        usleep(100000);
+        close(fd);
+        for(int n=0 ; n< 20; ++n) {
+          cerr<<"Waiting for device to come back"<<endl;
+          try {
+            fd = initFD(serial[0].c_str());
+            readSome(fd);          
           }
-        break;
-      }
+          catch(...)
+            {
+              cerr<<"Not yet back"<<endl;
+              usleep(400000);
+              continue;
+            }
+          break;
+        }
       }
       cerr<<"Sending GNSS query"<<endl;
       msg = buildUbxMessage(0x06, 0x3e, {});
@@ -504,6 +505,7 @@ int main(int argc, char** argv)
 
   std::map<pair<int,int>, struct timeval> lasttv, tv;
   int curCycleTOW{-1}; // means invalid
+
   cerr<<"Entering main loop"<<endl;
   for(;;) {
     try {
@@ -644,6 +646,20 @@ int main(int argc, char** argv)
         
         try {
           pair<int,int> id = make_pair(payload[0], payload[1]);
+          static set<pair<int,int>> svseen;
+          static time_t lastStat;
+          svseen.insert(id);
+
+          if(time(0)- lastStat > 30) {
+            cerr<<"src "<<g_srcid<< " currently receiving: ";
+            for(auto& s : svseen) {
+              cerr<<s.first<<","<<s.second<<" ";
+            }
+            cerr<<endl;
+            lastStat = time(0);
+            svseen.clear();
+          }
+          
           if(id.first == 0) {
             NavMonMessage nmm;
             nmm.set_type(NavMonMessage::GPSInavType);
@@ -732,15 +748,10 @@ int main(int argc, char** argv)
             auto& bm = bms[id.second];
             
             uint8_t pageno;
-            int fraid=bm.parse(cond, &pageno);
-            cerr<<"BeiDou C"<<id.second<<" FraID "<< fraid<<" SOW "<< bm.sow<<" ";
-            if(fraid == 1)
-              cerr<<" sath1 "<<(int)bm.sath1<<" aodc "<<(int)bm.aodc <<" urai "<<(int)bm.urai<<" WN "<<bm.wn;
-            else
-              ;
-            cerr<<endl;
+            bm.parse(cond, &pageno);
+            
             if(bm.wn < 0) {
-              cerr<<"BeiDou WN unknown, not yet emitting message"<<endl;
+              cerr<<"BeiDou C"<<id.second<<" WN not yetknown, not yet emitting message"<<endl;
               continue;
             }
             NavMonMessage nmm;
