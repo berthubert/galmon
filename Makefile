@@ -1,6 +1,8 @@
-CXXFLAGS:= -std=gnu++17 -Wall -O3 -MMD -MP -ggdb -fno-omit-frame-pointer -Iext/CLI11  -Iext/fmt-5.2.1/include/ -Iext/powerblog/ext/simplesocket -Iext/powerblog/ext/ -I/usr/local/opt/openssl/include/ -Wno-delete-non-virtual-dtor
+CXXFLAGS:= -std=gnu++17 -Wall -O3 -MMD -MP -ggdb -fno-omit-frame-pointer -Iext/CLI11  -Iext/fmt-5.2.1/include/ -Iext/powerblog/ext/simplesocket -Iext/powerblog/ext/ -I/usr/local/opt/openssl/include/ 
 
-PROGRAMS = navparse ubxtool navnexus navrecv navdump
+# CXXFLAGS += -Wno-delete-non-virtual-dtor
+
+PROGRAMS = navparse ubxtool navnexus navrecv navdump testrunner
 
 all: navmon.pb.cc $(PROGRAMS)
 
@@ -30,5 +32,8 @@ navmon.pb.cc: navmon.proto
 	protoc --cpp_out=./ navmon.proto
 
 ubxtool: navmon.pb.o ubxtool.o ubx.o bits.o ext/fmt-5.2.1/src/format.o galileo.o  gps.o beidou.o
+	$(CXX) -std=gnu++17 $^ -o $@ -lprotobuf
+
+testrunner: navmon.pb.o testrunner.o ubx.o bits.o ext/fmt-5.2.1/src/format.o galileo.o  gps.o beidou.o ephemeris.o
 	$(CXX) -std=gnu++17 $^ -o $@ -lprotobuf
 

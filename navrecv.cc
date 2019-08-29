@@ -53,8 +53,12 @@ void recvSession(int s, ComboAddress client)
     cerr<<"Receiving messages from "<<client.toStringWithPort()<<endl;
     for(;;) {
       string part=SRead(sock, 4);
+      if(part.empty()) {
+        cerr<<"EOF from "<<client.toStringWithPort()<<endl;
+        break;
+      }
       if(part != "bert") {
-        cerr << "Wrong magic!"<<endl;
+        cerr << "Wrong magic from "<<client.toStringWithPort()<<endl;
         break;
       }
       string out=part;

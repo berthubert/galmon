@@ -1,5 +1,6 @@
-#include <stdio.h>
+
 #include <string>
+#include <stdio.h>
 #include <iostream>
 #include <arpa/inet.h>
 #include "fmt/format.h"
@@ -19,6 +20,7 @@
 #include "gps.hh"
 #include "glonass.hh"
 #include "beidou.hh"
+#include "galileo.hh"
 
 #include <unistd.h>
 using namespace std;
@@ -60,8 +62,37 @@ int main(int argc, char** argv)
     }
     else if(nmm.type() == NavMonMessage::GalileoInavType) {
       basic_string<uint8_t> inav((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
-      unsigned int wtype = getbitu(&inav[0], 0, 6);
-      cout << "galileo inav for "<<nmm.gi().gnssid()<<","<<nmm.gi().gnsssv()<<" wtype "<< wtype << endl;
+      static map<int, GalileoMessage> gms;
+      GalileoMessage& gm = gms[nmm.gi().gnsssv()];
+      int wtype = gm.parse(inav);
+
+      cout << "gal inav for "<<nmm.gi().gnssid()<<","<<nmm.gi().gnsssv()<<" tow "<< nmm.gi().gnsstow()<<" wtype "<< wtype << endl;
+      if(wtype == 4) {
+        //              2^-34       2^-46
+        cout <<" af0 "<<gm.af0 <<" af1 "<<gm.af1 <<", scaled: "<<ldexp(1.0*gm.af0, 19-34)<<", "<<ldexp(1.0*gm.af1, 38-46)<<endl;
+      }
+      static uint32_t tow;
+      if(wtype == 0 || wtype == 5 || wtype == 6)
+        tow = gm.tow;
+      
+      if(wtype < 7)
+        gm = GalileoMessage{};
+
+
+      // af0 af1 scaling in almanac: 2^-19, 2^2^-38 plus "truncated"
+      if(wtype == 7) {
+        cout<<"  t0a "<<gm.t0almanac<<", alma sv1 "<<gm.alma1.svid<<", t0a age: "<< ephAge(gm.t0almanac *600, tow) << endl;
+      }
+      else if(wtype == 8 && gm.alma1.svid > 0) {
+        cout<<"  "<<gm.alma1.svid<<" af0 "<<gm.alma1.af0<<" af1 "<< gm.alma1.af1 <<" e5bhs "<< gm.alma1.e5bhs<<" e1bhs "<< gm.alma1.e1bhs<<endl;
+      }
+      else if(wtype == 9 && gm.alma2.svid > 0) {
+        cout<<"  "<<gm.alma2.svid<<" af0 "<<gm.alma2.af0<<" af1 "<< gm.alma2.af1 <<" e5bhs "<< gm.alma2.e5bhs<<" e1bhs "<< gm.alma2.e1bhs<<endl;
+      }
+      else if(wtype == 10 && gm.alma3.svid > 0){
+        cout<<"  "<<gm.alma3.svid<<" af0 "<<gm.alma3.af0<<" af1 "<< gm.alma3.af1 <<" e5bhs "<< gm.alma3.e5bhs<<" e1bhs "<< gm.alma3.e1bhs<<endl;
+      }
+      
     }
     else if(nmm.type() == NavMonMessage::GPSInavType) {
       int sv = nmm.gpsi().gnsssv();
@@ -84,7 +115,10 @@ int main(int argc, char** argv)
       BeidouMessage bm;
       uint8_t pageno;
       int fraid = bm.parse(cond, &pageno);
-      cout<<"BeiDou "<<sv<<": "<<bm.sow<<", FraID "<<fraid<<endl;
+      cout<<"BeiDou "<<sv<<": "<<bm.sow<<", FraID "<<fraid;
+      if(fraid == 1)
+        cout<<" wn "<<bm.wn<<" t0c "<<(int)bm.t0c<<" aodc "<< (int)bm.aodc <<" aode "<< (int)bm.aode <<" sath1 "<< (int)bm.sath1 << endl;
+      cout<<endl;
 
     }
     else if(nmm.type() == NavMonMessage::ObserverPositionType) {

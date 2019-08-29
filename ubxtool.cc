@@ -388,7 +388,7 @@ int main(int argc, char** argv)
       readSome(fd);
       
       std::basic_string<uint8_t> msg;
-
+      if(0) {
       cerr<<"Sending a soft reset"<<endl;
       msg = buildUbxMessage(0x06, 0x04, {0x00, 0x00, 0x01, 0x00});
       writen2(fd, msg.c_str(), msg.size());
@@ -408,7 +408,7 @@ int main(int argc, char** argv)
           }
         break;
       }
-      
+      }
       cerr<<"Sending GNSS query"<<endl;
       msg = buildUbxMessage(0x06, 0x3e, {});
       writen2(fd, msg.c_str(), msg.size());
@@ -709,7 +709,7 @@ int main(int argc, char** argv)
                 msgTOW = curCycleTOW + 23; 
               }
               else { // dummy
-                cerr<<"what kind of wtype is this"<<endl;
+                cerr<<"galileo E"<<id.second<<" what kind of wtype is this: "<<wtype<<endl;
                 continue;
               }
             }
