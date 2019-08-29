@@ -36,14 +36,43 @@ static std::string humanTime(time_t t)
 }
 
 
+string beidouHealth(int in)
+{
+  string ret;
+  if(in == 256) {
+    return "NO CLOCK";
+  }
+  if(in==511) {
+    return "NO SAT";
+  }
+
+  if(in & (1<<7))
+    ret += "B1I abnormal ";
+  if(in & (1<<6))
+    ret += "B2I abnormal ";
+  if(in & (1<<5))
+    ret += "B3I abnormal ";
+  if(in & (1<<1))
+    ret += "navigation abnormal ";
+
+  if(ret.empty())
+    return "OK";
+  return ret;
+}
+
 int main(int argc, char** argv)
 {
   for(;;) {
     char bert[4];
-    if(read(0, bert, 4) != 4 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
-      cerr<<"EOF or bad magic"<<endl;
+    int res = read(0, bert, 4);
+    if( res != 4) {
+      cerr<<"EOF, res = "<<res<<endl;
       break;
     }
+    if(bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
+      cerr<<"Bad magic"<<endl;
+    }
+  
     
     uint16_t len;
     if(read(0, &len, 2) != 2)
@@ -58,7 +87,7 @@ int main(int argc, char** argv)
     cout<<humanTime(nmm.localutcseconds())<<" "<<nmm.localutcnanoseconds()<<" ";
     cout<<"src "<<nmm.sourceid()<< " ";
     if(nmm.type() == NavMonMessage::ReceptionDataType) {
-      cout<<"receptiondata for "<<nmm.rd().gnssid()<<","<<nmm.rd().gnsssv()<<endl;
+      cout<<"receptiondata for "<<nmm.rd().gnssid()<<","<<nmm.rd().gnsssv()<<", db "<<nmm.rd().db()<<" ele "<<nmm.rd().el() <<" azi "<<nmm.rd().azi()<<endl;
     }
     else if(nmm.type() == NavMonMessage::GalileoInavType) {
       basic_string<uint8_t> inav((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
@@ -109,17 +138,51 @@ int main(int argc, char** argv)
       }
       cout<<"\n";
     }
-    else if(nmm.type() == NavMonMessage::BeidouInavType) {
-      int sv = nmm.bi().gnsssv();
-      auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bi().contents().c_str(), nmm.bi().contents().size()));
+    else if(nmm.type() == NavMonMessage::BeidouInavTypeD1) {
+      int sv = nmm.bid1().gnsssv();
+      auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid1().contents().c_str(), nmm.bid1().contents().size()));
       BeidouMessage bm;
       uint8_t pageno;
       int fraid = bm.parse(cond, &pageno);
       cout<<"BeiDou "<<sv<<": "<<bm.sow<<", FraID "<<fraid;
-      if(fraid == 1)
-        cout<<" wn "<<bm.wn<<" t0c "<<(int)bm.t0c<<" aodc "<< (int)bm.aodc <<" aode "<< (int)bm.aode <<" sath1 "<< (int)bm.sath1 << endl;
-      cout<<endl;
+      if(fraid == 1) {
+        cout<<" wn "<<bm.wn<<" t0c "<<(int)bm.t0c<<" aodc "<< (int)bm.aodc <<" aode "<< (int)bm.aode <<" sath1 "<< (int)bm.sath1 << " urai "<<(int)bm.urai << " af0 "<<bm.a0 <<" af1 " <<bm.a1<<endl;
+      }
+      else if(fraid == 4 && 1<= pageno && pageno <= 24) {
+        cout <<" pageno "<< (int) pageno<<" AmEpID "<< getbitu(&cond[0], beidouBitconv(291), 2);
+      }
+      else if(fraid == 5 && 1<= pageno && pageno <= 6) {
+        cout <<" pageno "<<(int)pageno<<" AmEpID "<< getbitu(&cond[0], beidouBitconv(291), 2);
+      }
 
+      else if(fraid == 5 && pageno==7) {
+        for(int n=0; n<19; ++n)
+          cout<<" hea"<<(1+n)<<" " << getbitu(&cond[0], beidouBitconv(51+n*9), 9) << " ("<<beidouHealth(getbitu(&cond[0], beidouBitconv(51+n*9), 9)) <<")";
+      }
+      
+      else if(fraid == 5 && pageno==8) {
+        for(int n=0; n<10; ++n)
+          cout<<" hea"<<(20+n)<<" " << getbitu(&cond[0], beidouBitconv(51+n*9), 9) << " ("<<beidouHealth(getbitu(&cond[0], beidouBitconv(51+n*9), 9))<<")";
+        cout<<" WNa "<<getbitu(&cond[0], beidouBitconv(190), 8)<<" t0a "<<getbitu(&cond[0], beidouBitconv(198), 8);
+      }
+      else if(fraid == 5 && pageno==24) {
+        int AmID= getbitu(&cond[0], beidouBitconv(216), 2);
+        cout<<" AmID "<< AmID;
+        for(int n=0; n<14; ++n)
+          cout<<" hea"<<(31+n)<<" (" << getbitu(&cond[0], beidouBitconv(51+n*9), 9) << " "<<beidouHealth(getbitu(&cond[0], beidouBitconv(51+n*9), 9))<<")";
+      }
+      cout<<endl;
+      
+    }
+    else if(nmm.type() == NavMonMessage::BeidouInavTypeD2) {
+      int sv = nmm.bid2().gnsssv();
+      auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid2().contents().c_str(), nmm.bid2().contents().size()));
+      BeidouMessage bm;
+      uint8_t pageno;
+      int fraid = bm.parse(cond, &pageno);
+
+      cout<<"BeiDou "<<sv<<" D2: "<<bm.sow<<", FraID "<<fraid << endl;
+            
     }
     else if(nmm.type() == NavMonMessage::ObserverPositionType) {
       cout<<"ECEF"<<endl;
