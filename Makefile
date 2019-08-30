@@ -2,7 +2,7 @@ CXXFLAGS:= -std=gnu++17 -Wall -O3 -MMD -MP -ggdb -fno-omit-frame-pointer -Iext/C
 
 # CXXFLAGS += -Wno-delete-non-virtual-dtor
 
-PROGRAMS = navparse ubxtool navnexus navrecv navdump testrunner
+PROGRAMS = navparse ubxtool navnexus navrecv navdump testrunner navdisplay
 
 all: navmon.pb.cc $(PROGRAMS)
 
@@ -19,6 +19,9 @@ navparse: navparse.o ext/fmt-5.2.1/src/format.o $(H2OPP) $(SIMPLESOCKETS) minicu
 
 navdump: navdump.o ext/fmt-5.2.1/src/format.o bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o
 	$(CXX) -std=gnu++17 $^ -o $@ -pthread  -lprotobuf
+
+navdisplay: navdisplay.o ext/fmt-5.2.1/src/format.o bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o
+	$(CXX) -std=gnu++17 $^ -o $@ -pthread  -lprotobuf -lncurses
 
 
 navnexus: navnexus.o ext/fmt-5.2.1/src/format.o  $(SIMPLESOCKETS) ubx.o bits.o navmon.pb.o storage.o
