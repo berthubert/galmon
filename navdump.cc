@@ -21,6 +21,7 @@
 #include "glonass.hh"
 #include "beidou.hh"
 #include "galileo.hh"
+#include "navmon.hh"
 
 #include <unistd.h>
 using namespace std;
@@ -64,7 +65,7 @@ int main(int argc, char** argv)
 {
   for(;;) {
     char bert[4];
-    int res = read(0, bert, 4);
+    int res = readn2(0, bert, 4);
     if( res != 4) {
       cerr<<"EOF, res = "<<res<<endl;
       break;
@@ -75,11 +76,11 @@ int main(int argc, char** argv)
   
     
     uint16_t len;
-    if(read(0, &len, 2) != 2)
+    if(readn2(0, &len, 2) != 2)
       break;
     len = htons(len);
     char buffer[len];
-    if(read(0, buffer, len) != len)
+    if(readn2(0, buffer, len) != len)
       break;
     
     NavMonMessage nmm;
@@ -217,16 +218,27 @@ int main(int argc, char** argv)
             
     }
     else if(nmm.type() == NavMonMessage::GlonassInavType) {
-      GlonassMessage gm;
+      static map<int, GlonassMessage> gms;
+      auto& gm = gms[nmm.gloi().gnsssv()];
+      
       int strno = gm.parse(std::basic_string<uint8_t>((uint8_t*)nmm.gloi().contents().c_str(), nmm.gloi().contents().size()));
 
       cout<<"Glonass R"<<nmm.gloi().gnsssv()<<" @ "<<nmm.gloi().freq() <<" strno "<<strno;
-      if(strno == 1)
+      if(strno == 1) {
         cout << ", hour "<<(int)gm.hour <<" minute " <<(int)gm.minute <<" seconds "<<(int)gm.seconds;
+        // start of period is 1st of January 1996 + (n4-1)*4, 03:00 UTC
+        time_t glotime = gm.getGloTime();
+        cout<<" 'wn' " << glotime / (7*86400)<<" 'tow' "<< (glotime % (7*86400));
+      }
       if(strno == 2)
         cout<<" Tb "<<(int)gm.Tb <<" Bn "<<(int)gm.Bn;
       else if(strno == 4)
         cout<<", taun "<<gm.taun <<" NT "<<gm.NT <<" FT " << (int) gm.FT <<" En " << (int)gm.En;
+      else if(strno == 5)
+        cout<<", n4 "<< (int)gm.n4 << " l_n " << gm.l_n;
+      else if(strno == 7 || strno == 9 || strno == 11 || strno ==13 ||strno ==15) {
+        cout << " l_n "<< gm.l_n;
+      }
       else if(strno == 6 || strno ==8 || strno == 10 || strno ==12 ||strno ==14)
         cout<<" nA "<< gm.nA <<" CnA "<<gm.CnA;
       cout<<endl;

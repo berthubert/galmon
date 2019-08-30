@@ -1173,20 +1173,11 @@ try
       auto& svstat = g_svstats[id];
 
       auto& gm = svstat.glonassMessage;
+      auto oldgm = gm;
       int strno = gm.parse(std::basic_string<uint8_t>((uint8_t*)nmm.gloi().contents().c_str(), nmm.gloi().contents().size()));
       g_svstats[id].perrecv[nmm.sourceid()].t = nmm.localutcseconds();
-      if(strno == 1) {
-        struct tm tm;
-        memset(&tm, 0, sizeof(tm));
-        tm.tm_year = 119;
-        tm.tm_mon = 8 - 1;
-        tm.tm_mday = 30;
-        tm.tm_hour = gm.hour - 3; 
-        tm.tm_min = gm.minute;
-        tm.tm_sec = gm.seconds;
-
-        time_t t = timegm(&tm); 
-        uint32_t glotime = t - 820368000; // this starts GLONASS time at 31st of december 1995, 00:00 UTC
+      if(strno == 1 && gm.n4 != 0 && gm.NT !=0) {
+        uint32_t glotime = gm.getGloTime(); // this starts GLONASS time at 31st of december 1995, 00:00 UTC
         svstat.wn = glotime / (7*86400);
         svstat.tow = glotime % (7*86400); 
         
@@ -1198,6 +1189,12 @@ try
         svstat.aode = gm.En * 24;
         idb.addValue(id, "glo_taun_ns", gm.getTaunNS());
         idb.addValue(id, "ft", gm.FT);
+        if(oldgm.taun && oldgm.taun != gm.taun) {
+          if(gm.getGloTime() - oldgm.getGloTime()  < 300) {
+            svstat.timeDisco = gm.getTaunNS() - oldgm.getTaunNS();
+            idb.addValue(id, "clock_jump_ns", svstat.timeDisco);
+          }
+        }
       }
       cout<<"GLONASS R"<<id.second<<" str "<<strno<<endl;
     }

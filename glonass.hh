@@ -1,9 +1,9 @@
 #pragma once
 #include <bitset>
 #include <string>
-#include <map>
 #include "bits.hh"
 #include <iostream>
+#include <math.h>
 std::basic_string<uint8_t> getGlonassessage(std::basic_string_view<uint8_t> payload);
 
 struct GlonassMessage
@@ -28,8 +28,12 @@ struct GlonassMessage
     else if(strtype == 5) {
       parse5(gstr);
     }
-    else if(strtype == 6 || strtype ==8 || strtype == 10 || strtype ==12 ||strtype ==14)
+    else if(strtype == 6 || strtype ==8 || strtype == 10 || strtype ==12 ||strtype ==14) {
       parse6_8_10_12_14(gstr);
+    }
+    else if(strtype == 7 || strtype == 9 || strtype == 11 || strtype ==13 ||strtype ==15) {
+      parse7_9_11_13_15(gstr);
+    }
     return strtype;
   }
 
@@ -71,8 +75,7 @@ struct GlonassMessage
   }
 
   int32_t z, dz, ddz;
-
-
+  bool l_n;
   bool P, P3;
   uint16_t gamman;
   void parse3(std::basic_string_view<uint8_t> gstr)
@@ -85,6 +88,7 @@ struct GlonassMessage
     P3 = getbitu(&gstr[0], 85 - 80, 1);
 
     gamman = getbitu(&gstr[0], 85 - 79, 11);
+    l_n = getbitu(&gstr[0], 85 - 65, 1);
   }
 
 
@@ -94,12 +98,12 @@ struct GlonassMessage
   
   uint16_t NT; 
   uint8_t FT{255}, En, deltaTaun, M;
-  int32_t taun; // 2^-30
+  int32_t taun{0}; // 2^-30
   bool P4;
 
   double getTaunNS()
   {
-    return 1000*ldexp(1000000*taun, -30); 
+    return 1000*ldexp(1000000.0*taun, -30); 
   }
   
   void parse4(std::basic_string_view<uint8_t> gstr)
@@ -113,14 +117,22 @@ struct GlonassMessage
     deltaTaun = getbitsglonass(&gstr[0], 85 - 58, 4);
   }
 
-  uint8_t n4; // counting from 1996 ('n4=1'), this is the 4-year plan index we are currently in
+  uint32_t getGloTime() const;
+  
+  uint8_t n4{0}; // counting from 1996 ('n4=1'), this is the 4-year plan index we are currently in
   uint16_t taugps;
   void parse5(std::basic_string_view<uint8_t> gstr)
   {
     n4=getbitu(&gstr[0], 85-36, 5);
     taugps = getbitsglonass(&gstr[0], 85-31, 22);
+    l_n = getbitu(&gstr[0], 85 - 9, 1);
   }
 
+  void parse7_9_11_13_15(std::basic_string_view<uint8_t> gstr)
+  {
+    l_n = getbitu(&gstr[0], 85 - 9, 1);
+  }
+  
 
   int nA;
   bool CnA;
