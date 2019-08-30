@@ -111,7 +111,7 @@ void MiniCurl::setupURL(const std::string& str, const ComboAddress* rem, const C
   curl_easy_setopt(d_curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
   curl_easy_setopt(d_curl, CURLOPT_SSL_VERIFYPEER, false);
   curl_easy_setopt(d_curl, CURLOPT_SSL_VERIFYHOST, false);
-  curl_easy_setopt(d_curl, CURLOPT_FAILONERROR, true);
+  //  curl_easy_setopt(d_curl, CURLOPT_FAILONERROR, true);
   curl_easy_setopt(d_curl, CURLOPT_URL, str.c_str());
   curl_easy_setopt(d_curl, CURLOPT_WRITEFUNCTION, write_callback);
   curl_easy_setopt(d_curl, CURLOPT_WRITEDATA, this);
@@ -148,7 +148,7 @@ std::string MiniCurl::postURL(const std::string& str, const std::string& postdat
   long http_code = 0;
   curl_easy_getinfo(d_curl, CURLINFO_RESPONSE_CODE, &http_code);
 
-  if(res != CURLE_OK) {
+  if(res != CURLE_OK || http_code >= 300 ) {
     cerr<<"Detailed error: "<<d_data<<endl;
     cerr<<postdata<<endl;
     throw std::runtime_error("Unable to post URL ("+std::to_string(http_code)+"): "+string(curl_easy_strerror(res)));

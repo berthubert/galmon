@@ -8,7 +8,7 @@ message NavMonMessage {
     RFDataType = 4;
     GPSInavType = 5;
     BeidouInavTypeD1 = 6;
-    GLONASSInavType = 7;
+    GlonassInavType = 7;
     BeidouInavTypeD2 = 8;    
   }
 
@@ -53,6 +53,13 @@ message NavMonMessage {
 	required bytes contents =5;
   }
 
+  message GlonassInav {
+        required uint32 gnssID  = 1;
+	required uint32 gnssSV  = 2;
+        required uint32 freq    = 3;
+	required bytes contents = 4;
+  }
+
 
   message ReceptionData {
         required uint32 gnssID =1;
@@ -91,5 +98,6 @@ message NavMonMessage {
   optional ObserverPosition op=8;
   optional GPSInav gpsi=9;
   optional BeidouInavD1 bid1=10;
-  optional BeidouInavD2 bid2=11;      
+  optional BeidouInavD2 bid2=11;
+  optional GlonassInav  gloi=12;
 }

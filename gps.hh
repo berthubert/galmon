@@ -4,6 +4,7 @@
 #include <map>
 #include "bits.hh"
 #include <iostream>
+#include <math.h>
 std::basic_string<uint8_t> getCondensedGPSMessage(std::basic_string_view<uint8_t> payload);
 
 struct GPSState
@@ -17,12 +18,12 @@ struct GPSState
     int32_t m0, omega0, i0, omega, idot, omegadot, deltan;
     
     int16_t cuc{0}, cus{0}, crc{0}, crs{0}, cic{0}, cis{0};
-    //        60 seconds
-    uint16_t t0c; // clock epoch, stored UNSCALED, since it is not in the same place as GPS
+    //        16 seconds
+    uint16_t t0c; 
     
-    //      2^-34     2^-46
+    //      2^-31     2^-43
     int32_t af0   ,   af1;
-    //     2^-59
+    //     ???
     int8_t af2;
     uint32_t wn{0}, tow{0};
   };
@@ -50,6 +51,25 @@ struct GPSState
   SVIOD& getEph(int i) { return iods[i]; }   // XXXX gps adaptor
   void checkCompleteAndClean(int iod){}
 };
+
+template<typename T>
+int getT0c(const T& eph)
+{
+  return eph.t0c * 16;
+}
+
+template<typename T>
+std::pair<double, double> getAtomicOffset(int tow, const T& eph)
+{
+  int delta = ephAge(tow, getT0c(eph));
+  double cur = eph.af0  + ldexp(delta*eph.af1, -12) + ldexp(delta*delta*eph.af2, -24);
+  double trend = ldexp(eph.af1, -12) + ldexp(2*delta*eph.af2, -24);
+  
+  // now in units of 2^-31 seconds, which are 0.5 nanoseconds each
+  double factor = ldexp(1000000000, -31);
+  return {factor * cur, factor * trend};
+}
+
 
 // expects input as 24 bit read to to use messages, returns frame number
 template<typename T>

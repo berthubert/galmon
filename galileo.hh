@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include "ephemeris.hh"
+#include "bits.hh"
 
 bool getTOWFromInav(std::basic_string_view<uint8_t> inav, uint32_t *satTOW, uint16_t *wn);
 
@@ -80,12 +82,12 @@ struct GalileoMessage
   
   int16_t cuc{0}, cus{0}, crc{0}, crs{0}, cic{0}, cis{0};
   //        60 seconds
-  uint16_t t0c; // clock epoch, stored UNSCALED, since it is not in the same place as GPS
+  uint16_t t0c; 
 
   //      2^-34     2^-46
-  int32_t af0{-1}   ,   af1{-1};
+  int32_t af0{0}   ,   af1{0};
   //     2^-59
-  int8_t af2{-1};
+  int8_t af2{0};
   
   uint8_t sisa;
 
@@ -132,6 +134,23 @@ struct GalileoMessage
     sisa = getbitu(&page[0],    120, 8);
   }
 
+  int getT0c()
+  {
+    return t0c * 60;
+  }
+
+  std::pair<double, double> getAtomicOffset(int tow)
+  {
+    int delta = ephAge(tow, getT0c());
+    double cur = af0  + ldexp(delta*af1, -12) + ldexp(delta*delta*af2, -25);
+    double trend = ldexp(af1, -12) + ldexp(2*delta*af2, -25);
+
+    // now in units of 2^-34 seconds, which are ~0.058 nanoseconds each
+    double factor = ldexp(1000000000, -34);
+    return {factor * cur, factor * trend};
+  }
+
+  
   // can't get enough of that ephemeris
   void parse4(std::basic_string_view<uint8_t> page)
   {
@@ -139,10 +158,10 @@ struct GalileoMessage
     cic = getbits(&page[0], 22, 16);
     cis = getbits(&page[0], 38, 16);
 
-    t0c = getbitu(&page[0], 54, 14);
-    af0 = getbits(&page[0], 68, 31);
-    af1 = getbits(&page[0], 99, 21);
-    af2 = getbits(&page[0], 120, 6);
+    t0c = getbitu(&page[0], 54, 14);  // 60
+    af0 = getbits(&page[0], 68, 31);  // 2^-34
+    af1 = getbits(&page[0], 99, 21);  // 2^-46
+    af2 = getbits(&page[0], 120, 6);  // 2^-59
   }
 
   // ionospheric disturbance, health, group delay, time

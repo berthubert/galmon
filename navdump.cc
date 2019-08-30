@@ -84,6 +84,11 @@ int main(int argc, char** argv)
     
     NavMonMessage nmm;
     nmm.ParseFromString(string(buffer, len));
+
+    if(nmm.type() == NavMonMessage::ReceptionDataType)
+      continue;
+
+    
     cout<<humanTime(nmm.localutcseconds())<<" "<<nmm.localutcnanoseconds()<<" ";
     cout<<"src "<<nmm.sourceid()<< " ";
     if(nmm.type() == NavMonMessage::ReceptionDataType) {
@@ -92,15 +97,25 @@ int main(int argc, char** argv)
     else if(nmm.type() == NavMonMessage::GalileoInavType) {
       basic_string<uint8_t> inav((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
       static map<int, GalileoMessage> gms;
+      static map<int, GalileoMessage> oldgm4s;
       GalileoMessage& gm = gms[nmm.gi().gnsssv()];
       int wtype = gm.parse(inav);
 
       cout << "gal inav for "<<nmm.gi().gnssid()<<","<<nmm.gi().gnsssv()<<" tow "<< nmm.gi().gnsstow()<<" wtype "<< wtype << endl;
+      static uint32_t tow;
       if(wtype == 4) {
         //              2^-34       2^-46
-        cout <<" af0 "<<gm.af0 <<" af1 "<<gm.af1 <<", scaled: "<<ldexp(1.0*gm.af0, 19-34)<<", "<<ldexp(1.0*gm.af1, 38-46)<<endl;
+        cout <<" af0 "<<gm.af0 <<" af1 "<<gm.af1 <<", scaled: "<<ldexp(1.0*gm.af0, 19-34)<<", "<<ldexp(1.0*gm.af1, 38-46);
+        if(tow && oldgm4s.count(nmm.gi().gnsssv()) && oldgm4s[nmm.gi().gnsssv()].iodnav != gm.iodnav) {
+          auto& oldgm4 = oldgm4s[nmm.gi().gnsssv()];
+          auto oldOffset = oldgm4.getAtomicOffset(tow);
+          auto newOffset = gm.getAtomicOffset(tow);
+          cout<<"  Timejump: "<<oldOffset.first - newOffset.first<<" after "<<(gm.getT0c() - oldgm4.getT0c() )<<" seconds";
+        }
+        cout<<endl;
+        oldgm4s[nmm.gi().gnsssv()] = gm;
       }
-      static uint32_t tow;
+
       if(wtype == 0 || wtype == 5 || wtype == 6)
         tow = gm.tow;
       
@@ -131,7 +146,15 @@ int main(int argc, char** argv)
       int frame=parseGPSMessage(cond, gs, &page);
       cout<<"GPS "<<sv<<": "<<gs.tow<<" ";
       if(frame == 1) {
-        cout << "gpshealth = "<<(int)gs.gpshealth<<", wn "<<gs.wn;
+        static map<int, GPSState> oldgs1s;
+        
+        cout << "gpshealth = "<<(int)gs.gpshealth<<", wn "<<gs.wn << " t0c "<<gs.t0c;
+        if(auto iter = oldgs1s.find(sv); iter != oldgs1s.end() && iter->second.t0c != gs.t0c) {
+          auto oldOffset = getAtomicOffset(gs.tow, iter->second);
+          auto newOffset = getAtomicOffset(gs.tow, gs);
+          cout<<"  Timejump: "<<oldOffset.first - newOffset.first<<" after "<<(getT0c(gs) - getT0c(iter->second) )<<" seconds, old t0c "<<iter->second.t0c;
+        }
+        oldgs1s[sv] = gs;
       }
       else if(frame == 2) {
         cout << "t0e = "<<gs.iods.begin()->second.t0e << " " <<ephAge(gs.tow, gs.iods.begin()->second.t0e);
@@ -146,7 +169,16 @@ int main(int argc, char** argv)
       int fraid = bm.parse(cond, &pageno);
       cout<<"BeiDou "<<sv<<": "<<bm.sow<<", FraID "<<fraid;
       if(fraid == 1) {
-        cout<<" wn "<<bm.wn<<" t0c "<<(int)bm.t0c<<" aodc "<< (int)bm.aodc <<" aode "<< (int)bm.aode <<" sath1 "<< (int)bm.sath1 << " urai "<<(int)bm.urai << " af0 "<<bm.a0 <<" af1 " <<bm.a1<<endl;
+        static map<int, BeidouMessage> msgs;
+        if(msgs[sv].wn>= 0 && msgs[sv].t0c != bm.t0c) {
+          auto oldOffset = msgs[sv].getAtomicOffset(bm.sow);
+          auto newOffset = bm.getAtomicOffset(bm.sow);
+          cout<<"  Timejump: "<<oldOffset.first - newOffset.first<<" after "<<(bm.getT0c() - msgs[sv].getT0c() )<<" seconds";
+        }
+        msgs[sv]=bm;
+        cout<<" wn "<<bm.wn<<" t0c "<<(int)bm.t0c<<" aodc "<< (int)bm.aodc <<" aode "<< (int)bm.aode <<" sath1 "<< (int)bm.sath1 << " urai "<<(int)bm.urai << " af0 "<<bm.a0 <<" af1 " <<bm.a1 <<" af2 "<<bm.a2;
+        auto offset = bm.getAtomicOffset();
+        cout<< ", "<<offset.first<<"ns " << (offset.second * 3600) <<" ns/hour "<< ephAge(bm.sow, bm.t0c*8)<<endl;
       }
       else if(fraid == 4 && 1<= pageno && pageno <= 24) {
         cout <<" pageno "<< (int) pageno<<" AmEpID "<< getbitu(&cond[0], beidouBitconv(291), 2);
@@ -184,9 +216,23 @@ int main(int argc, char** argv)
       cout<<"BeiDou "<<sv<<" D2: "<<bm.sow<<", FraID "<<fraid << endl;
             
     }
+    else if(nmm.type() == NavMonMessage::GlonassInavType) {
+      GlonassMessage gm;
+      int strno = gm.parse(std::basic_string<uint8_t>((uint8_t*)nmm.gloi().contents().c_str(), nmm.gloi().contents().size()));
+
+      cout<<"Glonass R"<<nmm.gloi().gnsssv()<<" @ "<<nmm.gloi().freq() <<" strno "<<strno;
+      if(strno == 1)
+        cout << ", hour "<<(int)gm.hour <<" minute " <<(int)gm.minute <<" seconds "<<(int)gm.seconds;
+      if(strno == 2)
+        cout<<" Tb "<<(int)gm.Tb <<" Bn "<<(int)gm.Bn;
+      else if(strno == 4)
+        cout<<", taun "<<gm.taun <<" NT "<<gm.NT <<" FT " << (int) gm.FT <<" En " << (int)gm.En;
+      else if(strno == 6 || strno ==8 || strno == 10 || strno ==12 ||strno ==14)
+        cout<<" nA "<< gm.nA <<" CnA "<<gm.CnA;
+      cout<<endl;
+    }
     else if(nmm.type() == NavMonMessage::ObserverPositionType) {
       cout<<"ECEF"<<endl;
-      // XXX!! this has to deal with source id!
     }
     else if(nmm.type() == NavMonMessage::RFDataType) {
       cout<<"RFdata for "<<nmm.rfd().gnssid()<<","<<nmm.rfd().gnsssv()<<endl;

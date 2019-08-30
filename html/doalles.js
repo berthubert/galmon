@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "iod", "aode", "eph-age-m", "latest-disco", "sisa", "delta_hz_corr", "health", "a0", "a1","a0g", "a1g", "sources", "db", "elev", "last-seen-s"];    
+    var columns = ["sv", "iod", "aodc/e", "eph-age-m", "latest-disco", "sisa", "delta_hz_corr", "health", "a0", "a1","a0g", "a1g", "sources", "db", "elev", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -50,8 +50,13 @@ function maketable(str, arr)
 //                    ret.value="";
                     ret.value += "&nbsp;"+row.sv;
                 }
-                else
-                if(column == "eph-age-m") {
+                else if(column == "aodc/e") {
+                    if(row["aodc"] != null && row["aode"] != null)
+                        ret.value = row["aodc"]+"/"+row["aode"];
+                    else
+                        ret.value="";
+                }
+                else if(column == "eph-age-m") {
                     if(row[column] != null) {
                         var b = moment.duration(-row[column], 'm');
                         ret.value = b.humanize(true);

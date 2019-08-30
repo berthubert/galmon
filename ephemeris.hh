@@ -148,3 +148,39 @@ void getCoordinates(int wn, double tow, const T& iod, Point* p, bool quiet=true)
   
 }
 
+struct DopplerData
+{
+  double preddop;
+  double radvel;
+  Vector speed;
+  Point sat;
+  double ephage;
+  time_t t;
+};
+
+template<typename T>
+DopplerData doDoppler(int wn, int tow, const Point& us, const T& eph, double freq)
+{
+  DopplerData ret;
+  
+  // be careful with time here - we need to evaluate at the timestamp of this RFDataType update
+  // which might be newer than .tow in g_svstats
+  getCoordinates(wn, tow, eph, &ret.sat);
+  Point core;
+  Vector us2sat(us, ret.sat);
+  getSpeed(wn, tow, eph, &ret.speed);
+  Vector core2us(core, us);
+  Vector dx(us, ret.sat); //  = x-ourx, dy = y-oury, dz = z-ourz;
+        
+  us2sat.norm();
+  ret.radvel=us2sat.inner(ret.speed);
+  double c=299792458;
+  ret.preddop = -freq * ret.radvel/c;
+        
+  // be careful with time here - 
+  ret.ephage = ephAge(tow, eph.getT0e());
+        //        cout<<"Radial velocity: "<< radvel<<", predicted doppler: "<< preddop << ", measured doppler: "<<nmm.rfd().doppler()<<endl;
+
+
+  return ret;
+}

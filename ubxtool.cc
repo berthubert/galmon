@@ -432,7 +432,7 @@ int main(int argc, char** argv)
           //                            GAL   min  max   res   x1   x2    x3,   x4
                                         0x02, 0x04, 0x08, 0,  doGalileo, 0x00, 0x01, 0x00,
           //                            GLO   min  max   res   x1   x2    x3,   x4
-                                        0x06, 0x04, 0x08, 0,  doGlonass, 0x00, 0x01, 0x00
+                                        0x06, 0x06, 0x08, 0,  doGlonass, 0x00, 0x01, 0x00
 
             });
       
@@ -779,14 +779,23 @@ int main(int argc, char** argv)
             continue;
           }
           else if(id.first==6) {
-            cerr<<"SFRBX from GLONASS "<<id.second<<" @ frequency "<<(int)payload[3]<<", msg of "<<(int)payload[4]<< " words"<<endl;
+            //            cerr<<"SFRBX from GLONASS "<<id.second<<" @ frequency "<<(int)payload[3]<<", msg of "<<(int)payload[4]<< " words"<<endl;
             auto gstr = getGlonassFromSFRBXMsg(payload);
             static map<int, GlonassMessage> gms;
             GlonassMessage& gm = gms[id.second];
             int strno = gm.parse(gstr);
-            cerr<<"R"<<id.second<<" "<<strno<<" ("<<gm.x<<", "<<gm.y<<", "<<gm.z<<") "<<sqrt(ldexp(gm.x, -11)*ldexp(gm.x, -11) + ldexp(gm.y, -11)*ldexp(gm.y, -11) +  ldexp(gm.z, -11)*ldexp(gm.z, -11)) <<" -> ("<<gm.dx<<", "<<gm.dy<<", "<<gm.dz<<")"<<endl;
-            if(strno == 4)
-              cerr<<"  R"<<id.second<<" "<< fmt::sprintf("%d %02d:%02d:%02d", gm.NT, (int)gm.hour,(int)gm.minute, (int)gm.seconds)<<" : P4="<<gm.P4<<" -> " << (int)gm.Tb<<", P1: "<<(int)gm.P1<<endl;
+            if(id.second != 255) {
+              NavMonMessage nmm;
+              nmm.set_localutcseconds(g_gstutc.tv_sec);
+              nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
+              nmm.set_sourceid(g_srcid);
+              nmm.set_type(NavMonMessage::GlonassInavType);
+              nmm.mutable_gloi()->set_freq(payload[3]);
+              nmm.mutable_gloi()->set_gnssid(id.first);
+              nmm.mutable_gloi()->set_gnsssv(id.second);
+              nmm.mutable_gloi()->set_contents(string((char*)gstr.c_str(), gstr.size()));
+              emitNMM(1, nmm);
+            }
           }
           else
             cerr<<"SFRBX from unsupported GNSSID "<<id.first<<", sv "<<id.second<<", "<<payload.size()<<" bytes"<<endl;
@@ -797,7 +806,9 @@ int main(int argc, char** argv)
                          payload[0], payload[1], wtype, lasttv[id].tv_sec, lasttv[id].tv_usec, tv[id].tv_sec, tv[id].tv_usec, tv[id].tv_usec - lasttv[id].tv_usec);
           }
 #endif
-          lasttv[id]=tv[id];          
+          lasttv[id]=tv[id];
+
+          
         }
         catch(CRCMismatch& cm) {
           cerr<<"Had CRC mismatch!"<<endl;

@@ -4,6 +4,7 @@
 #include "bits.hh"
 #include <math.h>
 #include <stdexcept>
+#include "ephemeris.hh"
 
 std::basic_string<uint8_t> getCondensedBeidouMessage(std::basic_string_view<uint8_t> payload);
 int beidouBitconv(int their);
@@ -15,9 +16,6 @@ int beidouBitconv(int their);
    C04 (160E)
    C05 (58.75E)
 */
-
-
-
 
 struct BeidouMessage
 {
@@ -70,11 +68,30 @@ struct BeidouMessage
 
   uint8_t sath1, aodc, urai, aode;
   uint16_t t0c;
-  int wn{-1}, a0, a1, a2;
+  //          2^-33   2^-50   2^-66
+  int wn{-1}, a0,     a1,     a2;
+  //                  2^17    2^30
+
+  uint32_t getT0c()
+  {
+    return 8 * t0c;
+  }
+  std::pair<double, double> getAtomicOffset(int Sow = -1)
+  {
+    if(Sow == -1)
+      Sow = sow;
+    int delta = ephAge(Sow, getT0c());
+    double cur = a0  + ldexp(delta*a1, -17) + ldexp(delta*delta*a2, -30);
+    double trend = ldexp(a1, -17) + ldexp(2*delta*a2, -30);
+
+    // now in units of 2^-33 seconds, which are ~0.116 nanoseconds each
+    double factor = ldexp(1000000000, -33);
+    return {factor * cur, factor * trend};
+  }
   
   void parse1(std::basic_string_view<uint8_t> cond)
   {
-    sath1 = bbitu(43,1 );
+    sath1 = bbitu(43,1);
     aodc = bbitu(31+13, 5);
     urai = bbitu(31+12+1+5, 4);
     wn = bbitu(61, 13);
@@ -86,7 +103,7 @@ struct BeidouMessage
   }
 
   int t0eMSB{-1};
-  uint32_t sqrtA, e;
+  uint32_t sqrtA{0}, e;
   int32_t deltan;
   int32_t cuc, cus, crc, crs;
   int32_t m0;
@@ -113,10 +130,7 @@ struct BeidouMessage
     crc = bbits(199, 18);
     crs = bbits(225, 18);
     sqrtA = bbitu(251, 32);
-    
     t0eMSB = bbitu(291, 2);
-
-
   }
 
   int t0eLSB{-1};
@@ -143,7 +157,6 @@ struct BeidouMessage
     idot = bbits(190, 14);
     Omega0 = bbits(212, 32);
     omega = bbits(252, 32);
-    
   }
 
   // 4 is all almanac
