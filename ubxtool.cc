@@ -187,16 +187,11 @@ std::pair<UBXMessage, struct timeval> getUBXMessage(int fd)
       readn2(fd, b, 4);
       msg.append(b, 4); // class, type, len1, len2
 
-
-      
-
       uint16_t len = b[2] + 256*b[3];
       //      cerr<<"Got class "<<(int)msg[2]<<" type "<<(int)msg[3]<<", len = "<<len<<endl;
       uint8_t buffer[len+2];
       res=readn2(fd, buffer, len+2);
 
-
-      
       msg.append(buffer, len+2); // checksum
       if(!g_fromFile)
         writen2(logfile, msg.c_str(), msg.size());      
@@ -259,10 +254,13 @@ void emitNMM(int fd, const NavMonMessage& nmm)
             
   string out;
   nmm.SerializeToString(& out);
-  writen2(fd, "bert", 4);
+  string msg("bert");
+  
   uint16_t len = htons(out.size());
-  writen2(fd, &len, 2);
-  writen2(fd, out.c_str(), out.size());
+  msg.append((char*)&len, 2);
+  msg.append(out);
+  
+  writen2(fd, msg.c_str(), msg.size());
 }
 
 void enableUBXMessageUSB(int fd, uint8_t ubxClass, uint8_t ubxType, uint8_t rate=1)
@@ -357,8 +355,9 @@ int main(int argc, char** argv)
   CLI::App app("ubxtool");
     
   vector<std::string> serial;
-  bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true};
+  bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true}, doReset{false};
   app.add_option("serial", serial, "Serial");
+  app.add_flag("--reset", doReset, "Reset UBX device");
   app.add_flag("--beidou,-c", doBeidou, "Enable BeiDou reception");
   app.add_flag("--gps,-g", doGPS, "Enable GPS reception");
   app.add_flag("--glonass,-r", doGlonass, "Enable Glonass reception");
@@ -387,27 +386,27 @@ int main(int argc, char** argv)
       readSome(fd);
       
       std::basic_string<uint8_t> msg;
-
-      cerr<<"Sending a soft reset"<<endl;
-      msg = buildUbxMessage(0x06, 0x04, {0x00, 0x00, 0x01, 0x00});
-      writen2(fd, msg.c_str(), msg.size());
-      usleep(100000);
-      close(fd);
-      for(int n=0 ; n< 20; ++n) {
-        cerr<<"Waiting for device to come back"<<endl;
-        try {
-          fd = initFD(serial[0].c_str());
-          readSome(fd);          
-        }
-        catch(...)
-          {
-            cerr<<"Not yet back"<<endl;
-            usleep(400000);
-            continue;
+      if(doReset) {
+        cerr<<"Sending a soft reset"<<endl;
+        msg = buildUbxMessage(0x06, 0x04, {0x00, 0x00, 0x01, 0x00});
+        writen2(fd, msg.c_str(), msg.size());
+        usleep(100000);
+        close(fd);
+        for(int n=0 ; n< 20; ++n) {
+          cerr<<"Waiting for device to come back"<<endl;
+          try {
+            fd = initFD(serial[0].c_str());
+            readSome(fd);          
           }
-        break;
+          catch(...)
+            {
+              cerr<<"Not yet back"<<endl;
+              usleep(400000);
+              continue;
+            }
+          break;
+        }
       }
-      
       cerr<<"Sending GNSS query"<<endl;
       msg = buildUbxMessage(0x06, 0x3e, {});
       writen2(fd, msg.c_str(), msg.size());
@@ -505,6 +504,7 @@ int main(int argc, char** argv)
 
   std::map<pair<int,int>, struct timeval> lasttv, tv;
   int curCycleTOW{-1}; // means invalid
+
   cerr<<"Entering main loop"<<endl;
   for(;;) {
     try {
@@ -620,9 +620,9 @@ int main(int argc, char** argv)
         };
         pos p;
         memcpy(&p, payload.c_str(), sizeof(pos));
-        cerr<<"Position: ("<< p.ecefX / 100000.0<<", "
+        /*        cerr<<"Position: ("<< p.ecefX / 100000.0<<", "
             << p.ecefY / 100000.0<<", "
-            << p.ecefZ / 100000.0<<") +- "<<p.pAcc<<" cm"<<endl;
+            << p.ecefZ / 100000.0<<") +- "<<p.pAcc<<" cm"<<endl;*/
 
 //        g_ourpos = {p.ecefX/100.0, p.ecefY/100.0, p.ecefZ/100.0};
         
@@ -645,6 +645,20 @@ int main(int argc, char** argv)
         
         try {
           pair<int,int> id = make_pair(payload[0], payload[1]);
+          static set<pair<int,int>> svseen;
+          static time_t lastStat;
+          svseen.insert(id);
+
+          if(time(0)- lastStat > 30) {
+            cerr<<"src "<<g_srcid<< " currently receiving: ";
+            for(auto& s : svseen) {
+              cerr<<s.first<<","<<s.second<<" ";
+            }
+            cerr<<endl;
+            lastStat = time(0);
+            svseen.clear();
+          }
+          
           if(id.first == 0) {
             NavMonMessage nmm;
             nmm.set_type(NavMonMessage::GPSInavType);
@@ -708,7 +722,7 @@ int main(int argc, char** argv)
                 msgTOW = curCycleTOW + 23; 
               }
               else { // dummy
-                cerr<<"what kind of wtype is this"<<endl;
+                cerr<<"galileo E"<<id.second<<" what kind of wtype is this: "<<wtype<<endl;
                 continue;
               }
             }
@@ -733,27 +747,33 @@ int main(int argc, char** argv)
             auto& bm = bms[id.second];
             
             uint8_t pageno;
-            int fraid=bm.parse(cond, &pageno);
-            cerr<<"BeiDou C"<<id.second<<" FraID "<< fraid<<" SOW "<< bm.sow<<" ";
-            if(fraid == 1)
-              cerr<<" sath1 "<<(int)bm.sath1<<" aodc "<<(int)bm.aodc <<" urai "<<(int)bm.urai<<" WN "<<bm.wn;
-            else
-              ;
-            cerr<<endl;
+            bm.parse(cond, &pageno);
+            
             if(bm.wn < 0) {
-              cerr<<"BeiDou WN unknown, not yet emitting message"<<endl;
+              cerr<<"BeiDou C"<<id.second<<" WN not yetknown, not yet emitting message"<<endl;
               continue;
             }
             NavMonMessage nmm;
-            nmm.set_type(NavMonMessage::BeidouInavType);
             nmm.set_localutcseconds(g_gstutc.tv_sec);
             nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
-            nmm.set_sourceid(g_srcid);         
-            nmm.mutable_bi()->set_gnsswn(bm.wn);  
-            nmm.mutable_bi()->set_gnsstow(bm.sow); 
-            nmm.mutable_bi()->set_gnssid(id.first);
-            nmm.mutable_bi()->set_gnsssv(id.second);
-            nmm.mutable_bi()->set_contents(string((char*)gstr.c_str(), gstr.size()));
+            nmm.set_sourceid(g_srcid);
+            if(id.second > 5) {
+              // this **HARDCODES** that C01,02,03,04,05 emit D2 messages!            
+              nmm.set_type(NavMonMessage::BeidouInavTypeD1);
+              nmm.mutable_bid1()->set_gnsswn(bm.wn);  
+              nmm.mutable_bid1()->set_gnsstow(bm.sow); 
+              nmm.mutable_bid1()->set_gnssid(id.first);
+              nmm.mutable_bid1()->set_gnsssv(id.second);
+              nmm.mutable_bid1()->set_contents(string((char*)gstr.c_str(), gstr.size()));
+            }
+            else {
+              nmm.set_type(NavMonMessage::BeidouInavTypeD2);
+              nmm.mutable_bid2()->set_gnsswn(bm.wn);  
+              nmm.mutable_bid2()->set_gnsstow(bm.sow); 
+              nmm.mutable_bid2()->set_gnssid(id.first);
+              nmm.mutable_bid2()->set_gnsssv(id.second);
+              nmm.mutable_bid2()->set_contents(string((char*)gstr.c_str(), gstr.size()));
+            }
             emitNMM(1, nmm);
             continue;
           }

@@ -148,8 +148,11 @@ std::string MiniCurl::postURL(const std::string& str, const std::string& postdat
   long http_code = 0;
   curl_easy_getinfo(d_curl, CURLINFO_RESPONSE_CODE, &http_code);
 
-  if(res != CURLE_OK)
+  if(res != CURLE_OK) {
+    cerr<<"Detailed error: "<<d_data<<endl;
+    cerr<<postdata<<endl;
     throw std::runtime_error("Unable to post URL ("+std::to_string(http_code)+"): "+string(curl_easy_strerror(res)));
+  }
 
   std::string ret=d_data;
 

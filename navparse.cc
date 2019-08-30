@@ -359,7 +359,15 @@ int latestTow(int gnssid)
 
 uint64_t nanoTime(int gnssid, int wn, int tow)
 {
-  int offset =  (gnssid == 0) ? 315964800 : 935280000;
+  int offset;
+  if(gnssid == 0) // GPS
+    offset = 315964800;
+  if(gnssid == 2) // Galileo, 22-08-1999
+    offset = 935280000;
+  if(gnssid == 3) // Beidou, 01-01-2006
+    offset = 1136073600;
+  if(gnssid == 6) // GLONASS
+    throw std::runtime_error("GLONASS does not have WN/TOW");
   
   return 1000000000ULL*(offset + wn * 7*86400 + tow - g_dtLS); // Leap!!
 }
@@ -402,6 +410,8 @@ struct InfluxPusher
   {
     if(g_svstats[id].wn ==0 && g_svstats[id].tow == 0)
       return;
+    if(id.first == 3)
+      cout << g_svstats[id].wn <<", "<<g_svstats[id].tow<<" -> " <<nanoTime(id.first, g_svstats[id].wn, g_svstats[id].tow)<<endl;
     d_buffer+= string(name) +",gnssid="+to_string(id.first)+",sv=" +to_string(id.second) + " value="+to_string(value)+" "+
       to_string(nanoTime(id.first, g_svstats[id].wn, g_svstats[id].tow))+"\n";
 

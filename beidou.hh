@@ -3,8 +3,20 @@
 #include <stdint.h>
 #include "bits.hh"
 #include <math.h>
+#include <stdexcept>
+
 std::basic_string<uint8_t> getCondensedBeidouMessage(std::basic_string_view<uint8_t> payload);
 int beidouBitconv(int their);
+
+/* Geostationary, so D2, so not to be parsed by this parser:
+   C01 (140E)
+   C02 (80E)
+   C03 (110.5E)
+   C04 (160E)
+   C05 (58.75E)
+*/
+
+
 
 
 struct BeidouMessage
