@@ -322,7 +322,7 @@ int initFD(const char* fname)
     }
 
     bzero(&newtio, sizeof(newtio));                                         
-    newtio.c_cflag = BAUDRATE | CRTSCTS | CS8 | CLOCAL | CREAD;             
+    newtio.c_cflag = BAUDRATE | /*CRTSCTS */ CS8 | CLOCAL | CREAD;             
     newtio.c_iflag = IGNPAR;                                                
     newtio.c_oflag = 0;                                                     
     
