@@ -58,7 +58,7 @@ void recvSession(int s, ComboAddress client)
         break;
       }
       if(part != "bert") {
-        cerr << "Wrong magic from "<<client.toStringWithPort()<<endl;
+        cerr << "Wrong magic from "<<client.toStringWithPort()<<": "<<part<<endl;
         break;
       }
       string out=part;
@@ -82,6 +82,7 @@ void recvSession(int s, ComboAddress client)
   catch(std::exception& e) {
     cout<<"Error in receiving thread: "<<e.what()<<endl;
   }
+  cout<<"Thread exiting"<<endl;
 }
 
 void recvListener(Socket&& s, ComboAddress local)

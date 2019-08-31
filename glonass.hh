@@ -28,7 +28,8 @@ struct GlonassMessage
     else if(strtype == 5) {
       parse5(gstr);
     }
-
+    else if(strtype == 6 || strtype ==8 || strtype == 10 || strtype ==12 ||strtype ==14)
+      parse6_8_10_12_14(gstr);
     return strtype;
   }
 
@@ -92,9 +93,14 @@ struct GlonassMessage
   */
   
   uint16_t NT; 
-  uint8_t FT, En, deltaTaun, M;
-  uint32_t taun;
+  uint8_t FT{255}, En, deltaTaun, M;
+  int32_t taun; // 2^-30
   bool P4;
+
+  double getTaunNS()
+  {
+    return 1000*ldexp(1000000*taun, -30); 
+  }
   
   void parse4(std::basic_string_view<uint8_t> gstr)
   {
@@ -104,7 +110,7 @@ struct GlonassMessage
     taun = getbitsglonass(&gstr[0], 85-80, 22);
     En = getbitu(&gstr[0], 85-53, 5);
     P4 = getbitu(&gstr[0], 85-34, 1);
-    // missing delta tau n
+    deltaTaun = getbitsglonass(&gstr[0], 85 - 58, 4);
   }
 
   uint8_t n4; // counting from 1996 ('n4=1'), this is the 4-year plan index we are currently in
@@ -113,9 +119,17 @@ struct GlonassMessage
   {
     n4=getbitu(&gstr[0], 85-36, 5);
     taugps = getbitsglonass(&gstr[0], 85-31, 22);
-
   }
 
 
+  int nA;
+  bool CnA;
+  
+  
+  void parse6_8_10_12_14(std::basic_string_view<uint8_t> gstr)
+  {
+    CnA = getbitu(&gstr[0], 85-80, 1);
+    nA = getbitu(&gstr[0], 85-77, 5);
+  }
   
 };

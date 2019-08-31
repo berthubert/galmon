@@ -34,7 +34,7 @@ vector<string> getPathComponents(std::string_view root, time_t s, uint64_t sourc
 
   ret.push_back(to_string(tm.tm_year+1900));
   ret.push_back(to_string(tm.tm_mon+1));
-  ret.push_back(to_string(tm.tm_mday+1));
+  ret.push_back(to_string(tm.tm_mday));
   ret.push_back(to_string(tm.tm_hour)+".pb");
   return ret;
 }

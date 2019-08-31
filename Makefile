@@ -2,7 +2,7 @@ CXXFLAGS:= -std=gnu++17 -Wall -O3 -MMD -MP -ggdb -fno-omit-frame-pointer -I/usr/
 
 # CXXFLAGS += -Wno-delete-non-virtual-dtor
 
-PROGRAMS = navparse ubxtool navnexus navrecv navdump testrunner
+PROGRAMS = navparse ubxtool navnexus navrecv navdump testrunner navdisplay
 
 all: navmon.pb.cc $(PROGRAMS)
 
@@ -20,6 +20,9 @@ navparse: navparse.o ext/fmt-5.2.1/src/format.o $(H2OPP) $(SIMPLESOCKETS) minicu
 navdump: navdump.o ext/fmt-5.2.1/src/format.o bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o
 	$(CXX) -std=gnu++17 $^ -o $@ -pthread  -L/usr/local/lib -lprotobuf
 
+navdisplay: navdisplay.o ext/fmt-5.2.1/src/format.o bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o
+	$(CXX) -std=gnu++17 $^ -o $@ -pthread -L/usr/local/lib -lprotobuf -lncurses
+
 navnexus: navnexus.o ext/fmt-5.2.1/src/format.o  $(SIMPLESOCKETS) ubx.o bits.o navmon.pb.o storage.o
 	$(CXX) -std=gnu++17 $^ -o $@ -pthread -L/usr/local/lib -lprotobuf
 
@@ -35,5 +38,5 @@ ubxtool: navmon.pb.o ubxtool.o ubx.o bits.o ext/fmt-5.2.1/src/format.o galileo.o
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -lprotobuf
 
 testrunner: navmon.pb.o testrunner.o ubx.o bits.o ext/fmt-5.2.1/src/format.o galileo.o  gps.o beidou.o ephemeris.o
-	$(CXX) -std=gnu++17 $^ -o $@ -lprotobuf
+	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -lprotobuf
 

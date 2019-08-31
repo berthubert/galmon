@@ -10,6 +10,7 @@
    | tow               t0e  |   -> 7*86400 - tow + t0e < 3.5 days, ok
 */
 
+// positive age = t0e in the past
 int ephAge(int tow, int t0e)
 {
   unsigned int diff;
@@ -29,3 +30,4 @@ int ephAge(int tow, int t0e)
       return tow - t0e; // in the future, negative age
   }
 }
+
