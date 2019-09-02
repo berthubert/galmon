@@ -759,9 +759,11 @@ int main(int argc, char** argv)
           else if(id.first==6) {
             //            cerr<<"SFRBX from GLONASS "<<id.second<<" @ frequency "<<(int)payload[3]<<", msg of "<<(int)payload[4]<< " words"<<endl;
             auto gstr = getGlonassFromSFRBXMsg(payload);
+            /*
             static map<int, GlonassMessage> gms;
             GlonassMessage& gm = gms[id.second];
             int strno = gm.parse(gstr);
+            */
             if(id.second != 255) {
               NavMonMessage nmm;
               nmm.set_localutcseconds(g_gstutc.tv_sec);

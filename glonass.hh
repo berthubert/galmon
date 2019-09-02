@@ -42,8 +42,19 @@ struct GlonassMessage
      Various GLONASS things relate to "the day", so it is important to note which day we are at
   */
   uint8_t hour, minute, seconds, P1;
-  int32_t x, dx, ddx;
+  int32_t x{0}, dx, ddx; // 2^-11 km, 2^-20 km/s, 2^-30 km/s^2
+
+  double getX() { return ldexp(x*1000.0, -11); }
+  double getY() { return ldexp(y*1000.0, -11); }
+  double getZ() { return ldexp(z*1000.0, -11); }
+
+  double getdX() { return ldexp(dx*1000.0, -20); }
+  double getdY() { return ldexp(dy*1000.0, -20); }
+  double getdZ() { return ldexp(dz*1000.0, -20); }
+
   
+  double getRadius() { return sqrt(getX()*getX() + getY()*getY() + getZ()*getZ()); }
+   
   void parse1(std::basic_string_view<uint8_t> gstr)
   {
     hour = getbitu(&gstr[0], 9, 5);
@@ -56,7 +67,7 @@ struct GlonassMessage
   }
 
   uint8_t Bn, Tb, P2;
-  int32_t y, dy, ddy;
+  int32_t y{0}, dy, ddy;
 
   /* The GLONASS ephemeris centered on the "Tb-th" interval, from the start of the Moscow day.
      An interval is 15 minutes long, plus a spacer of length described by P1. If P1 is zero, there is no spacer.
@@ -74,7 +85,7 @@ struct GlonassMessage
     
   }
 
-  int32_t z, dz, ddz;
+  int32_t z{0}, dz, ddz;
   bool l_n;
   bool P, P3;
   uint16_t gamman;
@@ -136,12 +147,20 @@ struct GlonassMessage
 
   int nA;
   bool CnA;
-  
+  int32_t lambdana; // 2^-20 semi-circles
+  int32_t deltaina; // 2^-20 semi-circles
+
+  double getLambdaNaDeg()
+  {
+    return ldexp(180.0*lambdana, -20);
+  }
   
   void parse6_8_10_12_14(std::basic_string_view<uint8_t> gstr)
   {
     CnA = getbitu(&gstr[0], 85-80, 1);
     nA = getbitu(&gstr[0], 85-77, 5);
+    lambdana = getbitsglonass(&gstr[0], 85-62, 21);
+    deltaina = getbitsglonass(&gstr[0], 85-41, 18);
   }
   
 };

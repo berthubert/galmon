@@ -1,4 +1,3 @@
-
 #include <string>
 #include <stdio.h>
 #include <iostream>
@@ -22,6 +21,7 @@
 #include "beidou.hh"
 #include "galileo.hh"
 #include "navmon.hh"
+#include "tle.hh"
 
 #include <unistd.h>
 using namespace std;
@@ -62,7 +62,15 @@ string beidouHealth(int in)
 }
 
 int main(int argc, char** argv)
+try
 {
+  TLERepo tles;
+  tles.parseFile("active.txt");
+  /*  tles.parseFile("galileo.txt");
+  tles.parseFile("glo-ops.txt");
+  tles.parseFile("gps-ops.txt");
+  tles.parseFile("beidou.txt");*/
+  
   for(;;) {
     char bert[4];
     int res = readn2(0, bert, 4);
@@ -86,23 +94,26 @@ int main(int argc, char** argv)
     NavMonMessage nmm;
     nmm.ParseFromString(string(buffer, len));
 
-    if(nmm.type() == NavMonMessage::ReceptionDataType)
-      continue;
+    //    if(nmm.type() == NavMonMessage::ReceptionDataType)
+    //      continue;
 
     
     cout<<humanTime(nmm.localutcseconds())<<" "<<nmm.localutcnanoseconds()<<" ";
     cout<<"src "<<nmm.sourceid()<< " ";
     if(nmm.type() == NavMonMessage::ReceptionDataType) {
-      cout<<"receptiondata for "<<nmm.rd().gnssid()<<","<<nmm.rd().gnsssv()<<", db "<<nmm.rd().db()<<" ele "<<nmm.rd().el() <<" azi "<<nmm.rd().azi()<<endl;
+      cout<<"receptiondata for "<<nmm.rd().gnssid()<<","<<nmm.rd().gnsssv()<<", db "<<nmm.rd().db()<<" ele "<<nmm.rd().el() <<" azi "<<nmm.rd().azi()<<" prRes "<<nmm.rd().prres() << endl;
     }
     else if(nmm.type() == NavMonMessage::GalileoInavType) {
       basic_string<uint8_t> inav((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
       static map<int, GalileoMessage> gms;
+      static map<pair<int, int>, GalileoMessage> gmwtypes;
       static map<int, GalileoMessage> oldgm4s;
-      GalileoMessage& gm = gms[nmm.gi().gnsssv()];
+      int sv = nmm.gi().gnsssv();
+      GalileoMessage& gm = gms[sv];
       int wtype = gm.parse(inav);
-
-      cout << "gal inav for "<<nmm.gi().gnssid()<<","<<nmm.gi().gnsssv()<<" tow "<< nmm.gi().gnsstow()<<" wtype "<< wtype << endl;
+      gm.tow = nmm.gi().gnsstow();
+      gmwtypes[{nmm.gi().gnsssv(), wtype}] = gm;
+      cout << "gal inav for "<<nmm.gi().gnssid()<<","<<nmm.gi().gnsssv()<<" tow "<< nmm.gi().gnsstow()<<" wtype "<< wtype<<" ";
       static uint32_t tow;
       if(wtype == 4) {
         //              2^-34       2^-46
@@ -113,7 +124,7 @@ int main(int argc, char** argv)
           auto newOffset = gm.getAtomicOffset(tow);
           cout<<"  Timejump: "<<oldOffset.first - newOffset.first<<" after "<<(gm.getT0c() - oldgm4.getT0c() )<<" seconds";
         }
-        cout<<endl;
+
         oldgm4s[nmm.gi().gnsssv()] = gm;
       }
 
@@ -123,21 +134,38 @@ int main(int argc, char** argv)
       if(wtype < 7)
         gm = GalileoMessage{};
 
-
+      if(wtype >=7 && wtype<=10)
+        cout<<" ioda "<<gm.iodalmanac;
       // af0 af1 scaling in almanac: 2^-19, 2^2^-38 plus "truncated"
       if(wtype == 7) {
-        cout<<"  t0a "<<gm.t0almanac<<", alma sv1 "<<gm.alma1.svid<<", t0a age: "<< ephAge(gm.t0almanac *600, tow) << endl;
+        cout<<"  t0a "<<gm.t0almanac<<", alma sv1 "<<gm.alma1.svid<<", t0a age: "<< ephAge(gm.t0almanac *600, tow) << " ";
+        if(gm.alma1.svid) {
+          Point satpos;
+          getCoordinates(0, gm.tow, gm.alma1, &satpos);
+          cout<< "("<<satpos.x/1000<<", "<<satpos.y/1000<<", "<<satpos.z/1000<<")";
+          
+          auto match = tles.getBestMatch(nmm.localutcseconds(), satpos.x, satpos.y, satpos.z);
+          cout<<" best-tle-match "<<match.name <<" distance "<<match.distance /1000<<" km ";
+          cout <<" tle-e "<<match.e <<" eph-e " <<gm.alma1.getE() <<" tle-ran "<<match.ran;
+          cout<<" norad " <<match.norad <<" int-desig " << match.internat;
+        }
       }
-      else if(wtype == 8 && gm.alma1.svid > 0) {
-        cout<<"  "<<gm.alma1.svid<<" af0 "<<gm.alma1.af0<<" af1 "<< gm.alma1.af1 <<" e5bhs "<< gm.alma1.e5bhs<<" e1bhs "<< gm.alma1.e1bhs<<endl;
+      else if(wtype == 8 && gm.tow - gmwtypes[{sv,7}].tow < 5 && gmwtypes[{sv,7}].alma1.svid && gm.iodalmanac == gmwtypes[{sv,7}].iodalmanac) {
+        cout<<"  "<<gmwtypes[{sv,7}].alma1.svid<<" af0 "<<gm.alma1.af0<<" af1 "<< gm.alma1.af1 <<" e5bhs "<< gm.alma1.e5bhs<<" e1bhs "<< gm.alma1.e1bhs <<" sv9 "<<gm.alma2.svid;
       }
-      else if(wtype == 9 && gm.alma2.svid > 0) {
-        cout<<"  "<<gm.alma2.svid<<" af0 "<<gm.alma2.af0<<" af1 "<< gm.alma2.af1 <<" e5bhs "<< gm.alma2.e5bhs<<" e1bhs "<< gm.alma2.e1bhs<<endl;
+      else if(wtype == 9 && gm.tow - gmwtypes[{sv,8}].tow < 30 && gm.iodalmanac == gmwtypes[{sv,8}].iodalmanac) {
+        if(gmwtypes[{sv,8}].alma2.svid)
+          cout<<"  "<<gmwtypes[{sv,8}].alma2.svid<<" af0 "<<gm.alma2.af0<<" af1 "<< gm.alma2.af1 <<" e5bhs "<< gm.alma2.e5bhs<<" e1bhs "<< gm.alma2.e1bhs;
+        else
+          cout<<"  empty almanac slot";
       }
-      else if(wtype == 10 && gm.alma3.svid > 0){
-        cout<<"  "<<gm.alma3.svid<<" af0 "<<gm.alma3.af0<<" af1 "<< gm.alma3.af1 <<" e5bhs "<< gm.alma3.e5bhs<<" e1bhs "<< gm.alma3.e1bhs<<endl;
+      else if(wtype == 10 && gm.tow - gmwtypes[{sv,9}].tow < 5 && gmwtypes[{sv,9}].alma3.svid && gm.iodalmanac == gmwtypes[{sv,9}].iodalmanac) {
+        if(gm.alma3.e1bhs != 0) {
+          cout <<" gm.tow "<<gm.tow<<" gmwtypes.tow "<< gmwtypes[{sv,9}].tow <<" ";
+        }
+        cout<<"  "<<gmwtypes[{sv,9}].alma3.svid <<" af0 "<<gm.alma3.af0<<" af1 "<< gm.alma3.af1 <<" e5bhs "<< gm.alma3.e5bhs<<" e1bhs "<< gm.alma3.e1bhs <<" a0g " << gm.a0g <<" a1g "<< gm.a1g <<" t0g "<<gm.t0g <<" wn0g "<<gm.wn0g;
       }
-      
+      cout<<endl;      
     }
     else if(nmm.type() == NavMonMessage::GPSInavType) {
       int sv = nmm.gpsi().gnsssv();
@@ -165,9 +193,11 @@ int main(int argc, char** argv)
     else if(nmm.type() == NavMonMessage::BeidouInavTypeD1) {
       int sv = nmm.bid1().gnsssv();
       auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid1().contents().c_str(), nmm.bid1().contents().size()));
-      BeidouMessage bm;
       uint8_t pageno;
+      static map<int, BeidouMessage> bms;
+      auto& bm = bms[sv];
       int fraid = bm.parse(cond, &pageno);
+
       cout<<"BeiDou "<<sv<<": "<<bm.sow<<", FraID "<<fraid;
       if(fraid == 1) {
         static map<int, BeidouMessage> msgs;
@@ -180,6 +210,17 @@ int main(int argc, char** argv)
         cout<<" wn "<<bm.wn<<" t0c "<<(int)bm.t0c<<" aodc "<< (int)bm.aodc <<" aode "<< (int)bm.aode <<" sath1 "<< (int)bm.sath1 << " urai "<<(int)bm.urai << " af0 "<<bm.a0 <<" af1 " <<bm.a1 <<" af2 "<<bm.a2;
         auto offset = bm.getAtomicOffset();
         cout<< ", "<<offset.first<<"ns " << (offset.second * 3600) <<" ns/hour "<< ephAge(bm.sow, bm.t0c*8)<<endl;
+      }
+      else if(fraid == 3 && bm.sow) {
+        Point sat;
+        getCoordinates(0, bm.sow, bm, &sat);
+        TLERepo::Match second;
+        auto match = tles.getBestMatch(nmm.localutcseconds(), sat.x, sat.y, sat.z, &second);
+        cout<<" best-tle-match "<<match.name <<" dist "<<match.distance /1000<<" km";
+        cout<<" norad " <<match.norad <<" int-desig " << match.internat;
+        cout<<" 2nd-match "<<second.name << " dist "<<second.distance/1000<<" km";
+
+
       }
       else if(fraid == 4 && 1<= pageno && pageno <= 24) {
         cout <<" pageno "<< (int) pageno<<" AmEpID "<< getbitu(&cond[0], beidouBitconv(291), 2);
@@ -223,7 +264,7 @@ int main(int argc, char** argv)
       
       int strno = gm.parse(std::basic_string<uint8_t>((uint8_t*)nmm.gloi().contents().c_str(), nmm.gloi().contents().size()));
 
-      cout<<"Glonass R"<<nmm.gloi().gnsssv()<<" @ "<<nmm.gloi().freq() <<" strno "<<strno;
+      cout<<"Glonass R"<<nmm.gloi().gnsssv()<<" @ "<< ((int)nmm.gloi().freq()-7) <<" strno "<<strno;
       if(strno == 1) {
         cout << ", hour "<<(int)gm.hour <<" minute " <<(int)gm.minute <<" seconds "<<(int)gm.seconds;
         // start of period is 1st of January 1996 + (n4-1)*4, 03:00 UTC
@@ -232,19 +273,40 @@ int main(int argc, char** argv)
       }
       if(strno == 2)
         cout<<" Tb "<<(int)gm.Tb <<" Bn "<<(int)gm.Bn;
-      else if(strno == 4)
+      else if(strno == 4) {
         cout<<", taun "<<gm.taun <<" NT "<<gm.NT <<" FT " << (int) gm.FT <<" En " << (int)gm.En;
+        if(gm.x && gm.y && gm.z) {
+          auto longlat = getLongLat(gm.getX(), gm.getY(), gm.getZ());
+          cout<<" long "<< 180* longlat.first/M_PI <<" lat " << 180*longlat.second/M_PI<<" rad "<<gm.getRadius();
+          cout << " Tb "<<(int)gm.Tb <<" H"<<((gm.Tb/4.0) -3) << " UTC ("<<gm.getX()/1000<<", "<<gm.getY()/1000<<", "<<gm.getZ()/1000<<") -> ";
+          cout << "("<<gm.getdX()/1000<<", "<<gm.getdY()/1000<<", "<<gm.getdZ()/1000<<")";
+          time_t now = nmm.localutcseconds();
+          struct tm tm;
+          memset(&tm, 0, sizeof(tm));
+          gmtime_r(&now, &tm);
+          tm.tm_hour = (gm.Tb/4.0) - 3;
+          tm.tm_min = (gm.Tb % 4)*15;
+          tm.tm_sec = 0;
+
+          auto match = tles.getBestMatch(timegm(&tm), gm.getX(), gm.getY(), gm.getZ());
+          cout<<" best-tle-match "<<match.name <<" distance "<<match.distance /1000<<" km";
+          cout<<" norad " <<match.norad <<" int-desig " << match.internat;
+        }
+      }
       else if(strno == 5)
         cout<<", n4 "<< (int)gm.n4 << " l_n " << gm.l_n;
       else if(strno == 7 || strno == 9 || strno == 11 || strno ==13 ||strno ==15) {
         cout << " l_n "<< gm.l_n;
       }
-      else if(strno == 6 || strno ==8 || strno == 10 || strno ==12 ||strno ==14)
-        cout<<" nA "<< gm.nA <<" CnA "<<gm.CnA;
+      else if(strno == 6 || strno ==8 || strno == 10 || strno ==12 ||strno ==14) {
+        cout<<" nA "<< gm.nA <<" CnA " << gm.CnA <<" LambdaNaDeg "<< gm.getLambdaNaDeg();
+      }
       cout<<endl;
     }
     else if(nmm.type() == NavMonMessage::ObserverPositionType) {
-      cout<<"ECEF"<<endl;
+      auto lonlat = getLongLat(nmm.op().x(), nmm.op().y(), nmm.op().z());
+      cout<<"ECEF "<<nmm.op().x()<<", "<<nmm.op().y()<<", "<<nmm.op().z()<< " lon "<< 180*lonlat.first/M_PI << " lat "<<
+        180*lonlat.second/M_PI<<endl;
     }
     else if(nmm.type() == NavMonMessage::RFDataType) {
       cout<<"RFdata for "<<nmm.rfd().gnssid()<<","<<nmm.rfd().gnsssv()<<endl;
@@ -254,4 +316,5 @@ int main(int argc, char** argv)
     }
   }
 }
-
+ catch(EofException& ee)
+   {}

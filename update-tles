@@ -1,0 +1,5 @@
+#!/bin/sh
+for a in galileo gps-ops beidou glo-ops active
+do
+	wget --backups=1 https://www.celestrak.com/NORAD/elements/$a.txt
+done
