@@ -222,11 +222,36 @@ try
 
 
       }
-      else if(fraid == 4 && 1<= pageno && pageno <= 24) {
+      else if((fraid == 4 && 1<= pageno && pageno <= 24) ||
+              (fraid == 5 && 1<= pageno && pageno <= 6) ||
+              (fraid == 5 && 11<= pageno && pageno <= 23) ) {
         cout <<" pageno "<< (int) pageno<<" AmEpID "<< getbitu(&cond[0], beidouBitconv(291), 2);
-      }
-      else if(fraid == 5 && 1<= pageno && pageno <= 6) {
-        cout <<" pageno "<<(int)pageno<<" AmEpID "<< getbitu(&cond[0], beidouBitconv(291), 2);
+        Point sat;
+        if(fraid ==4 && pageno <= 5)
+          bm.alma.geo=true;
+        else
+          bm.alma.geo=false;
+        getCoordinates(0, bm.sow, bm.alma, &sat);
+        TLERepo::Match second;
+        auto match = tles.getBestMatch(nmm.localutcseconds(), sat.x, sat.y, sat.z, &second);
+        cout<<" alma best-tle-match "<<match.name <<" dist "<<match.distance /1000<<" km";
+        cout<<" norad " <<match.norad <<" int-desig " << match.internat;
+        cout<<" 2nd-match "<<second.name << " dist "<<second.distance/1000<<" km";
+        Point core{0,0,0};
+        cout<<" rad "<<Vector(core,sat).length() << " t0a " << bm.alma.getT0e() << " eph-age " <<ephAge(bm.sow, bm.alma.getT0e())<<endl;
+        int offset = 0;
+        if(fraid == 4)
+          offset = 0;
+        else if(fraid == 5 && pageno <=6)
+          offset = 24;
+        else if(fraid == 5 && bm.alma.AmEpID ==1)
+          offset = 20;
+        else if(fraid == 5 && bm.alma.AmEpID ==2)
+          offset = 34;
+        else if(fraid == 5 && bm.alma.AmEpID ==3)
+          offset = 46;
+        
+        almanac << (int)pageno+offset <<" " << match.norad <<" " <<match.name<<" " << (int)(match.distance/1000)<<" " << (int)(Vector(core,sat).length()/1000000)<<" " << (int) fraid<<" " << (int) pageno <<" " <<(int)bm.alma.AmEpID<<" " <<(int)offset<<"\n";
       }
 
       else if(fraid == 5 && pageno==7) {
