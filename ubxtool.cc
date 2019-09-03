@@ -334,8 +334,10 @@ int main(int argc, char** argv)
   CLI::App app("ubxtool");
     
   vector<std::string> serial;
-  bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true}, doReset{false};
+  bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true}, doReset{false}, doWait{false};
   app.add_option("serial", serial, "Serial");
+    
+  app.add_flag("--wait", doWait, "Wait a bit, do not try to read init messages");
   app.add_flag("--reset", doReset, "Reset UBX device");
   app.add_flag("--beidou,-c", doBeidou, "Enable BeiDou reception");
   app.add_flag("--gps,-g", doGPS, "Enable GPS reception");
@@ -362,7 +364,10 @@ int main(int argc, char** argv)
   if(!g_fromFile) {
     bool doInit = true;
     if(doInit) {
-      readSome(fd);
+      if(doWait)
+        sleep(2);
+      else
+        readSome(fd);
       
       std::basic_string<uint8_t> msg;
       if(doReset) {
