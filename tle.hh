@@ -25,6 +25,8 @@ public:
 
     double eciX, eciY, eciZ; // m
     double distance{-1}; // m
+
+    double latitude, longitude, altitude;
   };
   
   Match getBestMatch(time_t, double x, double y, double z, Match* secondbest=0);

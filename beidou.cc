@@ -1,6 +1,7 @@
 #include "beidou.hh"
 #include "bits.hh"
 #include <iostream>
+
 using namespace std;
 
 // with immense gratitude to https://stackoverflow.com/questions/24612436/how-to-check-a-bch15-11-1-code-checksum-for-bds-beidou-satellite-system
@@ -72,3 +73,54 @@ int beidouBitconv(int their)
   
   return their - (1 + 4 +  (wordcount -1)*8);
 }
+
+
+bool processBeidouAlmanac(const BeidouMessage& bm, struct BeidouAlmanacEntry& bae)
+{
+  bae.alma = bm.alma;
+  int pageno = bm.alma.pageno;
+
+  if(bm.fraid == 5 && pageno >= 11 && pageno <= 23) {
+    /*
+    cout<<" AmEpID "<< bm.alma.AmEpID;
+    cout << " AmID "<<bm.alma.AmID; */
+    if(bm.alma.AmEpID != 3) {
+      //      cout<<" skipping page because AmEpID tells us to "<<endl;
+      return false;
+    }
+  }
+  if(ephAge(bm.sow, bm.alma.getT0e()) < 0) {
+    //    cout <<" almanac too old t0a "<<bm.alma.getT0e()<<" sow "<<bm.sow << " days " << 1.0*(bm.alma.getT0e()-bm.sow)/86400<< endl;
+    return false;
+  }
+  if(bm.alma.sqrtA == 0) {
+    //    cout<<"sqrtA==0 - likely not a present satellite "<<endl;
+    return false;
+  }
+        
+  Point sat;
+  if(bm.fraid ==4 && pageno <= 5)
+    bae.alma.geo=true;
+  else
+    bae.alma.geo=false;
+  int offset = 0;
+  if(bm.fraid == 4)
+    offset = 0;
+  else if(bm.fraid == 5 && pageno <=6)
+    offset = 24;
+  else if(bm.fraid == 5 && bm.alma.AmID ==1)
+    offset = 20;
+  else if(bm.fraid == 5 && bm.alma.AmID ==2)
+    offset = 34;
+  else if(bm.fraid == 5 && bm.alma.AmID ==3)
+    offset = 46;
+
+  bae.sv = pageno+offset;
+  //  cout<<" eff-id "<<bae.sv;
+  if(bae.sv == 59)
+    bae.alma.geo = true;
+  return true;
+}
+      
+
+

@@ -12,6 +12,7 @@
 #include "galileo.hh"
 #include "navmon.pb.h"
 #include <unistd.h>
+#include "navmon.hh" 
 using namespace std;
 
 
@@ -142,17 +143,17 @@ int main()
 
   for(;;) {
     char bert[4];
-    if(read(0, bert, 4) != 4 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
+    if(readn2(0, bert, 4) != 4 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
       cerr<<"EOF or bad magic"<<endl;
       break;
     }
     
     uint16_t len;
-    if(read(0, &len, 2) != 2)
+    if(readn2(0, &len, 2) != 2)
       break;
     len = htons(len);
     char buffer[len];
-    if(read(0, buffer, len) != len)
+    if(readn2(0, buffer, len) != len)
       break;
     
     NavMonMessage nmm;

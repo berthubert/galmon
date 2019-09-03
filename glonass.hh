@@ -131,17 +131,34 @@ struct GlonassMessage
   uint32_t getGloTime() const;
   
   uint8_t n4{0}; // counting from 1996 ('n4=1'), this is the 4-year plan index we are currently in
-  uint16_t taugps;
+  int32_t taugps;
+  int32_t tauc;
+  
   void parse5(std::basic_string_view<uint8_t> gstr)
   {
     n4=getbitu(&gstr[0], 85-36, 5);
     taugps = getbitsglonass(&gstr[0], 85-31, 22);
+    tauc = getbitsglonass(&gstr[0], 85-69, 32);
     l_n = getbitu(&gstr[0], 85 - 9, 1);
   }
 
+  double omegana; // 2^-15 semi-circles, at instantt of tlambdana
+  uint8_t hna;
+  uint32_t tlambdana; // 2^-5s time of ascending node passage, also: t0a, relative to MT midnight
+  int32_t deltatna; // 2^-9
+
+  double gettLambdaNa() const
+  {
+    return ldexp(tlambdana, -5);
+  }
+  
   void parse7_9_11_13_15(std::basic_string_view<uint8_t> gstr)
   {
     l_n = getbitu(&gstr[0], 85 - 9, 1);
+    omegana = getbitsglonass(&gstr[0], 85-80, 16);
+    hna = getbitu(&gstr[0], 85 - 14, 5); // this is always positive, but there is a translation table
+    tlambdana = getbitu(&gstr[0], 85 - 64, 21);
+    deltatna = getbitsglonass(&gstr[0], 85 - 43, 22);
   }
   
 
@@ -149,10 +166,22 @@ struct GlonassMessage
   bool CnA;
   int32_t lambdana; // 2^-20 semi-circles
   int32_t deltaina; // 2^-20 semi-circles
-
-  double getLambdaNaDeg()
+  int32_t epsilonna; // 2^-20
+  int32_t tauna; // 2^-18
+  
+  double getLambdaNaDeg() const
   {
     return ldexp(180.0*lambdana, -20);
+  }
+
+  double getE() const
+  {
+    return ldexp(epsilonna, -20);
+  }
+
+  double getI0() const
+  {
+    return M_PI*63.0/180  + ldexp(M_PI* deltaina, -20);
   }
   
   void parse6_8_10_12_14(std::basic_string_view<uint8_t> gstr)
@@ -161,6 +190,8 @@ struct GlonassMessage
     nA = getbitu(&gstr[0], 85-77, 5);
     lambdana = getbitsglonass(&gstr[0], 85-62, 21);
     deltaina = getbitsglonass(&gstr[0], 85-41, 18);
+    epsilonna = getbitu(&gstr[0], 85- 23, 15);
+    tauna = getbitsglonass(&gstr[0], 85 - 72, 10);
   }
   
 };

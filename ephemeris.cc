@@ -14,22 +14,12 @@
 // positive age = t0e in the past
 int ephAge(int tow, int t0e)
 {
-  unsigned int diff;
-  unsigned int halfweek = 0.5*7*86400;
-  if(t0e < tow) {
-    diff = tow - t0e;
-    if(diff < halfweek)
-      return diff;
-    else
-      return -(7*86400 - tow) - t0e;
-  }
-  else { // "t0e in future"
-    diff = 7*86400 - t0e + tow;
-    if(diff < halfweek)
-      return diff;
-    else
-      return tow - t0e; // in the future, negative age
-  }
+  int diff = tow - t0e;
+  if(diff > 3.5*86400)
+    diff -= 604800;
+  if(diff < -3.5*86400)
+    diff += 604800;
+  return diff;
 }
 
 // all axes start at earth center of gravity
@@ -48,11 +38,13 @@ std::pair<double,double> getLongLat(double x, double y, double z)
   Vector flat(core, proj);
   Vector toLatLon0{core, LatLon0};
   double longitude = acos( toLatLon0.inner(flat) / (toLatLon0.length() * flat.length()));
-
-
+  if(y < 0)
+    longitude *= -1;
+  
   Vector toUs{core, pos};
   double latitude =  acos( flat.inner(toUs) / (toUs.length() * flat.length()));
-
+  if(z < 0)
+    latitude *= -1;
 
   return std::make_pair(longitude, latitude);
 }

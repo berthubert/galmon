@@ -11,7 +11,8 @@ TEST_CASE("testing ephemeris age") {
     CHECK(ephAge(0,3*86400) == -3*86400);
     CHECK(ephAge(0, 3.49*86400) == -3.49*86400);    
 
-    CHECK(ephAge(0, 3.51*86400) != -3.51*86400);        
+    CHECK(ephAge(0, 3.51*86400) != -3.51*86400);
+    CHECK(ephAge(0, 3.6*86400) != -3.6*86400);        
 
 
     CHECK(ephAge(2*86400, 0) == 2*86400);

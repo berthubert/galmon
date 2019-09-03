@@ -61,7 +61,7 @@ try
   cerr<<"New downstream client "<<client.toStringWithPort() << endl;
 
   pair<uint64_t, uint64_t> start = {0,0};
-  start.first = time(0) - 4*3600; // 4 hours of backlog
+  start.first = time(0) - 24*3600; // 4 hours of backlog
 
   // so we have a ton of files, and internally these are not ordered
   map<string,uint32_t> fpos;

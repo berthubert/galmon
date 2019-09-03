@@ -59,9 +59,9 @@ static TLERepo::Match makeMatch(const DateTime& d, const SGP4& sgp4, const Tle& 
 
   double theta = -eci.GetDateTime().ToGreenwichSiderealTime();
   Vector rot = eci.Position();
-  m.eciX = rot.x;
-  m.eciY = rot.y;
-  m.eciZ = rot.z;
+  m.eciX = 1000.0*rot.x;
+  m.eciY = 1000.0*rot.y;
+  m.eciZ = 1000.0*rot.z;
   
   rot.x = eci.Position().x * cos(theta) - eci.Position().y * sin(theta);
   rot.y = eci.Position().x * sin(theta) + eci.Position().y * cos(theta);
@@ -69,7 +69,11 @@ static TLERepo::Match makeMatch(const DateTime& d, const SGP4& sgp4, const Tle& 
   m.ecefX = 1000.0 * rot.x;
   m.ecefY = 1000.0 * rot.y;
   m.ecefZ = 1000.0 * rot.z;
-  
+
+  auto geod = eci.ToGeodetic();
+  m.latitude = geod.latitude;
+  m.longitude = geod.longitude;
+  m.altitude = geod.altitude;
   return m;
 }
 
