@@ -79,10 +79,16 @@ void getCoordinates(int wn, double tow, const T& iod, Point* p, bool quiet=true)
   if(!quiet)
     cerr << " M = m0 + n * tk = "<<m0 << " + " << n << " * " << tk <<endl;
   double E = M;
+  double newE;
   for(int k =0 ; k < 10; ++k) {
     if(!quiet)
-      cerr<<"M = "<<M<<", E = "<< E << endl;
-    E = M + e * sin(E);
+      cerr<<"k "<<k<<" M = "<<M<<", E = "<< E << endl;
+    newE = M + e * sin(E);
+    if(fabs(E-newE) < 0.00001) {
+      E = newE;
+      break;
+    }
+    E = newE;
   }
 
   // M = E  - e * sin(E)   -> E = M + e * sin(E)
