@@ -270,21 +270,30 @@ struct GalileoMessage
   {
     iodalmanac = getbitu(&page[0], 6, 4);
     alma2.wnalmanac = wnalmanac = getbitu(&page[0], 10, 2);
-    alma2.t0almanac = t0almanac = getbits(&page[0], 12, 10);
+    alma3.t0almanac = alma2.t0almanac = t0almanac = getbits(&page[0], 12, 10);
 
     alma2.M0 = getbits(&page[0], 22, 16);
     alma2.af0 = getbits(&page[0], 38, 16);
     alma2.af1 = getbits(&page[0], 54, 13);
     alma2.e5bhs = getbitu(&page[0], 67, 2);
     alma2.e1bhs = getbitu(&page[0], 69, 2);
-    
+
     alma3.svid = getbitu(&page[0], 71, 6);
+    alma3.deltaSqrtA = getbitu(&page[0], 77, 13);
+    alma3.e = getbitu(&page[0], 90, 11);
+    alma3.omega = getbits(&page[0], 101, 16);
+    alma3.deltai = getbits(&page[0], 117, 11);    
+        
   }
 
   // almanac + more time stuff (GPS)
   void parse10(std::basic_string_view<uint8_t> page)
   {
     iodalmanac = getbitu(&page[0], 6, 4);
+    alma3.Omega0 = getbits(&page[0], 10, 16);
+    alma3.Omegadot = getbits(&page[0], 26, 11);
+    alma3.M0 = getbits(&page[0], 37, 16);
+    
     alma3.af0 = getbits(&page[0], 53, 16);
     alma3.af1 = getbits(&page[0], 69, 13);
     alma3.e5bhs = getbitu(&page[0], 82, 2);
