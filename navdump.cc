@@ -115,6 +115,7 @@ try
       int sv = nmm.gi().gnsssv();
       GalileoMessage& gm = gms[sv];
       int wtype = gm.parse(inav);
+      
       gm.tow = nmm.gi().gnsstow();
       gmwtypes[{nmm.gi().gnsssv(), wtype}] = gm;
       cout << "gal inav for "<<nmm.gi().gnssid()<<","<<nmm.gi().gnsssv()<<" tow "<< nmm.gi().gnsstow()<<" wtype "<< wtype<<" ";
@@ -148,6 +149,7 @@ try
         cout<<" ioda "<<gm.iodalmanac;
       // af0 af1 scaling in almanac: 2^-19, 2^2^-38 plus "truncated"
       if(wtype == 7) {
+        // this is possible because all the ephemeris stuff is in 7
         cout<<"  t0a "<<gm.t0almanac<<", alma sv1 "<<gm.alma1.svid<<", t0a age: "<< ephAge(gm.t0almanac *600, tow) << " ";
         if(gm.alma1.svid) {
           Point satpos;
@@ -161,11 +163,12 @@ try
         }
       }
       else if(wtype == 8 && gm.tow - gmwtypes[{sv,7}].tow < 5 && gmwtypes[{sv,7}].alma1.svid && gm.iodalmanac == gmwtypes[{sv,7}].iodalmanac) {
-        cout<<"  "<<gmwtypes[{sv,7}].alma1.svid<<" af0 "<<gm.alma1.af0<<" af1 "<< gm.alma1.af1 <<" e5bhs "<< gm.alma1.e5bhs<<" e1bhs "<< gm.alma1.e1bhs <<" sv9 "<<gm.alma2.svid;
+        // 8 finishes the rest
+        cout<<"  alma1.sv "<<gmwtypes[{sv,7}].alma1.svid<<" af0 "<<gm.alma1.af0<<" af1 "<< gm.alma1.af1 <<" e5bhs "<< gm.alma1.e5bhs<<" e1bhs "<< gm.alma1.e1bhs <<" sv9 "<<gm.alma2.svid;
       }
       else if(wtype == 9 && gm.tow - gmwtypes[{sv,8}].tow < 30 && gm.iodalmanac == gmwtypes[{sv,8}].iodalmanac) {
         if(gmwtypes[{sv,8}].alma2.svid)
-          cout<<"  "<<gmwtypes[{sv,8}].alma2.svid<<" af0 "<<gm.alma2.af0<<" af1 "<< gm.alma2.af1 <<" e5bhs "<< gm.alma2.e5bhs<<" e1bhs "<< gm.alma2.e1bhs;
+          cout<<" alma2.sv "<<gmwtypes[{sv,8}].alma2.svid<<" af0 "<<gm.alma2.af0<<" af1 "<< gm.alma2.af1 <<" e5bhs "<< gm.alma2.e5bhs<<" e1bhs "<< gm.alma2.e1bhs;
         else
           cout<<"  empty almanac slot";
       }
