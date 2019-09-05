@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "iod", "aodc/e", "eph-age-m", "latest-disco", "time-disco", "sisa", "delta_hz_corr", "health", "a0", "a1","a0g", "a1g", "sources", "db", "elev", "last-seen-s"];    
+    var columns = ["sv", "best-tle", "norad", "iod", "aodc/e", "eph-age-m", "latest-disco", "time-disco", "sisa", "delta_hz_corr", "health", "tle-dist", "a0", "a1","a0g", "a1g", "sources", "db", "elev", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -70,6 +70,13 @@ function maketable(str, arr)
 
                     ret.value = row[column].toFixed(0);
                 }
+                else if((column == "tle-dist")) {
+                    if(row["best-tle-dist"] != null)
+                        ret.value = row["best-tle-dist"].toFixed(1) + " km";
+                }
+                else if(column == "norad") {
+                    ret.value = row["best-tle-norad"];
+                }
                 else if(column == "last-seen-s") {
                     var b = moment.duration(row[column], 's');
                     ret.value = b.humanize();
@@ -100,6 +107,9 @@ function maketable(str, arr)
                 }
                 if(column == "eph-age-m" && row[column] > 60 && row["last-seen-s"] < 120)
                     ret.color="orange";
+                if(column == "eph-age-m" && row[column] > 4*60 && row["last-seen-s"] < 120)
+                    ret.color="#ff2222";
+
                 if(column == "sisa" && parseInt(row[column]) > 312)
                     ret.color="#ffaaaa";
                 var myRe = RegExp('[0-9]* m');
@@ -171,7 +181,7 @@ function update()
         var livearr=[], stalearr=[];
         for(n = 0 ; n < arr.length; n++)
         {
-            if(arr[n]["last-seen-s"] < 120)
+            if(arr[n]["last-seen-s"] < 600)
                 livearr.push(arr[n]);
             else
                 stalearr.push(arr[n]);
