@@ -26,12 +26,12 @@ void TLERepo::parseFile(std::string_view fname)
     trim(line1);
     trim(line2);
     Tle tle(line1, line2);
-    
+    /*    
     cout<<"name: "<<name<<endl;
     cout<<"line1: "<<line1<<endl;
     cout<<"line2: "<<line2<<endl;
     cout << tle.ToString() << endl;
-
+    */
     auto sgp4 = std::make_unique<std::tuple<SGP4, Tle>>(SGP4(tle), tle);
     d_sgp4s[name] = std::move(sgp4);
   }
@@ -87,19 +87,26 @@ TLERepo::Match TLERepo::getBestMatch(time_t now, double x, double y, double z, T
 
   multimap<double, string> distances;
   for(const auto& sgp4 : d_sgp4s) {
-    auto eci = get<0>(*sgp4.second).FindPosition(d);
-
-    double theta = -eci.GetDateTime().ToGreenwichSiderealTime();
-    Vector rot = eci.Position();
-    rot.x = eci.Position().x * cos(theta) - eci.Position().y * sin(theta);
-    rot.y = eci.Position().x * sin(theta) + eci.Position().y * cos(theta);
-    
-    distances.insert({1000.0*(rot - sat).Magnitude(),sgp4.first});
+    try {
+      auto eci = get<0>(*sgp4.second).FindPosition(d);
+      
+      double theta = -eci.GetDateTime().ToGreenwichSiderealTime();
+      Vector rot = eci.Position();
+      rot.x = eci.Position().x * cos(theta) - eci.Position().y * sin(theta);
+      rot.y = eci.Position().x * sin(theta) + eci.Position().y * cos(theta);
+      
+      distances.insert({1000.0*(rot - sat).Magnitude(),sgp4.first});
+    }
+    catch(SatelliteException& se) {
+      cerr<<"TLE error: "<<se.what()<<endl;
+      continue;
+    }
   }
   if(secondbest) {
     auto iter = distances.begin();
     if(iter != distances.end()) {
       ++iter;
+      
       *secondbest = makeMatch(d, get<0>(*d_sgp4s[iter->second]), get<1>(*d_sgp4s[iter->second]), iter->second, iter->first);
     }
   }
