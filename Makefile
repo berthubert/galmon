@@ -45,3 +45,5 @@ ubxtool: navmon.pb.o ubxtool.o ubx.o bits.o ext/fmt-5.2.1/src/format.o galileo.o
 testrunner: navmon.pb.o testrunner.o ubx.o bits.o ext/fmt-5.2.1/src/format.o galileo.o  gps.o beidou.o ephemeris.o
 	$(CXX) -std=gnu++17 $^ -o $@ -lprotobuf
 
+check: testrunner
+	./testrunner
