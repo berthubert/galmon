@@ -270,7 +270,7 @@ struct GalileoMessage
   {
     iodalmanac = getbitu(&page[0], 6, 4);
     alma2.wnalmanac = wnalmanac = getbitu(&page[0], 10, 2);
-    alma3.t0almanac = alma2.t0almanac = t0almanac = getbits(&page[0], 12, 10);
+    alma3.t0almanac = alma2.t0almanac = t0almanac = getbitu(&page[0], 12, 10);
 
     alma2.M0 = getbits(&page[0], 22, 16);
     alma2.af0 = getbits(&page[0], 38, 16);
