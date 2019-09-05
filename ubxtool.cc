@@ -1,3 +1,4 @@
+#define _LARGEFILE64_SOURCE
 #include <sys/types.h>                                                    
 #include <sys/time.h>
 #include <map>
@@ -141,7 +142,7 @@ std::pair<UBXMessage, struct timeval> getUBXMessage(int fd)
 {
   static int logfile;
   if(!logfile && !g_fromFile) {
-    logfile = open("./logfile", O_WRONLY|O_CREAT|O_APPEND, 0600);
+    logfile = open("./logfile", O_WRONLY|O_CREAT|O_APPEND|O_LARGEFILE, 0600);
     if(!logfile)
       throw std::runtime_error("Failed to open logfile for writing");
   }
