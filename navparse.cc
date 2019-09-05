@@ -735,7 +735,6 @@ try
         item["eph-longitude"] = 180*longlat.first/M_PI;
         item["eph-latitude"]= 180*longlat.second/M_PI;
 
-        cout<<"alma bestmatch"<<endl;
         auto match = g_tles.getBestMatch(nanoTime(2, latestWN(2), latestTow(2))/1000000000.0,
                                          sat.x, sat.y, sat.z);
         
