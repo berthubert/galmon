@@ -65,9 +65,10 @@ try
 
   // so we have a ton of files, and internally these are not ordered
   map<string,uint32_t> fpos;
+  vector<NavMonMessage> nmms;
   for(;;) {
     auto srcs = getSources();
-    vector<NavMonMessage> nmms;
+    nmms.clear();
     for(const auto& src: srcs) {
       string fname = getPath(g_storage, start.first, src);
       int fd = open(fname.c_str(), O_RDONLY);
