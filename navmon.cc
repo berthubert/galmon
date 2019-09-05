@@ -1,4 +1,5 @@
 #include "navmon.hh"
+#include <errno.h>
 #include <stdlib.h>
 #include <string>
 #include <string.h>

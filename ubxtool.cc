@@ -33,7 +33,6 @@ using namespace std;
 uint16_t g_srcid{2};
 
 #define BAUDRATE B115200
-#define MODEMDEVICE "/dev/ttyACM0"
 
 
 
@@ -137,6 +136,10 @@ public:
 };
 
 bool g_fromFile{false};
+
+#if !defined(O_LARGEFILE)
+#define O_LARGEFILE	0
+#endif
 
 std::pair<UBXMessage, struct timeval> getUBXMessage(int fd)
 {
@@ -284,7 +287,7 @@ void readSome(int fd)
 
 struct termios g_oldtio;
 
-int initFD(const char* fname)
+int initFD(const char* fname, bool doRTSCTS)
 {
   int fd;
   if(string(fname) != "stdin" && string(fname) != "/dev/stdin" && isCharDevice(fname)) {
@@ -300,7 +303,9 @@ int initFD(const char* fname)
     }
 
     bzero(&newtio, sizeof(newtio));                                         
-    newtio.c_cflag = BAUDRATE | CRTSCTS | CS8 | CLOCAL | CREAD;             
+    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;             
+    if (doRTSCTS)
+      newtio.c_cflag |= CRTSCTS;
     newtio.c_iflag = IGNPAR;                                                
     newtio.c_oflag = 0;                                                     
     
@@ -335,7 +340,12 @@ int main(int argc, char** argv)
   CLI::App app("ubxtool");
     
   vector<std::string> serial;
-  bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true}, doReset{false}, doWait{false};
+  bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true}, doReset{false}, doWait{false}, doRTSCTS{true};
+
+#ifdef OpenBSD
+  doRTSCTS = false;
+#endif
+
   app.add_option("serial", serial, "Serial");
     
   app.add_flag("--wait", doWait, "Wait a bit, do not try to read init messages");
@@ -344,6 +354,7 @@ int main(int argc, char** argv)
   app.add_flag("--gps,-g", doGPS, "Enable GPS reception");
   app.add_flag("--glonass,-r", doGlonass, "Enable Glonass reception");
   app.add_flag("--galileo,-e", doGalileo, "Enable Galileo reception");
+  app.add_option("--rtscts", doRTSCTS, "Set hardware handshaking");
 
   
   try {
@@ -352,13 +363,12 @@ int main(int argc, char** argv)
     return app.exit(e);
   }
 
-  
   if(serial.size() != 2) {
     cout<<app.help()<<endl;
     return EXIT_FAILURE;
   }
 
-  int fd = initFD(serial[0].c_str());
+  int fd = initFD(serial[0].c_str(), doRTSCTS);
   
   g_srcid = atoi(serial[1].c_str());
   
@@ -380,7 +390,7 @@ int main(int argc, char** argv)
         for(int n=0 ; n< 20; ++n) {
           cerr<<"Waiting for device to come back"<<endl;
           try {
-            fd = initFD(serial[0].c_str());
+            fd = initFD(serial[0].c_str(), doRTSCTS);
             readSome(fd);          
           }
           catch(...)
