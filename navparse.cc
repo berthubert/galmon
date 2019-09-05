@@ -438,7 +438,7 @@ struct InfluxPusher
   }
 
   template<typename T>
-  void addValue(pair<int,int> id, string_view name, const T& value)
+  void addValue(pair<int,int> id, string_view name, const T& value, std::optional<int> src = std::optional<int>())
   {
     if(d_mute)
       return;
@@ -446,7 +446,10 @@ struct InfluxPusher
     if(g_svstats[id].wn ==0 && g_svstats[id].tow == 0)
       return;
       //      cout << g_svstats[id].wn <<", "<<g_svstats[id].tow<<" -> " <<nanoTime(id.first, g_svstats[id].wn, g_svstats[id].tow)<<endl;
-    d_buffer+= string(name) +",gnssid="+to_string(id.first)+",sv=" +to_string(id.second) + " value="+to_string(value)+" "+
+    d_buffer+= string(name) +",gnssid="+to_string(id.first)+",sv=" +to_string(id.second);
+    if(src)
+      d_buffer += ",src="+to_string(*src);
+    d_buffer+= " value="+to_string(value)+" "+
       to_string(nanoTime(id.first, g_svstats[id].wn, g_svstats[id].tow))+"\n";
 
     checkSend();
@@ -972,10 +975,11 @@ try
       g_svstats[id].perrecv[nmm.sourceid()].azi = nmm.rd().azi();
 
       // THIS HAS TO SPLIT OUT PER SOURCE
-      idb.addValue(id, "db", nmm.rd().db());
+      idb.addValue(id, "db", nmm.rd().db(), nmm.sourceid());
       if(nmm.rd().el() <= 90 && nmm.rd().el() > 0)
-        idb.addValue(id, "elev", nmm.rd().el());
-      idb.addValue(id, "azi", nmm.rd().azi());            
+        idb.addValue(id, "elev", nmm.rd().el(), nmm.sourceid());
+      idb.addValue(id, "azi", nmm.rd().azi(), nmm.sourceid());
+      idb.addValue(id, "prres", nmm.rd().prres(), nmm.sourceid());            
     }
     else if(nmm.type() == NavMonMessage::GalileoInavType) {
       basic_string<uint8_t> inav((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
