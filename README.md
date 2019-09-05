@@ -1,8 +1,22 @@
 # galmon
-galileo/GPS open source monitoring
+galileo/GPS/GLONASS/BeiDou open source monitoring. GPL3 licensed. 
+(C) AHU Holding BV - bert@hubertnet.nl - https://ds9a.nl/
+
+Live website: https://galmon.eu/
 
 Theoretically multi-vendor, although currently only the U-blox 8 chipset is
-supported.
+supported. Navilock NL-8012U receiver works really well, as does the U-blox evaluation kit for the 8MT.
+
+Highlights:
+ * Processes raw frames/strings/words from GPS, GLONASS, BeiDou and Galileo
+ * Calculate ephemeris positions
+ * Record discontinuities between subsequent ephemerides
+ * Compare doppler shift as reported by receiver with that expected from ephemeris
+ * Track atomic clock & report jumps
+ * Compare orbit to TLE, match up to best matching satellite
+ * Tear out every bit that tells us how well an SV is doing
+ * Full almanac processing to see what _should_ be transmitting
+ * Distributed receivers, combined into a single source of all messages
 
 Goals:
 
@@ -16,18 +30,24 @@ Goals:
 5) Populate an InfluxDB timeseries database with raw measurements and higher
    order calculations
 
+Works on Linux (including Raspbian on Pi Zero W), OSX and OpenBSD.
+
 To get started, make sure you have a C++17 compiler, git, protobuf-compiler,
 libh2o-dev.
 
 ```
+apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev libh2o-evloop-dev libwslay-dev
 git clone https://github.com/ahupowerdns/galmon.git --recursive
 cd galmon
 make
 ```
 
 If this doesn't succeed with an error about h2o, make sure you have this
-library installed, and if you have remove the # in front of "# -lwslay".
-This may solve the problem.
+library installed. If you get an error about 'wslay', do the following, and run make again:
+
+```
+echo WSLAY=-lwslay > Makefile.local
+```
 
 Once compiled, run for example ./ubxtool /dev/ttyACM0 1 | ./ubxparse 10000 html null
 
@@ -46,7 +66,6 @@ To see what is going on, try:
 Setting up a distributed setup is slightly more complicated & may still
 change.
 
-
 Tooling:
 
  * ubxtool: can configure a u-blox 8 chipset, parses its output & will
@@ -58,12 +77,26 @@ Tooling:
    sender. 
  * navnexus: tails the files stored by navrecv, makes them available over
    TCP
- * navpartse: consumes these ordered nav updates for a nice website
+ * navparse: consumes these ordered nav updates for a nice website
    and puts "ready to graph" data in influxdb - this is the first
    step that breaks "store everything in native format". Also does
    computations on ephemerides. 
  * grafana dashboard: makes pretty graphs
 
+Distributed setup
+-----------------
+Run `navrecv :: ./storage` to receive frames on port 29603 of ::, aka all your IPv6 addresses (and IPv4 too on Linux).
+This allows anyone to send you frames, so be aware.
+
+Next up, run `navnexus ./storage ::`, which will serve your recorded data from port 29601. It will merge messages
+coming in from all sources and serve them in time order.
+
+Finally, you can do `nv 127.0.0.1 29601 | ./navdump`, which will give you all messages over the past 24 hours, and stream you more.
+This also works for `navparse` for the pretty website and influx storage, `nc 127.0.0.1 29601 | ./navdump 10000 html galileo`,
+if you have an influxdb running on localhost with a galileo database in there.
+
+Internals
+---------
 The transport format consists of repeats of:
 
 1) Four byte magic value
@@ -90,8 +123,6 @@ Big TODO
    
  * Semantics definition for output of Navnexus
    "we'll never surprise you with old data"
-
- 
 
 ubxtool
 -------
