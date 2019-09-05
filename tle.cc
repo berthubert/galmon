@@ -102,6 +102,8 @@ TLERepo::Match TLERepo::getBestMatch(time_t now, double x, double y, double z, T
       continue;
     }
   }
+  if(distances.empty())
+    return TLERepo::Match();
   if(secondbest) {
     auto iter = distances.begin();
     if(iter != distances.end()) {

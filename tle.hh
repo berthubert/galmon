@@ -16,14 +16,14 @@ public:
     std::string name;
     int norad;
     std::string internat;
-    double inclination; // radians
+    double inclination{360}; // radians
     double ran;         // radians
-    double e;       
-    double ecefX;  // m
-    double ecefY;  // m
-    double ecefZ;  // m
+    double e{-1};       
+    double ecefX{0};  // m
+    double ecefY{0};  // m
+    double ecefZ{0};  // m
 
-    double eciX, eciY, eciZ; // m
+    double eciX{0}, eciY{0}, eciZ{0}; // m
     double distance{-1}; // m
 
     double latitude, longitude, altitude;
