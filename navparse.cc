@@ -22,19 +22,25 @@
 #include "glonass.hh"
 #include "beidou.hh"
 #include "galileo.hh"
+#include "tle.hh"
 #include <optional>
+#include "navmon.hh" 
+#include <Tle.h>
 using namespace std;
-struct EofException{};
 
 Point g_ourpos(3922.505 * 1000,  290.116 * 1000, 5004.189 * 1000);
 
+map<int, BeidouAlmanacEntry> g_beidoualma;
+map<int, pair<GlonassMessage, GlonassMessage>> g_glonassalma;
+
+TLERepo g_tles;
 struct GNSSReceiver
 {
   Point position; 
 };
 
 
-int g_dtLS{18};
+int g_dtLS{18}, g_dtLSBeidou{4};
 uint64_t utcFromGST(int wn, int tow)
 {
   return (935280000 + wn * 7*86400 + tow - g_dtLS); 
@@ -49,7 +55,6 @@ double utcFromGPS(int wn, double tow)
 {
   return (315964800 + wn * 7*86400 + tow - g_dtLS); 
 }
-
 
 string humanFt(uint8_t ft)
 {
@@ -223,12 +228,14 @@ struct SVStat
   int t0eMSB{-1}, t0eLSB{-1}, aode{-1}, aodc{-1};
   BeidouMessage beidouMessage, oldBeidouMessage;
   BeidouMessage lastBeidouMessage1, lastBeidouMessage2;
-
+  TLERepo::Match tleMatch;
+  
   // new galileo
   GalileoMessage galmsg;
 
   // Glonass
   GlonassMessage glonassMessage;
+  pair<uint32_t, GlonassMessage> glonassAlmaEven;
   
   map<uint64_t, SVPerRecv> perrecv;
   pair<uint32_t, double> deltaHz;
@@ -394,8 +401,10 @@ uint64_t nanoTime(int gnssid, int wn, int tow)
     offset = 315964800;
   if(gnssid == 2) // Galileo, 22-08-1999
     offset = 935280000;
-  if(gnssid == 3) // Beidou, 01-01-2006
+  if(gnssid == 3) {// Beidou, 01-01-2006 - I think leap seconds count differently in Beidou!! XXX
     offset = 1136073600;
+    return 1000000000ULL*(offset + wn * 7*86400 + tow - g_dtLSBeidou); 
+  }
   if(gnssid == 6) { // GLONASS
     offset = 820368000;
     return 1000000000ULL*(offset + wn * 7*86400 + tow);  // no leap seconds in glonass
@@ -544,9 +553,18 @@ double getElevation(const Point& p)
 }
 
 
+
+
 int main(int argc, char** argv)
 try
 {
+  //  g_tles.parseFile("active.txt");
+
+  g_tles.parseFile("galileo.txt");
+  g_tles.parseFile("glo-ops.txt");
+  g_tles.parseFile("gps-ops.txt");
+  g_tles.parseFile("beidou.txt");
+  
   signal(SIGPIPE, SIG_IGN);
   InfluxPusher idb(argc > 3 ? argv[3] : "galileo");
   MiniCurl::init();
@@ -624,6 +642,69 @@ try
       
       return ret;
     });
+
+  h2s.addHandler("/almanac", [](auto handler, auto req) {
+      nlohmann::json ret = nlohmann::json::object();
+      for(const auto& ae : g_beidoualma) {
+        nlohmann::json item  = nlohmann::json::object();
+        if(ae.second.alma.getT0e() > 7*86400)
+          continue;
+        Point sat;
+        getCoordinates(0, latestTow(3), ae.second.alma, &sat);
+        item["eph-ecefX"]= sat.x/1000;
+        item["eph-ecefY"]= sat.y/1000;
+        item["eph-ecefZ"]= sat.z/1000;
+
+        auto longlat = getLongLat(sat.x, sat.y, sat.z);
+        item["eph-longitude"] = 180*longlat.first/M_PI;
+        item["eph-latitude"]= 180*longlat.second/M_PI;
+        item["t0e"] = ae.second.alma.getT0e();
+        item["t"]= ephAge(ae.second.alma.getT0e(), latestTow(3))/86400.0;
+        if(ephAge(ae.second.alma.getT0e(), latestTow(3)) < 0) {
+          auto match = g_tles.getBestMatch(nanoTime(3, latestWN(3), latestTow(3))/1000000000.0,
+                                         sat.x, sat.y, sat.z);
+
+          if(match.distance < 200000) {
+            item["best-tle"] = match.name;
+            item["best-tle-norad"] = match.norad;
+            item["best-tle-int-desig"] = match.internat;
+            item["best-tle-dist"] = match.distance/1000.0;
+            
+            item["tle-ecefX"] = match.ecefX/1000;
+            item["tle-ecefY"] = match.ecefY/1000;
+            item["tle-ecefZ"] = match.ecefZ/1000;
+            
+            item["tle-eciX"] = match.eciX/1000;
+            item["tle-eciY"] = match.eciY/1000;
+            item["tle-eciZ"] = match.eciZ/1000;
+            
+            item["tle-latitude"] = 180*match.latitude/M_PI;
+            item["tle-longitude"] = 180*match.longitude/M_PI;
+            item["tle-altitude"] = match.altitude;
+          }
+        }
+        
+        ret[fmt::sprintf("C%02d", ae.first)] = item;
+      }
+
+      for(const auto& ae : g_glonassalma) {
+        
+        nlohmann::json item  = nlohmann::json::object();
+
+        // ae.second.first -> even ae.second.sceond -> odd 
+        
+        item["e"] = ae.second.first.getE();
+        item["inclination"] = 180 * ae.second.first.getI0() /M_PI;
+        item["health"] = ae.second.first.CnA;
+        item["tlambdana"] = ae.second.second.gettLambdaNa();
+        item["lambdana"] = ae.second.second.getLambdaNaDeg();
+        item["hna"] = ae.second.second.hna;
+
+        ret[fmt::sprintf("R%02d", ae.first)] = item;
+      }
+      
+      return ret;
+    });
   
   h2s.addHandler("/svs", [](auto handler, auto req) {
       nlohmann::json ret = nlohmann::json::object();
@@ -650,13 +731,26 @@ try
             if(hzCorrection)
               item["delta_hz_corr"] = s.second.deltaHz.second - (1561.098/1575.42)* (*hzCorrection);
           }
+          if(s.second.tleMatch.distance >=0) {
+            item["best-tle"] = s.second.tleMatch.name;
+            item["best-tle-dist"] = s.second.tleMatch.distance /1000.0;
+            item["best-tle-norad"] = s.second.tleMatch.norad;
+            item["best-tle-int-desig"] = s.second.tleMatch.internat;
 
+          }
         }
         else if(s.first.first == 6) { // glonass
           if(s.second.glonassMessage.FT < 16)
             item["sisa"] = humanFt(s.second.glonassMessage.FT);
           item["aode"] = s.second.aode;
           item["iod"] = s.second.glonassMessage.Tb;
+          if(s.second.tleMatch.distance >=0) {
+            item["best-tle"] = s.second.tleMatch.name;
+            item["best-tle-dist"] = s.second.tleMatch.distance /1000.0;
+            item["best-tle-norad"] = s.second.tleMatch.norad;
+            item["best-tle-int-desig"] = s.second.tleMatch.internat;
+          }
+
         }
         if(s.second.completeIOD()) {
           item["iod"]=s.second.getIOD();
@@ -678,6 +772,15 @@ try
           
           // this should actually use local time!
           getCoordinates(0, s.second.tow, s.second.liveIOD(), &p);
+          auto match = g_tles.getBestMatch(
+                                           s.first.first ?
+                                           utcFromGST((int)s.second.wn, (int)s.second.tow) : utcFromGPS(s.second.wn, s.second.tow),
+                                           p.x, p.y, p.z);
+
+          item["best-tle"] = match.name;
+          item["best-tle-norad"] = match.norad;
+          item["best-tle-int-desig"] = match.internat;
+          item["best-tle-dist"] = match.distance/1000.0;
           
           Vector core2us(core, our);
           Vector dx(our, p); //  = x-ourx, dy = y-oury, dz = z-ourz;
@@ -785,17 +888,17 @@ try
   try {
   for(;;) {
     char bert[4];
-    if(read(0, bert, 4) != 4 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
+    if(readn2(0, bert, 4) != 4 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
       cerr<<"EOF or bad magic"<<endl;
       break;
     }
     
     uint16_t len;
-    if(read(0, &len, 2) != 2)
+    if(readn2(0, &len, 2) != 2)
       break;
     len = htons(len);
     char buffer[len];
-    if(read(0, buffer, len) != len)
+    if(readn2(0, buffer, len) != len)
       break;
     
     NavMonMessage nmm;
@@ -823,6 +926,9 @@ try
       auto oldgm = svstat.galmsg;
       
       unsigned int wtype = svstat.galmsg.parse(inav);
+      if(wtype == 1 || wtype == 2 || wtype == 3) {
+        idb.addValue(id, "iod-live", svstat.galmsg.iodnav);
+      }
       if(1) {
         //        cout<<sv <<"\t" << wtype << "\t" << nmm.gi().gnsstow() << "\t"<< nmm.sourceid() << endl;
         /*        if(g_svstats[id].tow > nmm.gi().gnsstow()) {
@@ -992,11 +1098,11 @@ try
       pair<int,int> id{nmm.rfd().gnssid(), nmm.rfd().gnsssv()};
       if(id.first == 3 && g_svstats[id].oldBeidouMessage.sow >= 0 && g_svstats[id].oldBeidouMessage.sqrtA != 0) {
         auto res = doDoppler(nmm.rfd().rcvwn(), nmm.rfd().rcvtow(), g_ourpos, g_svstats[id].oldBeidouMessage, 1561.098 * 1000000);
+        Point p;
+        getCoordinates(0, nmm.rfd().rcvtow(), g_svstats[id].oldBeidouMessage, &p);
 
         if(isnan(res.preddop)) {
           cerr<<"Problem with doppler calculation for C"<<id.second<<": "<<endl;
-          Point p;
-          getCoordinates(0, nmm.rfd().rcvtow(), g_svstats[id].oldBeidouMessage, &p, false);
           exit(1);
         }
         
@@ -1113,7 +1219,6 @@ try
           auto newOffset = bm.getAtomicOffset(bm.sow);
           svstat.timeDisco = oldOffset.first - newOffset.first;
           idb.addValue(id, "clock_jump_ns", svstat.timeDisco);
-
         }
         svstat.lastBeidouMessage1 = bm;        
       }
@@ -1124,24 +1229,43 @@ try
       if(fraid == 3) {
         svstat.t0eLSB = bm.t0eLSB;
         Point oldpoint, newpoint;
-        if(bm.sow - svstat.lastBeidouMessage2.sow == 6 && svstat.oldBeidouMessage.sow >= 0 && svstat.oldBeidouMessage.getT0e() != svstat.beidouMessage.getT0e()) {
-          getCoordinates(svstat.wn, svstat.tow, svstat.oldBeidouMessage, &oldpoint);
+        if(bm.sow - svstat.lastBeidouMessage2.sow == 6 && svstat.oldBeidouMessage.sow >= 0) {
           getCoordinates(svstat.wn, svstat.tow, bm, &newpoint);
-          Vector jump(oldpoint ,newpoint);
-          cout<<fmt::sprintf("Discontinuity C%02d (%f,%f,%f) -> (%f, %f, %f), jump: %f, seconds: %f\n",
-                             id.second, oldpoint.x, oldpoint.y, oldpoint.z,
-                             newpoint.x, newpoint.y, newpoint.z, jump.length(), (double)bm.getT0e() - svstat.oldBeidouMessage.getT0e());
-          double hours = (bm.getT0e() - svstat.oldBeidouMessage.getT0e())/3600;
-          if(hours < 4) {
-            svstat.latestDisco = jump.length();
-            idb.addValue(id, "eph-disco", jump.length());
+
+          auto match = g_tles.getBestMatch(nanoTime(3, svstat.wn, svstat.tow)/1000000000.0, newpoint.x, newpoint.y, newpoint.z);
+          svstat.tleMatch = match;
+          
+          if(svstat.oldBeidouMessage.getT0e() != svstat.beidouMessage.getT0e()) {
+            getCoordinates(svstat.wn, svstat.tow, svstat.oldBeidouMessage, &oldpoint);
+            Vector jump(oldpoint ,newpoint);
+            cout<<fmt::sprintf("Discontinuity C%02d (%f,%f,%f) -> (%f, %f, %f), jump: %f, seconds: %f\n",
+                               id.second, oldpoint.x, oldpoint.y, oldpoint.z,
+                               newpoint.x, newpoint.y, newpoint.z, jump.length(), (double)bm.getT0e() - svstat.oldBeidouMessage.getT0e());
+            double hours = (bm.getT0e() - svstat.oldBeidouMessage.getT0e())/3600;
+            if(hours < 4) {
+              svstat.latestDisco = jump.length();
+              idb.addValue(id, "eph-disco", jump.length());
+            }
+            else
+              svstat.latestDisco = -1;
           }
-          else
-            svstat.latestDisco = -1;
+          
         }
         if(bm.sqrtA) // only copy in if complete
           svstat.oldBeidouMessage = bm;
       }
+      else if((fraid == 4 && 1<= pageno && pageno <= 24) ||
+              (fraid == 5 && 1<= pageno && pageno <= 6) ||
+              (fraid == 5 && 11<= pageno && pageno <= 23) ) {
+
+        struct BeidouAlmanacEntry bae;
+        //        bm.alma.AmEpID = svstat.oldBeidouMessage.alma.AmEpID; // this comes from older messages
+        
+        if(processBeidouAlmanac(bm, bae)) {
+          g_beidoualma[bae.sv]=bae;
+        }
+      }
+
       if(fraid==5 && pageno == 9) {
         svstat.a0g = bm.a0gps;
         svstat.a1g = bm.a1gps;        
@@ -1149,25 +1273,29 @@ try
 
       if(fraid==5 && pageno == 10) {
         svstat.a0 = bm.a0utc;
-        svstat.a1 = bm.a1utc;        
+        svstat.a1 = bm.a1utc;
+        g_dtLSBeidou = bm.deltaTLS;
+        //        cout<<"Beidou leap seconds: "<<g_dtLSBeidou<<endl;
       }
-      Point core, sat;
+      //      Point core, sat;
 
-      getCoordinates(svstat.wn, svstat.tow, bm, &sat);
-      Vector l(core, sat);      
+      //      getCoordinates(svstat.wn, svstat.tow, bm, &sat);
+      //      Vector l(core, sat);      
       //      cout<<"C"<<id.second<< " "<<bm.sow<<" "<<(bm.sow % 30 )<<" FraID "<<fraid<<" "<<fmt::format("({0}, {1}, {2})", sat.x, sat.y, sat.z) <<", r: "<<l.length()<<" elev: "<<getElevation(sat)<<endl;
     }
     else if(nmm.type()== NavMonMessage::BeidouInavTypeD2) {
       auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid2().contents().c_str(), nmm.bid2().contents().size()));
+      /*
       int fraid = getbitu(&cond[0], beidouBitconv(16), 3);
       int sow = getbitu(&cond[0], beidouBitconv(19), 20);
       int pnum = getbitu(&cond[0], beidouBitconv(43), 4);
       int pre = getbitu(&cond[0], beidouBitconv(1), 11);
-      (void) pre;
+
       //      cout<<"C"<< nmm.bid2().gnsssv() << " sent D2 message, pre "<<pre<<" sow "<<sow<<", FraID "<<fraid;
       //      if(fraid == 1)
       //        cout <<" pnum "<<pnum;
       //      cout<<endl;
+      */
     }
     else if(nmm.type()== NavMonMessage::GlonassInavType) {
       pair<int,int> id{nmm.gloi().gnssid(), nmm.gloi().gnsssv()};
@@ -1181,12 +1309,11 @@ try
         uint32_t glotime = gm.getGloTime(); // this starts GLONASS time at 31st of december 1995, 00:00 UTC
         svstat.wn = glotime / (7*86400);
         svstat.tow = glotime % (7*86400); 
-        
       }
-      if(strno == 2) {
+      else if(strno == 2) {
         svstat.gpshealth = gm.Bn;
       }
-      if(strno == 4) {
+      else if(strno == 4) {
         svstat.aode = gm.En * 24;
         idb.addValue(id, "glo_taun_ns", gm.getTaunNS());
         idb.addValue(id, "ft", gm.FT);
@@ -1196,8 +1323,28 @@ try
             idb.addValue(id, "clock_jump_ns", svstat.timeDisco);
           }
         }
+        if(gm.x && gm.y && gm.z) {
+          time_t now = nmm.localutcseconds() + 3*3600;
+          struct tm tm;
+          memset(&tm, 0, sizeof(tm));
+          gmtime_r(&now, &tm);
+          tm.tm_hour = (gm.Tb/4.0);
+          tm.tm_min = (gm.Tb % 4)*15;
+          tm.tm_sec = 0;
+
+          auto match = g_tles.getBestMatch(timegm(&tm)-3*3600, gm.getX(), gm.getY(), gm.getZ());
+          svstat.tleMatch = match;
+        }
       }
-      cout<<"GLONASS R"<<id.second<<" str "<<strno<<endl;
+      else if(strno == 6 || strno == 8 || strno == 10 || strno == 12 || strno == 14) {
+        svstat.glonassAlmaEven = {nmm.localutcseconds(), gm};
+      }
+      else if(strno == 7 || strno == 9 || strno == 11 || strno == 13 || strno == 15) {
+        if(nmm.localutcseconds() - svstat.glonassAlmaEven.first < 4 && svstat.glonassAlmaEven.second.strtype == gm.strtype -1) {
+          g_glonassalma[svstat.glonassAlmaEven.second.nA] = make_pair(svstat.glonassAlmaEven.second, gm);
+        }
+      }
+      //      cout<<"GLONASS R"<<id.second<<" str "<<strno<<endl;
     }
     else {
       cout<<"Unknown type "<< (int)nmm.type()<<endl;

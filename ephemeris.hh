@@ -184,3 +184,5 @@ DopplerData doDoppler(int wn, int tow, const Point& us, const T& eph, double fre
 
   return ret;
 }
+
+std::pair<double,double> getLongLat(double x, double y, double z);

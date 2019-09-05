@@ -96,10 +96,38 @@ struct GalileoMessage
   struct Almanac
   {
     int svid{-1};
+    int t0almanac, wnalmanac;
     int af0, af1;
     int e1bhs, e5bhs;
-  } alma1, alma2, alma3;
+
+    uint32_t e, deltaSqrtA;
+    int32_t M0, Omega0, deltai, omega, Omegadot;
+
+    double getMu() const { return 3.986005    * pow(10.0, 14.0); }
+    double getOmegaE()    const { return 7.2921151467 * pow(10.0, -5.0);} // rad/s
+
+    uint32_t getT0e() const { return 600 * t0almanac; }
+    double getSqrtA() const { return sqrt(29600000) + ldexp(deltaSqrtA,     -9);   }
+    double getE()     const { return ldexp(e,         -16);   }
+
+
+    double getI0()        const { return M_PI*56.0/180.0 + ldexp(deltai * M_PI,       -14);   } // radians
+    double getOmega0()    const { return ldexp(Omega0 * M_PI,   -15);   } // radians
+    double getOmegadot()  const { return ldexp(Omegadot * M_PI, -33);   } // radians/s
+    double getOmega()     const { return ldexp(omega * M_PI,    -15);   } // radians
+    double getM0()    const { return ldexp(M0 * M_PI, -15);   } // radians    
+
+    double getIdot()      const { return 0;   } // radians/s
+    double getCic()       const { return 0;   } // radians
+    double getCis()       const { return 0;   } // radians
+    double getCuc()   const { return 0;   } // radians
+    double getCus()   const { return 0;   } // radians
+    double getCrc()   const { return 0;   } // meters
+    double getCrs()   const { return 0;   } // meters
+    double getDeltan()const { return 0; } //radians/s
     
+  } alma1, alma2, alma3;
+
   
   // an ephemeris word
   void parse1(std::basic_string_view<uint8_t> page)
@@ -206,43 +234,61 @@ struct GalileoMessage
   void parse7(std::basic_string_view<uint8_t> page)
   {
     iodalmanac = getbitu(&page[0], 6, 4);
-    wnalmanac = getbitu(&page[0], 10, 2);
-    t0almanac = getbitu(&page[0], 12, 10);
+    alma1.wnalmanac = wnalmanac = getbitu(&page[0], 10, 2);
+    alma1.t0almanac = t0almanac = getbitu(&page[0], 12, 10);
     alma1.svid     = getbitu(&page[0], 22, 6);
+    alma1.deltaSqrtA = getbitu(&page[0], 28, 13);
+    alma1.e = getbitu(&page[0], 41, 11);
+    alma1.omega = getbits(&page[0], 52, 16);
+    alma1.deltai = getbits(&page[0], 68, 11);
+    alma1.Omega0 = getbits(&page[0], 79, 16);
+    alma1.Omegadot = getbits(&page[0], 95, 11);
+    alma1.M0 = getbits(&page[0], 106, 16);
     
   }
   // almanac
   void parse8(std::basic_string_view<uint8_t> page)
   {
+    iodalmanac = getbitu(&page[0], 6, 4);
     alma1.af0 = getbits(&page[0], 10, 16);
     alma1.af1 = getbits(&page[0], 26, 13);
     alma1.e5bhs = getbitu(&page[0], 39, 2);
     alma1.e1bhs = getbitu(&page[0], 41, 2);
+
     alma2.svid     = getbitu(&page[0], 43, 6);
+    
+    alma2.deltaSqrtA = getbitu(&page[0], 49, 13);
+    alma2.e = getbitu(&page[0], 62, 11);
+    alma2.omega = getbits(&page[0], 73, 16);
+    alma2.deltai = getbits(&page[0], 89, 11);
+    alma2.Omega0 = getbits(&page[0], 100, 16);
+    alma2.Omegadot = getbits(&page[0], 116, 11);
   }
 
   // almanac
   void parse9(std::basic_string_view<uint8_t> page)
   {
+    iodalmanac = getbitu(&page[0], 6, 4);
+    alma2.wnalmanac = wnalmanac = getbitu(&page[0], 10, 2);
+    alma2.t0almanac = t0almanac = getbits(&page[0], 12, 10);
+
+    alma2.M0 = getbits(&page[0], 22, 16);
     alma2.af0 = getbits(&page[0], 38, 16);
     alma2.af1 = getbits(&page[0], 54, 13);
     alma2.e5bhs = getbitu(&page[0], 67, 2);
     alma2.e1bhs = getbitu(&page[0], 69, 2);
     
     alma3.svid = getbitu(&page[0], 71, 6);
-    
-    
   }
 
   // almanac + more time stuff (GPS)
   void parse10(std::basic_string_view<uint8_t> page)
   {
-
+    iodalmanac = getbitu(&page[0], 6, 4);
     alma3.af0 = getbits(&page[0], 53, 16);
     alma3.af1 = getbits(&page[0], 69, 13);
     alma3.e5bhs = getbitu(&page[0], 82, 2);
     alma3.e1bhs = getbitu(&page[0], 84, 2);
-
     
     a0g = getbits(&page[0], 86, 16);
     a1g = getbits(&page[0], 102, 12);

@@ -1,3 +1,4 @@
+#define _LARGEFILE64_SOURCE
 #include <sys/types.h>                                                    
 #include <sys/time.h>
 #include <map>
@@ -136,11 +137,15 @@ public:
 
 bool g_fromFile{false};
 
+#if !defined(O_LARGEFILE)
+#define O_LARGEFILE	0
+#endif
+
 std::pair<UBXMessage, struct timeval> getUBXMessage(int fd)
 {
   static int logfile;
   if(!logfile && !g_fromFile) {
-    logfile = open("./logfile", O_WRONLY|O_CREAT|O_APPEND, 0600);
+    logfile = open("./logfile", O_WRONLY|O_CREAT|O_APPEND|O_LARGEFILE, 0600);
     if(!logfile)
       throw std::runtime_error("Failed to open logfile for writing");
   }
@@ -282,7 +287,7 @@ void readSome(int fd)
 
 struct termios g_oldtio;
 
-int initFD(const char* fname)
+int initFD(const char* fname, bool doRTSCTS)
 {
   int fd;
   if(string(fname) != "stdin" && string(fname) != "/dev/stdin" && isCharDevice(fname)) {
@@ -298,7 +303,9 @@ int initFD(const char* fname)
     }
 
     bzero(&newtio, sizeof(newtio));                                         
-    newtio.c_cflag = BAUDRATE | /*CRTSCTS */ CS8 | CLOCAL | CREAD;             
+    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;             
+    if (doRTSCTS)
+      newtio.c_cflag |= CRTSCTS;
     newtio.c_iflag = IGNPAR;                                                
     newtio.c_oflag = 0;                                                     
     
@@ -333,13 +340,21 @@ int main(int argc, char** argv)
   CLI::App app("ubxtool");
     
   vector<std::string> serial;
-  bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true}, doReset{false};
+  bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true}, doReset{false}, doWait{false}, doRTSCTS{true};
+
+#ifdef OpenBSD
+  doRTSCTS = false;
+#endif
+
   app.add_option("serial", serial, "Serial");
+    
+  app.add_flag("--wait", doWait, "Wait a bit, do not try to read init messages");
   app.add_flag("--reset", doReset, "Reset UBX device");
   app.add_flag("--beidou,-c", doBeidou, "Enable BeiDou reception");
   app.add_flag("--gps,-g", doGPS, "Enable GPS reception");
   app.add_flag("--glonass,-r", doGlonass, "Enable Glonass reception");
   app.add_flag("--galileo,-e", doGalileo, "Enable Galileo reception");
+  app.add_option("--rtscts", doRTSCTS, "Set hardware handshaking");
 
   
   try {
@@ -348,20 +363,22 @@ int main(int argc, char** argv)
     return app.exit(e);
   }
 
-  
   if(serial.size() != 2) {
     cout<<app.help()<<endl;
     return EXIT_FAILURE;
   }
 
-  int fd = initFD(serial[0].c_str());
+  int fd = initFD(serial[0].c_str(), doRTSCTS);
   
   g_srcid = atoi(serial[1].c_str());
   
   if(!g_fromFile) {
     bool doInit = true;
     if(doInit) {
-      readSome(fd);
+      if(doWait)
+        sleep(2);
+      else
+        readSome(fd);
       
       std::basic_string<uint8_t> msg;
       if(doReset) {
@@ -373,7 +390,7 @@ int main(int argc, char** argv)
         for(int n=0 ; n< 20; ++n) {
           cerr<<"Waiting for device to come back"<<endl;
           try {
-            fd = initFD(serial[0].c_str());
+            fd = initFD(serial[0].c_str(), doRTSCTS);
             readSome(fd);          
           }
           catch(...)
@@ -758,9 +775,11 @@ int main(int argc, char** argv)
           else if(id.first==6) {
             //            cerr<<"SFRBX from GLONASS "<<id.second<<" @ frequency "<<(int)payload[3]<<", msg of "<<(int)payload[4]<< " words"<<endl;
             auto gstr = getGlonassFromSFRBXMsg(payload);
+            /*
             static map<int, GlonassMessage> gms;
             GlonassMessage& gm = gms[id.second];
             int strno = gm.parse(gstr);
+            */
             if(id.second != 255) {
               NavMonMessage nmm;
               nmm.set_localutcseconds(g_gstutc.tv_sec);

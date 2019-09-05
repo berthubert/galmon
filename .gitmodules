@@ -1,3 +1,6 @@
 [submodule "ext/powerblog"]
 	path = ext/powerblog
 	url = https://github.com/ahupowerdns/powerblog.git
+[submodule "ext/sgp4"]
+	path = ext/sgp4
+	url = https://github.com/dnwrnr/sgp4.git

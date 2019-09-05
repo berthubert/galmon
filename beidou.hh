@@ -159,10 +159,67 @@ struct BeidouMessage
     omega = bbits(252, 32);
   }
 
+  struct Almanac
+  {
+    bool geo{false};
+    uint32_t sqrtA;
+    int a0, a1;
+    int Omega0;
+    uint32_t e;
+    int deltai;
+    uint8_t t0a;
+    int Omegadot;
+    int omega;
+    int M0;
+    int AmEpID;
+    int AmID;
+    int pageno;
+    
+    double getMu()        const { return 3.986004418 * pow(10.0, 14.0);      } // m^3/s^2
+    double getOmegaE()    const { return 7.2921150 * pow(10, -5);            } // rad/s
+
+    uint32_t getT0e() const { return ldexp((int)t0a, 12); }
+    double getSqrtA() const { return ldexp(sqrtA,     -11);   }
+    double getE()     const { return ldexp(e,         -21);   }
+    double getOmega()     const { return ldexp(omega * M_PI,    -23);   } // radians
+    double getM0()    const { return ldexp(M0 * M_PI, -23);   } // radians
+    double getOmega0()    const { return ldexp(Omega0 * M_PI,   -23);   } // radians
+    double getOmegadot()  const { return ldexp(Omegadot * M_PI, -38);   } // radians/s
+    // XXX for GEO, i0 = 0!! 
+    double getI0()        const {
+      if(geo)
+        return ldexp(M_PI*deltai, -19);
+      return M_PI*0.3 + ldexp(M_PI*deltai, -19);
+    } // radians
+
+    double getIdot()      const { return 0;   } // radians/s
+    double getCic()       const { return 0;   } // radians
+    double getCis()       const { return 0;   } // radians
+    double getCuc()   const { return 0;   } // radians
+    double getCus()   const { return 0;   } // radians
+    double getCrc()   const { return 0;   } // meters
+    double getCrs()   const { return 0;   } // meters
+    double getDeltan()const { return 0; } //radians/s
+  } alma;
+  
   // 4 is all almanac
   int parse4(std::basic_string_view<uint8_t> cond)
   {
-    return bbitu(44, 7);
+    alma.sqrtA = bbitu(51, 24);
+    alma.a1 = bbits(91, 11);
+    alma.a0 = bbits(102, 11);
+    alma.Omega0 = bbits(121, 24);
+    
+    alma.e = bbitu(153, 17);
+    alma.deltai = bbits(170, 16);
+    alma.t0a = bbitu(194, 8);
+    alma.Omegadot = bbits(202, 17);
+
+    alma.omega = bbits(227, 24);
+    alma.M0 = bbits(259, 24);
+    alma.AmEpID = bbitu(291, 2);
+    alma.pageno = bbitu(44, 7);
+    return  alma.pageno;
   }
 
   int a0gps, a1gps, a0gal, a1gal, a0glo, a1glo, a0utc, a1utc;
@@ -170,8 +227,8 @@ struct BeidouMessage
 
   int parse5(std::basic_string_view<uint8_t> cond)
   {
-    int pageno = bbitu(44, 7);
-    if(pageno == 9) {
+    alma.pageno = bbitu(44, 7);
+    if(alma.pageno == 9) {
       a0gps = bbits(97, 14);
       a1gps = bbits(111, 16);
       a0gal = bbits(135, 14);
@@ -179,13 +236,39 @@ struct BeidouMessage
       a0glo = bbits(181, 14);
       a1glo = bbits(195, 16);
     }
-    if(pageno == 10) {
+    if(alma.pageno == 10) {
       a0utc = bbits(91, 32);
       a1utc = bbits(131, 24);
       deltaTLS = bbits(31+12+1+7, 8);
     }
-    return pageno;
+    else {
+      alma.sqrtA = bbitu(51, 24);
+      alma.a1 = bbits(91, 11);
+      alma.a0 = bbits(102, 11);
+      alma.Omega0 = bbits(121, 24);
+      
+      alma.e = bbitu(153, 17);
+      alma.deltai = bbits(170, 16);
+      alma.t0a = bbitu(194, 8);
+      alma.Omegadot = bbits(202, 17);
+      
+      alma.omega = bbits(227, 24);
+      alma.M0 = bbits(259, 24);
+      if(alma.pageno <=6)
+        alma.AmEpID = bbitu(291, 2);
+      else if(alma.pageno >= 11 && alma.pageno <= 23)
+        alma.AmID = bbitu(291, 2);
+    }
+
+    return alma.pageno;
     
   }  
 };
 
+struct BeidouAlmanacEntry
+{
+  int sv;
+  BeidouMessage::Almanac alma;
+};
+
+bool processBeidouAlmanac(const BeidouMessage& bm, struct BeidouAlmanacEntry& bae);

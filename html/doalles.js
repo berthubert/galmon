@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "iod", "aodc/e", "eph-age-m", "latest-disco", "sisa", "delta_hz_corr", "health", "a0", "a1","a0g", "a1g", "sources", "db", "elev", "last-seen-s"];    
+    var columns = ["sv", "iod", "aodc/e", "eph-age-m", "latest-disco", "time-disco", "sisa", "delta_hz_corr", "health", "a0", "a1","a0g", "a1g", "sources", "db", "elev", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -53,6 +53,8 @@ function maketable(str, arr)
                 else if(column == "aodc/e") {
                     if(row["aodc"] != null && row["aode"] != null)
                         ret.value = row["aodc"]+"/"+row["aode"];
+                    else if(row["aode"] != null)
+                        ret.value = row["aode"];
                     else
                         ret.value="";
                 }
@@ -82,9 +84,10 @@ function maketable(str, arr)
                 }
                 else if(column == "latest-disco" && row[column] != null) 
                     ret.value = ((100*row[column]).toFixed(2))+" cm";
+                else if(column == "time-disco" && row[column] != null) 
+                    ret.value = row[column].toFixed(2)+" ns";
                 else if(column == "health")  {
                     ret.value = row[column];
-                    console.log(row["healthissue"]);
                     if(row["healthissue"] == 1) {
                         ret.color="orange";
                     }
@@ -99,6 +102,10 @@ function maketable(str, arr)
                     ret.color="orange";
                 if(column == "sisa" && parseInt(row[column]) > 312)
                     ret.color="#ffaaaa";
+                var myRe = RegExp('[0-9]* m');
+                if(column == "sisa" && myRe.test(row[column]))
+                    ret.color="#ff2222";
+
                 if(column == "sisa" && row[column]=="NO SIS AVAILABLE")
                     ret.color="#ff2222";                    
                 return ret;
