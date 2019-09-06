@@ -92,7 +92,7 @@ Next up, run `navnexus ./storage ::`, which will serve your recorded data from p
 coming in from all sources and serve them in time order.
 
 Finally, you can do `nv 127.0.0.1 29601 | ./navdump`, which will give you all messages over the past 24 hours, and stream you more.
-This also works for `navparse` for the pretty website and influx storage, `nc 127.0.0.1 29601 | ./navdump 10000 html galileo`,
+This also works for `navparse` for the pretty website and influx storage, `nc 127.0.0.1 29601 | ./navparse 127.0.0.0:10000 html galileo`,
 if you have an influxdb running on localhost with a galileo database in there.
 
 Internals
@@ -107,6 +107,19 @@ The magic value is there to help us resync from partially written data.
 
 The whole goal is that we can continue to rebuild the database by 
 rerunning 'navstore' and 'navinflux'.
+
+Documents
+---------
+
+ * [BeiDou](http://m.beidou.gov.cn/xt/gfxz/201902/P020190227593621142475.pdf)
+ * [Galileo](https://www.gsc-europa.eu/system/files/galileo_documents/Galileo-OS-SIS-ICD.pdf)
+ * [GLONASS](https://www.unavco.org/help/glossary/docs/ICD_GLONASS_4.0_(1998)_en.pdf),
+    old 1998 version, but unlike newer versions, this one is not full of
+    mistakes. [New version](http://gauss.gge.unb.ca/GLONASS.ICD.pdf) is more complete but is worryingly messy.
+ * [GLONASS CDMA](http://russianspacesystems.ru/wp-content/uploads/2016/08/ICD-GLONASS-CDMA-General.-Edition-1.0-2016.pdf)
+   not actually relevant for the CDMA aspects, but has appendices on more
+   precise orbit determinations.
+ * [GPS](https://www.gps.gov/technical/icwg/IS-GPS-200K.pdf)
 
 Big TODO
 --------
