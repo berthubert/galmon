@@ -34,10 +34,6 @@ uint16_t g_srcid{2};
 
 #define BAUDRATE B115200
 
-
-
-
-
 size_t writen2(int fd, const void *buf, size_t count)
 {
   const char *ptr = (char*)buf;
@@ -340,7 +336,7 @@ int main(int argc, char** argv)
   CLI::App app("ubxtool");
     
   vector<std::string> serial;
-  bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true}, doReset{false}, doWait{false}, doRTSCTS{true};
+  bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true}, doReset{false}, doWait{false}, doRTSCTS{true}, doSBAS{false};
 
 #ifdef OpenBSD
   doRTSCTS = false;
@@ -354,6 +350,7 @@ int main(int argc, char** argv)
   app.add_flag("--gps,-g", doGPS, "Enable GPS reception");
   app.add_flag("--glonass,-r", doGlonass, "Enable Glonass reception");
   app.add_flag("--galileo,-e", doGalileo, "Enable Galileo reception");
+  app.add_flag("--sbas,-s", doSBAS, "Enable SBAS (EGNOS/WAAS/etc) reception");
   app.add_option("--rtscts", doRTSCTS, "Set hardware handshaking");
 
   
@@ -417,11 +414,15 @@ int main(int argc, char** argv)
       }
       
       //                                  ver   RO   maxch cfgs
-      msg = buildUbxMessage(0x06, 0x3e, {0x00, 0x00, 0xff, 0x04,
+      msg = buildUbxMessage(0x06, 0x3e, {0x00, 0x00, 0xff, 0x06,
           //                            GPS   min  max   res   x1         x2    x3,   x4
                                         0x00, 0x04, 0x08, 0,  doGPS,    0x00, 0x01, 0x00,
-          //                            BEI   min  max   res   x1   x2    x3,   x4
+          //                            SBAS  min  max   rex   x1       x2    x3    x4
+                                        0x01, 0x03, 0x04, 0,   doSBAS,  0x00, 0x01, 0x00,
+          //                            BEI   min  max   res   x1       x2    x3,   x4
                                         0x03, 0x04, 0x08, 0,  doBeidou, 0x00, 0x01, 0x00,
+          //                            ???   min  max   res   x1   x2    x3,   x4
+                                        0x05, 0x04, 0x08, 0,  0, 0x00, 0x01, 0x00,
             
           //                            GAL   min  max   res   x1   x2    x3,   x4
                                         0x02, 0x04, 0x08, 0,  doGalileo, 0x00, 0x01, 0x00,
@@ -430,7 +431,7 @@ int main(int argc, char** argv)
 
             });
       
-      cerr<<"Sending GNSS setting, GPS: "<<doGPS<<", Galileo: "<<doGalileo<<", BeiDou: "<<doBeidou<<", GLONASS: "<<doGlonass<<endl;
+      cerr<<"Sending GNSS setting, GPS: "<<doGPS<<", Galileo: "<<doGalileo<<", BeiDou: "<<doBeidou<<", GLONASS: "<<doGlonass<<", SBAS: "<<doSBAS<<endl;
       writen2(fd, msg.c_str(), msg.size());
       
       if(waitForUBXAckNack(fd, 2, 0x06, 0x3e))
@@ -439,6 +440,21 @@ int main(int argc, char** argv)
         cerr<<"Got nack on GNSS setting"<<endl;
         exit(-1);
       }
+      if(doSBAS) {
+        //                                 "on" "*.*"  ign   
+        msg = buildUbxMessage(0x06, 0x16, {0x01, 0x07, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00});
+        writen2(fd, msg.c_str(), msg.size());
+        
+        if(waitForUBXAckNack(fd, 2, 0x06, 0x16))
+          cerr<<"Got ack on SBAS setting"<<endl;
+        else {
+          cerr<<"Got nack on SBAS setting"<<endl;
+          exit(-1);
+        }
+      }
+       
+
+
       
       
       cerr<<"Disabling NMEA"<<endl;
