@@ -165,6 +165,15 @@ struct DopplerData
 };
 
 template<typename T>
+void getSpeed(int wn, double tow, const T& eph, Vector* v)
+{
+  Point a, b;
+  getCoordinates(wn, tow-0.5, eph, &a);
+  getCoordinates(wn, tow+0.5, eph, &b);
+  *v = Vector(a, b);
+}
+
+template<typename T>
 DopplerData doDoppler(int wn, int tow, const Point& us, const T& eph, double freq)
 {
   DopplerData ret;

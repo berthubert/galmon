@@ -82,7 +82,6 @@ struct GlonassMessage
     y=getbitsglonass(&gstr[0], 85-35, 27); // 2^-11, in kilometers
     dy=getbitsglonass(&gstr[0], 85-64, 24); // 2^-20, in kilometers
     ddy=getbitsglonass(&gstr[0], 85-40, 5); // 2^-30, in kilometers
-    
   }
 
   int32_t z{0}, dz, ddz;
@@ -195,3 +194,4 @@ struct GlonassMessage
   }
   
 };
+uint32_t getGlonassT0e(time_t referencetime, int Tb);

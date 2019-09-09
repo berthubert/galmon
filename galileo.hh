@@ -68,8 +68,9 @@ struct GalileoMessage
   bool disturb1{false}, disturb2{false}, disturb3{false}, disturb4{false}, disturb5{false};
   
   //                     
-  //      2^-30   2^-50  1      8-bit week
-  int32_t a0{0}, a1{0}, t0t{0}, wn0t{0};  
+  //      2^-30   2^-50  3600   8-bit week
+  int32_t a0{0}, a1{0}, t0t{0}, wn0t{0};
+  //      2^-35   2^-51   3600    8-bit week
   int32_t a0g{0}, a1g{0}, t0g{0}, wn0g{0};
   int8_t dtLS{0}, dtLSF{0};
   uint16_t wnLSF{0};
@@ -162,21 +163,67 @@ struct GalileoMessage
     sisa = getbitu(&page[0],    120, 8);
   }
 
-  int getT0c()
+  int getT0c() const
   {
     return t0c * 60;
   }
+  int getT0t() const
+  {
+    return t0t * 3600;
+  }
+  int getT0g() const
+  {
+    return t0g * 3600;
+  }
 
-  std::pair<double, double> getAtomicOffset(int tow)
+  std::pair<double, double> getAtomicOffset(int tow) const
   {
     int delta = ephAge(tow, getT0c());
-    double cur = af0  + ldexp(delta*af1, -12) + ldexp(delta*delta*af2, -25);
-    double trend = ldexp(af1, -12) + ldexp(2*delta*af2, -25);
+    double cur = af0  + ldexp(1.0*delta*af1, -12) + ldexp(1.0*delta*delta*af2, -25);
+    double trend = ldexp(af1, -12) + ldexp(2.0*delta*af2, -25);
 
     // now in units of 2^-34 seconds, which are ~0.058 nanoseconds each
     double factor = ldexp(1000000000, -34);
     return {factor * cur, factor * trend};
   }
+
+  std::pair<double, double> getUTCOffset(int tow, int wn) const
+  {
+    int dw = (int)(uint8_t)wn - (int)(uint8_t) wn0t;
+    int delta = dw*7*86400  + tow - getT0t(); // NOT ephemeris age tricks
+
+    // 2^-30  2^-50   3600
+    // a0     a1      t0t 
+    double cur = a0  + ldexp(1.0*delta*a1, -20);
+    double trend = ldexp(a1, -20);
+
+    // now in units of 2^-30 seconds, which are ~1.1 nanoseconds each
+    
+    double factor = ldexp(1000000000, -30);
+    //    std::cout<<"dw: "<<dw<<" ds "<<tow-getT0t()<<" delta " << delta << " a0 " <<a0<<" a1 " << a1 <<" factor " << factor << std::endl;
+    
+    return {factor * cur, factor * trend};
+  }
+
+  std::pair<double, double> getGPSOffset(int tow, int wn) const
+  {
+    int dw = (int)(uint8_t)wn - (int)(uint8_t) wn0g;
+    int delta = dw*7*86400  + tow - getT0g(); // NOT ephemeris age tricks
+
+    // 2^-35  2^-51   3600
+    // a0g     a1g      t0g 
+    double cur = a0g  + ldexp(1.0*delta*a1g, -16);
+    double trend = ldexp(1.0*a1g, -16);
+
+    // now in units of 2^-35 seconds
+    
+    double factor = ldexp(1000000000, -35); // turn into nanoseconds
+    //    std::cout<<"gps dw: "<<dw<<" ds "<<tow-getT0g()<<" delta " << delta << " a0 " <<a0g<<" a1 " << a1g <<" factor " << factor << std::endl;
+    
+    return {factor * cur, factor * trend};
+  }
+
+  
 
   
   // can't get enough of that ephemeris

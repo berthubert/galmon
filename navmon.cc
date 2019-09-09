@@ -25,3 +25,13 @@ size_t readn2(int fd, void* buffer, size_t len)
   }
   return len;
 }
+
+std::string humanTime(time_t t)
+{
+  struct tm tm={0};
+  gmtime_r(&t, &tm);
+
+  char buffer[80];
+  strftime(buffer, sizeof(buffer), "%a, %d %b %Y %T %z", &tm);
+  return buffer;
+}

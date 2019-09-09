@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "best-tle", "norad", "iod", "aodc/e", "eph-age-m", "latest-disco", "time-disco", "sisa", "delta_hz_corr", "health", "tle-dist", "a0", "a1","a0g", "a1g", "sources", "db", "elev", "last-seen-s"];    
+    var columns = ["sv", "best-tle", "norad", "iod", "aodc/e", "eph-age-m", "latest-disco", "time-disco", "sisa", "delta_hz_corr", "health", "tle-dist", "alma-dist", "delta-utc", "delta-gps", "sources", "db", "elev", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -25,6 +25,10 @@ function maketable(str, arr)
         .text(function(column) {
             if(column == "delta_hz_corr")
                 return "ΔHz";
+            if(column == "delta-gps")
+                return "ΔGPS ns";
+            if(column == "delta-utc")
+                return "ΔUTC ns";
             else
                 return column;
         });
@@ -35,6 +39,7 @@ function maketable(str, arr)
                 var ret={};
                 ret.column = column;
                 ret.color=null;
+                ret.Class = null;
                 if(column == "sv") {
                     var img="";
                     if(row["gnssid"] == 0)
@@ -46,7 +51,7 @@ function maketable(str, arr)
                     else if(row["gnssid"] == 6)
                         img='ext/glo.png';
                     
-                    ret.value = '<img width="16" height="16" src="//ds9a.nl/tmp/'+ img +'"/>';
+                    ret.value = '<img width="16" height="16" src="https://ds9a.nl/tmp/'+ img +'"/>';
 //                    ret.value="";
                     ret.value += "&nbsp;"+row.sv;
                 }
@@ -74,9 +79,23 @@ function maketable(str, arr)
                     if(row["best-tle-dist"] != null)
                         ret.value = row["best-tle-dist"].toFixed(1) + " km";
                 }
+                else if((column == "alma-dist")) {
+                    if(row["alma-dist"] != null)
+                        ret.value = row["alma-dist"].toFixed(1) + " km";
+                }
+
                 else if(column == "norad") {
                     ret.value = row["best-tle-norad"];
                 }
+                else if(column == "delta-utc" && row["delta-utc"] != null) {
+                    ret.value = row["delta-utc"]+'<span class="CellComment">a0: '+row["a0"]+'<br/>a1: '+row["a1"]+'<br/>wn0t: ' + row["wn0t"]+'<br/>t0t: '+row["t0t"]+'</span>';
+                    ret.Class = 'CellWithComment';
+                }
+                else if(column == "delta-gps" && row["delta-gps"] != null) {
+                    ret.value = row["delta-gps"]+'<span class="CellComment">a0g: '+row["a0g"]+'<br/>a1g: '+row["a1g"]+'<br/>wn0g: ' +row["wn0g"]+'<br/>t0g: '+row["t0g"]+'</span>';
+                    ret.Class = 'CellWithComment';
+                }
+
                 else if(column == "last-seen-s") {
                     var b = moment.duration(row[column], 's');
                     ret.value = b.humanize();
@@ -121,7 +140,7 @@ function maketable(str, arr)
                 return ret;
             })
         })
-        .enter().append("td").html(function(d) { return d.value; }).attr("align", "right").style("background-color", function(d) {
+        .enter().append("td").attr("class", function(d) { return d.Class; }).html(function(d) { return d.value; }).attr("align", "right").style("background-color", function(d) {
             return d.color;
         });
 
@@ -193,6 +212,6 @@ function update()
     });
 }
 
-repeat=update();
+update();
 
 

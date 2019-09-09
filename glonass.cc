@@ -15,6 +15,7 @@ std::basic_string<uint8_t> getGlonassMessage(std::basic_string_view<uint8_t> pay
   
 }
 
+// this does NOT turn it into unix time!!
 uint32_t GlonassMessage::getGloTime() const
 {
   struct tm tm;
@@ -32,4 +33,17 @@ uint32_t GlonassMessage::getGloTime() const
         
   t += 3600 * (hour) + 60 * minute + seconds;
   return t - 820368000; // this starts GLONASS time at 31st of december 1995, 00:00 UTC
+}
+
+// the 'referencetime' must reflect the time when the frame with Tb was received
+uint32_t getGlonassT0e(time_t referencetime, int Tb)
+{
+  time_t now = referencetime + 3*3600; // this is so we get the Moscow day
+  struct tm tm;
+  memset(&tm, 0, sizeof(tm));
+  gmtime_r(&now, &tm);
+  tm.tm_hour = (Tb/4.0);
+  tm.tm_min = (Tb % 4)*15;
+  tm.tm_sec = 0;
+  return timegm(&tm)-3*3600;           // and back to UTC
 }

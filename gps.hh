@@ -7,6 +7,74 @@
 #include <math.h>
 std::basic_string<uint8_t> getCondensedGPSMessage(std::basic_string_view<uint8_t> payload);
 
+struct GPSAlmanac
+{
+  int dataid{-1};
+  int sv;
+  uint32_t t0a{0}; 
+  uint32_t e{0}, sqrtA{0};
+  int32_t M0, Omega0, deltai, omega, omegadot;
+  int health;
+  int af0, af1;
+
+  double getMu() const
+  {
+    return 3.986005    * pow(10.0, 14.0);
+  } // m^3/s^2
+    // same for galileo & gps
+  double getOmegaE()    const { return 7.2921151467 * pow(10.0, -5.0);} // rad/s
+
+    
+  double getE() const
+  {
+    return ldexp(e, -21);
+  }
+  double getT0e() const
+  {
+    return ldexp(t0a, 12);
+  }
+
+  double getI0() const
+  {
+    return M_PI*0.3 + ldexp(M_PI*deltai, -19);
+  }
+
+  double getOmegadot() const
+  {
+    return ldexp(M_PI * omegadot, -38);
+  }
+
+  double getSqrtA() const
+  {
+    return ldexp(sqrtA, -11);
+  }
+
+  double getOmega0() const
+  {
+    return ldexp(M_PI * Omega0, -23);
+  }
+  double getOmega() const
+  {
+    return ldexp(M_PI * omega, -23);
+  }
+
+  double getM0() const
+  {
+    return ldexp(M_PI * M0, -23);
+  }
+  double getIdot()      const { return 0;   } // radians/s
+  double getCic()       const { return 0;   } // radians
+  double getCis()       const { return 0;   } // radians
+  double getCuc()   const { return 0;   } // radians
+  double getCus()   const { return 0;   } // radians
+  double getCrc()   const { return 0;   } // meters
+  double getCrs()   const { return 0;   } // meters
+  double getDeltan()const { return 0; } //radians/s
+
+    
+};
+
+
 struct GPSState
 {
   struct SVIOD
@@ -16,6 +84,7 @@ struct GPSState
     uint32_t t0e; 
     uint32_t e, sqrtA;
     int32_t m0, omega0, i0, omega, idot, omegadot, deltan;
+
     
     int16_t cuc{0}, cus{0}, crc{0}, crs{0}, cic{0}, cis{0};
     //        16 seconds
@@ -26,8 +95,36 @@ struct GPSState
     //     ???
     int8_t af2;
     uint32_t wn{0}, tow{0};
+
+  double getMu() const
+  {
+    return 3.986005    * pow(10.0, 14.0);
+  } // m^3/s^2
+  // same for galileo & gps
+  double getOmegaE()    const { return 7.2921151467 * pow(10.0, -5.0);} // rad/s
+
+  uint32_t getT0e() const { return t0e; }
+  double getSqrtA() const { return ldexp(sqrtA,     -19);   }
+  double getE()     const { return ldexp(e,         -33);   }
+  double getCuc()   const { return ldexp(cuc,       -29);   } // radians
+  double getCus()   const { return ldexp(cus,       -29);   } // radians
+  double getCrc()   const { return ldexp(crc,        -5);   } // meters
+  double getCrs()   const { return ldexp(crs,        -5);   } // meters
+  double getM0()    const { return ldexp(m0 * M_PI, -31);   } // radians
+  double getDeltan()const { return ldexp(deltan *M_PI, -43); } //radians/s
+  double getI0()        const { return ldexp(i0 * M_PI,       -31);   } // radians
+  double getCic()       const { return ldexp(cic,             -29);   } // radians
+  double getCis()       const { return ldexp(cis,             -29);   } // radians
+  double getOmegadot()  const { return ldexp(omegadot * M_PI, -43);   } // radians/s
+  double getOmega0()    const { return ldexp(omega0 * M_PI,   -31);   } // radians
+  double getIdot()      const { return ldexp(idot * M_PI,     -43);   } // radians/s
+  double getOmega()     const { return ldexp(omega * M_PI,    -31);   } // radians
+
+    
   };
 
+  GPSAlmanac gpsalma;
+  
   uint8_t gpshealth{0};
   uint16_t ai0{0};
   int16_t ai1{0}, ai2{0};
@@ -46,10 +143,26 @@ struct GPSState
   uint8_t dn; // leap second day number
   //   1  2^-31 2^-43 2^-55   16 second
   int ura, af0, af1,  af2,   t0c; // GPS parameters that should not be here XXX
+
+  int gpsiod{-1};
   
   std::map<int, SVIOD> iods;
   SVIOD& getEph(int i) { return iods[i]; }   // XXXX gps adaptor
-  void checkCompleteAndClean(int iod){}
+  void checkCompleteAndClean(int iod)
+  {
+    if(iods[iod].words[2] && iods[iod].words[3]) {
+      if(iods.size() > 1) {
+        auto tmp = iods[iod];
+        iods.clear();
+        iods[iod] = tmp;
+      }
+    }
+  }
+  bool isComplete(int iod)
+  {
+    return iods[iod].words[2] && iods[iod].words[3];
+  }
+  
 };
 
 template<typename T>
@@ -59,7 +172,7 @@ int getT0c(const T& eph)
 }
 
 template<typename T>
-std::pair<double, double> getAtomicOffset(int tow, const T& eph)
+std::pair<double, double> getGPSAtomicOffset(int tow, const T& eph)
 {
   int delta = ephAge(tow, getT0c(eph));
   double cur = eph.af0  + ldexp(delta*eph.af1, -12) + ldexp(delta*delta*eph.af2, -24);
@@ -69,6 +182,25 @@ std::pair<double, double> getAtomicOffset(int tow, const T& eph)
   double factor = ldexp(1000000000, -31);
   return {factor * cur, factor * trend};
 }
+
+template<typename T>
+std::pair<double, double> getGPSUTCOffset(int tow, int wn, const T& eph) 
+{
+  // 2^-30  2^-50   3600
+  // a0     a1      t0t 
+
+  int dw = (int)(uint8_t)wn - (int)(uint8_t) eph.wn0t;
+  int delta = dw*7*86400  + tow - eph.t0t; // this is pre-scaled for GPS..
+
+  double cur = eph.a0  + ldexp(1.0*delta*eph.a1, -20);
+  double trend = ldexp(eph.a1, -20);
+  
+  // now in units of 2^-30 seconds, which are ~1.1 nanoseconds each
+  
+  double factor = ldexp(1000000000, -30);
+  return {factor * cur, factor * trend};
+}
+
 
 
 // expects input as 24 bit read to to use messages, returns frame number
@@ -109,8 +241,8 @@ int parseGPSMessage(std::basic_string_view<uint8_t> cond, T& out, uint8_t* pagep
     //      out.af0 <<endl;
   }
   else if(frame == 2) {
-    int iod = getbitu(&cond[0], 2*24, 8);
-    auto& eph = out.getEph(iod);
+    out.gpsiod = getbitu(&cond[0], 2*24, 8);
+    auto& eph = out.getEph(out.gpsiod);
     eph.words[2]=1;
     eph.t0e = getbitu(&cond[0], 9*24, 16) * 16.0;  // WE SCALE THIS FOR THE USER!!
     //    cerr<<"IODe "<<(int)iod<<", t0e "<< eph.t0e << " = "<<  16* eph.t0e <<"s"<<endl;
@@ -130,11 +262,11 @@ int parseGPSMessage(std::basic_string_view<uint8_t> cond, T& out, uint8_t* pagep
 
     eph.cuc = getbits(&cond[0], 5*24, 16);    // 2^-29 RADIANS
     eph.cus = getbits(&cond[0], 7*24, 16);    // 2^-29 RADIANS
-    out.checkCompleteAndClean(iod);
+    out.checkCompleteAndClean(out.gpsiod);
   }
   else if(frame == 3) {
-    int iod = getbitu(&cond[0], 9*24, 8);
-    auto& eph = out.getEph(iod);
+    out.gpsiod = getbitu(&cond[0], 9*24, 8);
+    auto& eph = out.getEph(out.gpsiod);
     eph.words[3]=1;
     eph.cic = getbits(&cond[0], 2*24, 16);   // 2^-29  RADIANS
     eph.omega0 = getbits(&cond[0], 2*24 + 16, 32);   // 2^-31 semi-circles
@@ -146,14 +278,14 @@ int parseGPSMessage(std::basic_string_view<uint8_t> cond, T& out, uint8_t* pagep
 
     eph.omegadot = getbits(&cond[0], 8*24, 24);       // 2^-43, semi-circles/s
     eph.idot = getbits(&cond[0], 9*24+8, 14);         // 2^-43, semi-cirlces/s
-    out.checkCompleteAndClean(iod);
+    out.checkCompleteAndClean(out.gpsiod);
   }
   else if(frame == 4) { // this is a carousel frame
     int page = getbitu(&cond[0], 2*24 + 2, 6);
     if(pageptr)
       *pageptr=0;
     //    cerr<<"Frame 4, page "<<page;
-    if(page == 56) { // 56 is the new 18 somehow?
+    if(page == 56) { // 56 is the new 18 somehow? See table 20-V of the ICD
       if(pageptr)
         *pageptr=18;
       out.a0 = getbits(&cond[0], 6*24 , 32); // 2^-30
@@ -172,7 +304,26 @@ int parseGPSMessage(std::basic_string_view<uint8_t> cond, T& out, uint8_t* pagep
     // page 25 -> 63
     // 2-10    -> 25 -> 32 ??
   }
-  else if(frame == 5) { // this is a caroussel frame
+
+  if(frame == 5 || frame==4) { // this is a caroussel frame
+    out.gpsalma.dataid = getbitu(&cond[0], 2*24, 2);
+    out.gpsalma.sv = getbitu(&cond[0], 2*24+2, 6);
+
+    if(pageptr)
+      *pageptr= out.gpsalma.sv;
+
+    
+    out.gpsalma.e = getbitu(&cond[0], 2*24 + 8, 16);
+    out.gpsalma.t0a = getbitu(&cond[0], 3*24, 8);
+    out.gpsalma.deltai = getbits(&cond[0], 3*24 +8 , 16);
+    out.gpsalma.omegadot = getbits(&cond[0], 4*24, 16);
+    out.gpsalma.health = getbitu(&cond[0], 4*24 +16, 8);
+    out.gpsalma.sqrtA = getbitu(&cond[0], 5*24, 24);
+    out.gpsalma.Omega0 = getbits(&cond[0], 6*24, 24);
+    out.gpsalma.omega = getbits(&cond[0], 7*24, 24);
+    out.gpsalma.M0 = getbits(&cond[0], 8*24, 24);
+    out.gpsalma.af0 = (getbits(&cond[0], 9*24, 8) << 3) + getbits(&cond[0], 9*24 +19, 3);
+    out.gpsalma.af1 = getbits(&cond[0], 9*24 + 8, 11);
     //    cerr<<"Frame 5, SV: "<<getbitu(&cond[0], 2*32 + 2 +2, 6)<<endl;
   }
   return frame;

@@ -26,17 +26,6 @@
 #include <unistd.h>
 using namespace std;
 
-static std::string humanTime(time_t t)
-{
-  struct tm tm={0};
-  gmtime_r(&t, &tm);
-
-  char buffer[80];
-  strftime(buffer, sizeof(buffer), "%a, %d %b %Y %T %z", &tm);
-  return buffer;
-}
-
-
 string beidouHealth(int in)
 {
   string ret;
@@ -61,6 +50,12 @@ string beidouHealth(int in)
   return ret;
 }
 
+double utcFromGPS(int wn, double tow)
+{
+  return (315964800 + wn * 7*86400 + tow - 18); 
+}
+
+
 int main(int argc, char** argv)
 try
 {
@@ -71,9 +66,17 @@ try
   tles.parseFile("gps-ops.txt");
   tles.parseFile("beidou.txt");
 
+  bool skipGPS{false};
+  bool skipBeidou{false};
+  bool skipGalileo{false};
+  bool skipGlonass{false};
+  
   ofstream almanac("almanac.txt");
   ofstream iodstream("iodstream.csv");
   iodstream << "timestamp gnssid sv iodnav t0e age" << endl;
+
+  ofstream csv("delta.csv");
+  csv <<"timestamp gnssid sv tow tle_distance alma_distance utc_dist x y z vx vy vz rad inclination e iod"<<endl;
   
   for(;;) {
     char bert[4];
@@ -108,6 +111,8 @@ try
       cout<<"receptiondata for "<<nmm.rd().gnssid()<<","<<nmm.rd().gnsssv()<<", db "<<nmm.rd().db()<<" ele "<<nmm.rd().el() <<" azi "<<nmm.rd().azi()<<" prRes "<<nmm.rd().prres() << endl;
     }
     else if(nmm.type() == NavMonMessage::GalileoInavType) {
+      if(skipGalileo)
+        continue;
       basic_string<uint8_t> inav((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
       static map<int, GalileoMessage> gms;
       static map<pair<int, int>, GalileoMessage> gmwtypes;
@@ -181,29 +186,93 @@ try
       cout<<endl;      
     }
     else if(nmm.type() == NavMonMessage::GPSInavType) {
+      if(skipGPS)
+        continue;
+      
       int sv = nmm.gpsi().gnsssv();
       auto cond = getCondensedGPSMessage(std::basic_string<uint8_t>((uint8_t*)nmm.gpsi().contents().c_str(), nmm.gpsi().contents().size()));
       struct GPSState gs;
+      static map<int, GPSState> eph;
+      static map<int, GPSAlmanac> almas;
       uint8_t page;
+      static int gpswn;
       int frame=parseGPSMessage(cond, gs, &page);
-      cout<<"GPS "<<sv<<": "<<gs.tow<<" ";
+      cout<<"GPS "<<sv<<": "<<gs.tow<<" frame "<<frame<<" ";
       if(frame == 1) {
         static map<int, GPSState> oldgs1s;
-        
+        gpswn = gs.wn;
         cout << "gpshealth = "<<(int)gs.gpshealth<<", wn "<<gs.wn << " t0c "<<gs.t0c;
         if(auto iter = oldgs1s.find(sv); iter != oldgs1s.end() && iter->second.t0c != gs.t0c) {
-          auto oldOffset = getAtomicOffset(gs.tow, iter->second);
-          auto newOffset = getAtomicOffset(gs.tow, gs);
+          auto oldOffset = getGPSAtomicOffset(gs.tow, iter->second);
+          auto newOffset = getGPSAtomicOffset(gs.tow, gs);
           cout<<"  Timejump: "<<oldOffset.first - newOffset.first<<" after "<<(getT0c(gs) - getT0c(iter->second) )<<" seconds, old t0c "<<iter->second.t0c;
         }
         oldgs1s[sv] = gs;
       }
       else if(frame == 2) {
-        cout << "t0e = "<<gs.iods.begin()->second.t0e << " " <<ephAge(gs.tow, gs.iods.begin()->second.t0e);
+        parseGPSMessage(cond, eph[sv], &page);
+        cout << "t0e = "<<gs.iods.begin()->second.t0e << " " <<ephAge(gs.tow, gs.iods.begin()->second.t0e) << " iod "<<gs.gpsiod;
       }
+      else if(frame == 3) {
+        parseGPSMessage(cond, eph[sv], &page);
+        cout <<"iod "<<gs.gpsiod;
+        if(eph[sv].isComplete(gs.gpsiod)) {
+          Point sat;
+          getCoordinates(0, gs.tow, eph[sv].iods[gs.gpsiod], &sat);
+          TLERepo::Match second;
+          auto match = tles.getBestMatch(utcFromGPS(gpswn, gs.tow), sat.x, sat.y, sat.z, &second);
+          cout<<" best-tle-match "<<match.name <<" dist "<<match.distance /1000<<" km";
+          cout<<" norad " <<match.norad <<" int-desig " << match.internat;
+          cout<<" 2nd-match "<<second.name << " dist "<<second.distance/1000<<" km t0e "<<gs.gpsalma.getT0e() << " t " <<nmm.localutcseconds();
+
+          if(almas.count(sv)) {
+            Point almapoint;
+            getCoordinates(0, gs.tow, almas[sv], &almapoint);
+            cout<<" alma-dist " << Vector(sat, almapoint).length();
+
+            Vector speed;
+            getSpeed(0, gs.tow, eph[sv].iods[gs.gpsiod], &speed);
+            Point core;
+            csv << nmm.localutcseconds() << " 0 "<< sv <<" " << gs.tow << " " << match.distance <<" " << Vector(sat, almapoint).length() << " " << utcFromGPS(gpswn, gs.tow) - nmm.localutcseconds() << " " << sat.x <<" " << sat.y <<" " << sat.z <<" " <<speed.x <<" " <<speed.y<<" " <<speed.z<< " " << Vector(core, sat).length() << " " << eph[sv].iods[gs.gpsiod].getI0()<<" " << eph[sv].iods[gs.gpsiod].getE() << " " <<gs.gpsiod<<endl;
+          }
+        }
+      }
+
+      else if(frame == 4) {
+        cout<<" page/svid " <<gs.gpsalma.sv;
+        if((gs.gpsalma.sv >= 25 && gs.gpsalma.sv <= 32) || gs.gpsalma.sv==57 ) { // see table 20-V of the GPS ICD
+          cout << " data-id "<<gs.gpsalma.dataid <<" alma-sv "<<gs.gpsalma.sv<<" t0a = "<<gs.gpsalma.getT0e() <<" health " <<gs.gpsalma.health;
+          Point sat;
+          getCoordinates(0, gs.tow, gs.gpsalma, &sat);
+          TLERepo::Match second;
+          auto match = tles.getBestMatch(nmm.localutcseconds(), sat.x, sat.y, sat.z, &second);
+          cout<<" best-tle-match "<<match.name <<" dist "<<match.distance /1000<<" km";
+          cout<<" norad " <<match.norad <<" int-desig " << match.internat;
+          cout<<" 2nd-match "<<second.name << " dist "<<second.distance/1000<<" km t0e "<<gs.gpsalma.getT0e() << " t " <<nmm.localutcseconds();
+        }
+
+      }
+      else if(frame == 5) {
+        if(gs.gpsalma.sv <= 24) {
+          cout << " alma-sv "<<gs.gpsalma.sv<<" t0a = "<<gs.gpsalma.getT0e() <<" health " <<gs.gpsalma.health;
+          Point sat;
+          getCoordinates(0, gs.tow, gs.gpsalma, &sat);
+          TLERepo::Match second;
+          auto match = tles.getBestMatch(nmm.localutcseconds(), sat.x, sat.y, sat.z, &second);
+          cout<<" best-tle-match "<<match.name <<" dist "<<match.distance /1000<<" km";
+          cout<<" norad " <<match.norad <<" int-desig " << match.internat;
+          cout<<" 2nd-match "<<second.name << " dist "<<second.distance/1000<<" km t0e "<<gs.gpsalma.getT0e() << " t " <<nmm.localutcseconds();
+          almas[gs.gpsalma.sv] = gs.gpsalma;
+        }
+
+      }
+
       cout<<"\n";
     }
     else if(nmm.type() == NavMonMessage::BeidouInavTypeD1) {
+      if(skipBeidou)
+        continue;
+
       int sv = nmm.bid1().gnsssv();
       auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid1().contents().c_str(), nmm.bid1().contents().size()));
       uint8_t pageno;
@@ -282,6 +351,9 @@ try
             
     }
     else if(nmm.type() == NavMonMessage::GlonassInavType) {
+      if(skipGlonass)
+        continue;
+
       static map<int, GlonassMessage> gms;
       auto& gm = gms[nmm.gloi().gnsssv()];
       
@@ -292,10 +364,12 @@ try
         cout << ", hour "<<(int)gm.hour <<" minute " <<(int)gm.minute <<" seconds "<<(int)gm.seconds;
         // start of period is 1st of January 1996 + (n4-1)*4, 03:00 UTC
         time_t glotime = gm.getGloTime();
-        cout<<" 'wn' " << glotime / (7*86400)<<" 'tow' "<< (glotime % (7*86400));
+        cout<<" 'wn' " << glotime / (7*86400)<<" 'tow' "<< (glotime % (7*86400)) << " x " <<gm.getX()/1000.0;
       }
-      if(strno == 2)
-        cout<<" Tb "<<(int)gm.Tb <<" Bn "<<(int)gm.Bn;
+      else if(strno == 2)
+        cout<<" Tb "<<(int)gm.Tb <<" Bn "<<(int)gm.Bn << " y " <<gm.getY()/1000.0;
+      else if(strno == 3)
+        cout<<" l_n " << (int)gm.l_n  << " z " <<gm.getZ()/1000.0;
       else if(strno == 4) {
         cout<<", taun "<<gm.taun <<" NT "<<gm.NT <<" FT " << (int) gm.FT <<" En " << (int)gm.En;
         if(gm.x && gm.y && gm.z) {
@@ -303,15 +377,7 @@ try
           cout<<" long "<< 180* longlat.first/M_PI <<" lat " << 180*longlat.second/M_PI<<" rad "<<gm.getRadius();
           cout << " Tb "<<(int)gm.Tb <<" H"<<((gm.Tb/4.0) -3) << " UTC ("<<gm.getX()/1000<<", "<<gm.getY()/1000<<", "<<gm.getZ()/1000<<") -> ";
           cout << "("<<gm.getdX()/1000<<", "<<gm.getdY()/1000<<", "<<gm.getdZ()/1000<<")";
-          time_t now = nmm.localutcseconds();
-          struct tm tm;
-          memset(&tm, 0, sizeof(tm));
-          gmtime_r(&now, &tm);
-          tm.tm_hour = (gm.Tb/4.0) - 3;
-          tm.tm_min = (gm.Tb % 4)*15;
-          tm.tm_sec = 0;
-
-          auto match = tles.getBestMatch(timegm(&tm), gm.getX(), gm.getY(), gm.getZ());
+          auto match = tles.getBestMatch(getGlonassT0e(nmm.localutcseconds(), gm.Tb), gm.getX(), gm.getY(), gm.getZ());
           cout<<" best-tle-match "<<match.name <<" distance "<<match.distance /1000<<" km";
           cout<<" norad " <<match.norad <<" int-desig " << match.internat;
         }

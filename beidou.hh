@@ -222,9 +222,33 @@ struct BeidouMessage
     return  alma.pageno;
   }
 
+  //                                            2^-30  2^-50
   int a0gps, a1gps, a0gal, a1gal, a0glo, a1glo, a0utc, a1utc;
   int8_t deltaTLS;
 
+  // in Beidou the offset is a0utc + SOW * a1utc
+  std::pair<double, double> getUTCOffset(int tow) const
+  {
+    // 2^-30  2^-50   
+    // a0utc  a1utc       
+    double cur = a0utc  + ldexp(1.0*tow*a1utc, -20);
+    double trend = ldexp(a1utc, -20);
+
+    // now in units of 2^-30 seconds, which are ~1.1 nanoseconds each
+    
+    double factor = ldexp(1000000000, -30);
+    return {factor * cur, factor * trend};
+  }
+
+  // in Beidou the offset is a0GPS + SOW * a1GPS
+  std::pair<double, double> getGPSOffset(int tow) const
+  {
+    double cur = a0gps/10.0  + tow*a1gps/10.0;
+    double trend = a1gps/1.0;
+    return {cur, trend};
+  }
+
+  
   int parse5(std::basic_string_view<uint8_t> cond)
   {
     alma.pageno = bbitu(44, 7);
