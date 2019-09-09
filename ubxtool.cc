@@ -399,10 +399,20 @@ int main(int argc, char** argv)
           break;
         }
       }
+
+      cerr<<"Sending version query"<<endl;
+      msg = buildUbxMessage(0x0a, 0x04, {});
+      writen2(fd, msg.c_str(), msg.size());      
+      UBXMessage um1=waitForUBX(fd, 2, 0x0a, 0x04);
+      cerr<<"swVersion: "<<um1.getPayload().c_str()<<endl;
+      cerr<<"hwVersion: "<<um1.getPayload().c_str()+30<<endl;
+      for(unsigned int n=0; 40+30*n < um1.getPayload().size(); ++n)
+        cerr<<"Extended info: "<<um1.getPayload().c_str() + 40 +30*n<<endl;
+      
       cerr<<"Sending GNSS query"<<endl;
       msg = buildUbxMessage(0x06, 0x3e, {});
       writen2(fd, msg.c_str(), msg.size());
-      UBXMessage um1=waitForUBX(fd, 2, 0x06, 0x3e);
+      um1=waitForUBX(fd, 2, 0x06, 0x3e);
       auto payload = um1.getPayload();
       cerr<<"GNSS status, got " << (int)payload[3]<<" rows:\n";
       for(uint8_t n = 0 ; n < payload[3]; ++n) {
