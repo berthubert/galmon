@@ -1,0 +1,68 @@
+<html>
+  <head>
+    <style>
+      body,
+svg {
+  height: 100%;
+  margin: 0;
+  width: 100%;
+  float: left;
+}
+
+
+path.countries {
+   stroke-width: 1;
+   stroke: #75739F;
+   fill: #5EAFC6;
+}
+circle.sats {
+   stroke-width: 1;
+   stroke: #4F442B;
+//   fill: #FCBC34;
+}
+circle.centroid {                   
+   fill: #75739F;
+   pointer-events: none;
+}
+rect.bbox {
+   fill: none;
+   stroke-dasharray: 5 5;
+   stroke: #75739F;
+   stroke-width: 2;
+   pointer-events: none;
+}
+path.graticule {                    
+   fill: none;
+   stroke-width: 1;
+   stroke: #9A8B7A;
+}
+path.graticule.outline {
+   stroke: #9A8B7A;
+}
+
+path.merged {
+   fill: #9A8B7A;
+   stroke: #4F442B;
+   stroke-width: 2px;
+      }
+
+      #map {
+        position: fixed;
+        left: 0px;
+        right: 0px;
+        top: 0px;
+        bottom: 0px;
+      }
+
+      
+</style>
+
+  </head>
+  <body>
+    <div id="map">
+      <svg width="100%" height="100%"></svg>
+    </div>
+    <script src="../d3.v4.min.js"></script>
+    <script src="geo.js"></script>
+  </body>
+</html>
