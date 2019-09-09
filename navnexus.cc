@@ -55,14 +55,12 @@ vector<uint64_t> getSources()
   return ret;
 }
 
-
-void sendSession(int clientfd, ComboAddress client)
+void sendSession(int clientfd, ComboAddress client, time_t startTime, time_t stopTime=0)
 try
 {
   cerr<<"New downstream client "<<client.toStringWithPort() << endl;
 
-  pair<uint64_t, uint64_t> start = {0,0};
-  start.first = time(0) - 24*3600; // 4 hours of backlog
+  pair<uint64_t, uint64_t> start = {startTime, 0};
 
   // so we have a ton of files, and internally these are not ordered
   map<string,uint32_t> fpos;
@@ -124,15 +122,14 @@ try
    cerr<<"Sender thread died: "<<e.what()<<endl;
  }
 
-void sendListener(Socket&& s, ComboAddress local)
+void sendListener(Socket&& s, ComboAddress local, int hours)
 {
   for(;;) {
     ComboAddress remote=local;
     int fd = SAccept(s, remote);
-    std::thread t(sendSession, fd, remote);
+    std::thread t(sendSession, fd, remote, time(0) - hours  * 3600, 0);
     t.detach();
   }
-
 }
 
 
@@ -140,20 +137,21 @@ void sendListener(Socket&& s, ComboAddress local)
 int main(int argc, char** argv)
 {
   signal(SIGPIPE, SIG_IGN);
-  if(argc != 3) {
-    cout<<"Syntax: navnexus storage listen-address"<<endl;
+  if(argc < 3) {
+    cout<<"Syntax: navnexus storage listen-address [backlog-hours]"<<endl;
     return(EXIT_FAILURE);
   }
   g_storage=argv[1];
     
   ComboAddress sendaddr(argv[2], 29601);
-  cout<<"Listening on "<<sendaddr.toStringWithPort()<<", storage: "<<g_storage<<endl;
+  int hours = argc > 3 ? atoi(argv[3]) : 4;
+  cout<<"Listening on "<<sendaddr.toStringWithPort()<<", backlog "<<hours<<" hours, storage: "<<g_storage<<endl;
   Socket sender(sendaddr.sin4.sin_family, SOCK_STREAM);
   SSetsockopt(sender, SOL_SOCKET, SO_REUSEADDR, 1 );
   SBind(sender, sendaddr);
   SListen(sender, 128);
   
-  thread sendThread(sendListener, std::move(sender), sendaddr);
+  thread sendThread(sendListener, std::move(sender), sendaddr, hours);
 
   sendThread.detach();
 
