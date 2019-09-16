@@ -32,8 +32,12 @@ Goals:
 
 Works on Linux (including Raspbian on Pi Zero W), OSX and OpenBSD.
 
-To get started, make sure you have a C++17 compiler, git, protobuf-compiler,
-libh2o-dev.
+To get started, make sure you have a C++17 compiler, git, protobuf-compiler.
+Then run 'make ubxtool navdump' to build the receiver-only tools.
+
+To also run the webserver locally, intall libh2o-dev and run 'make'.
+
+To build everything, try:
 
 ```
 apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev libh2o-evloop-dev libwslay-dev
@@ -49,7 +53,7 @@ library installed. If you get an error about 'wslay', do the following, and run 
 echo WSLAY=-lwslay > Makefile.local
 ```
 
-Once compiled, run for example ./ubxtool /dev/ttyACM0 1 | ./ubxparse 10000 html null
+Once compiled, run for example `./ubxtool --wait /dev/ttyACM0 1 | ./ubxparse 10000 html null`
 
 Next up, browse to http://[::1]:10000 (or try http://localhost:10000/ and
 you should be in business. ubxtool changes (non-permanently) the
@@ -60,7 +64,7 @@ the doppler frames.
 To see what is going on, try:
 
 ```
-./ubxtool /dev/ttyACM0 1 | ./navdump
+./ubxtool --wait /dev/ttyACM0 1 | ./navdump
 ```
 
 Setting up a distributed setup is slightly more complicated & may still
@@ -112,7 +116,7 @@ Documents
 ---------
 
  * [BeiDou](http://m.beidou.gov.cn/xt/gfxz/201902/P020190227593621142475.pdf)
- * [Galileo](https://www.gsc-europa.eu/system/files/galileo_documents/Galileo-OS-SIS-ICD.pdf)
+ * [Galileo](https://www.gsc-europa.eu/sites/default/files/sites/all/files/Galileo-OS-SIS-ICD.pdf)
  * [GLONASS](https://www.unavco.org/help/glossary/docs/ICD_GLONASS_4.0_(1998)_en.pdf),
     old 1998 version, but unlike newer versions, this one is not full of
     mistakes. [New version](http://gauss.gge.unb.ca/GLONASS.ICD.pdf) is more complete but is worryingly messy.
@@ -120,6 +124,9 @@ Documents
    not actually relevant for the CDMA aspects, but has appendices on more
    precise orbit determinations.
  * [GPS](https://www.gps.gov/technical/icwg/IS-GPS-200K.pdf)
+ * [U-blox 8 interface specification](https://www.u-blox.com/sites/default/files/products/documents/u-blox8-M8_ReceiverDescrProtSpec_%28UBX-13003221%29_Public.pdfhttps://www.u-blox.com/sites/default/files/products/documents/u-blox8-M8_ReceiverDescrProtSpec_%28UBX-13003221%29_Public.pdf)
+ * [U-blox 9 interface specification](https://www.u-blox.com/sites/default/files/u-blox_ZED-F9P_InterfaceDescription_%28UBX-18010854%29.pdf)
+
 
 Big TODO
 --------
