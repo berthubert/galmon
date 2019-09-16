@@ -182,6 +182,7 @@ function update()
                         o.elev = o.elev + o.perrecv[k].elev.toFixed(0)+" ";
                     else
                         o.elev = o.elev + "? ";
+                    
                 }
             });
             

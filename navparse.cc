@@ -233,6 +233,8 @@ void SVIOD::addGalileoWord(std::basic_string_view<uint8_t> page)
 struct SVPerRecv
 {
   int el{-1}, azi{-1}, db{-1};
+  time_t deltaHzTime{-1};
+  double deltaHz{-1};
   time_t t; // last seen
 };
   
@@ -281,7 +283,7 @@ struct SVStat
   pair<uint32_t, GlonassMessage> glonassAlmaEven;
   
   map<uint64_t, SVPerRecv> perrecv;
-  pair<uint32_t, double> deltaHz;
+
   double latestDisco{-1}, timeDisco{-1000};
   
   map<int, SVIOD> iods;
@@ -609,35 +611,25 @@ std::string humanTime(int gnssid, int wn, int tow)
   return buffer;
 }
 
-std::optional<double> getHzCorrection(time_t now, const svstats_t svstats)
+std::optional<double> getHzCorrection(time_t now, int src, unsigned int gnssid, unsigned int sigid, const svstats_t svstats)
 {
-  int galcount{0}, gpscount{0}, allcount{0};
-  double galtot{0}, gpstot{0}, alltot{0};
-
+  std::optional<double> allHzCorr;
+  double alltot=0;
+  int allcount=0;
+  
   for(const auto& s: svstats) {
-    if(now - s.second.deltaHz.first < 60) {
-      alltot+=s.second.deltaHz.second;
+    if(s.first.gnss != gnssid)
+      continue;
+    if(s.first.sigid != sigid)
+      continue;
+    if(auto iter = s.second.perrecv.find(src); now - iter->second.deltaHzTime < 60) {
+      alltot+=iter->second.deltaHz;
       allcount++;
-      if(s.first.gnss == 0) {
-        gpstot+=s.second.deltaHz.second;
-        gpscount++;
-      }
-      else if(s.first.gnss == 2 && s.first.sigid == 1) { // focus on E1
-        galtot+=s.second.deltaHz.second;
-        galcount++;
-      }
     }
   }
-  std::optional<double> galHzCorr, gpsHzCorr, allHzCorr;
-  if(galcount > 3)
-    galHzCorr = galtot/galcount;
-  if(gpscount > 3)
-    gpsHzCorr = gpstot/gpscount;
   if(allcount > 3)
     allHzCorr = alltot/allcount;
 
-  if(galHzCorr)
-    return galHzCorr;
   return allHzCorr;
 }
 
@@ -974,8 +966,6 @@ try
       auto svstats = g_statskeeper.get();
       nlohmann::json ret = nlohmann::json::object();
 
-      auto hzCorrection = getHzCorrection(time(0), svstats);
-      
       for(const auto& s: svstats) {
         nlohmann::json item  = nlohmann::json::object();
         if(!s.second.tow) // I know, I know, will suck briefly
@@ -991,11 +981,6 @@ try
           if(s.second.t0eMSB >= 0 && s.second.t0eLSB >=0)
             item["eph-age-m"] = ephAge(s.second.tow, 8.0*((s.second.t0eMSB<<15) + s.second.t0eLSB))/60.0;
 
-          if(time(0) - s.second.deltaHz.first < 60) {
-            item["delta_hz"] = s.second.deltaHz.second;
-            if(hzCorrection)
-              item["delta_hz_corr"] = s.second.deltaHz.second - (1561.098/1575.42)* (*hzCorrection);
-          }
           if(s.second.tleMatch.distance >=0) {
             item["best-tle"] = s.second.tleMatch.name;
             item["best-tle-dist"] = s.second.tleMatch.distance /1000.0;
@@ -1067,11 +1052,6 @@ try
           item["y"]=p.y;
           item["z"]=p.z;
 
-          if(time(0) - s.second.deltaHz.first < 60) {
-            item["delta_hz"] = s.second.deltaHz.second;
-            if(hzCorrection)
-              item["delta_hz_corr"] = s.second.deltaHz.second - *hzCorrection;
-          }
           if(s.first.gnss == 0) {
             auto gpsalma = g_gpsalmakeeper.get();
             if(auto iter = gpsalma.find(s.first.sv); iter != gpsalma.end()) {
@@ -1185,6 +1165,16 @@ try
             
             det["db"] = pr.second.db;
             det["last-seen-s"] = time(0) - pr.second.t;
+
+
+            if(time(0) - pr.second.deltaHzTime < 60) {
+              det["delta_hz"] = pr.second.deltaHz;
+              auto hzCorrection = getHzCorrection(time(0), pr.first, s.first.gnss, s.first.sigid, svstats);
+              if(hzCorrection)
+                det["delta_hz_corr"] = pr.second.deltaHz - *hzCorrection;
+            }
+
+            
             perrecv[to_string(pr.first)]=det;
           }
         }
@@ -1480,7 +1470,10 @@ try
                          {"locktime", nmm.rfd().locktimems()},
                            {"pseudorange", nmm.rfd().pseudorange()}});
       if(id.gnss == 3 && g_svstats[id].oldBeidouMessage.sow >= 0 && g_svstats[id].oldBeidouMessage.sqrtA != 0) {
-        auto res = doDoppler(nmm.rfd().rcvtow(), g_srcpos[nmm.sourceid()].pos, g_svstats[id].oldBeidouMessage, 1561.098 * 1000000);
+        double freq = 1561.098;
+        if(nmm.rfd().sigid() != 0)
+          freq = 1207.140;
+        auto res = doDoppler(nmm.rfd().rcvtow(), g_srcpos[nmm.sourceid()].pos, g_svstats[id].oldBeidouMessage, freq * 1000000);
 
         if(isnan(res.preddop)) {
           cerr<<"Problem with doppler calculation for C"<<id.sv<<": "<<endl;
@@ -1488,11 +1481,13 @@ try
         }
         
         time_t t = utcFromGPS(nmm.rfd().rcvwn(), nmm.rfd().rcvtow());
-        if(t - g_svstats[id].deltaHz.first > 10) {
+        if(t - g_svstats[id].perrecv[nmm.sourceid()].deltaHzTime > 10) {
           
-          g_svstats[id].deltaHz = {t, nmm.rfd().doppler() -  res.preddop};
+          g_svstats[id].perrecv[nmm.sourceid()].deltaHz = nmm.rfd().doppler() -  res.preddop;
+          g_svstats[id].perrecv[nmm.sourceid()].deltaHzTime = t;
+          
           idb.addValue(id, "delta_hz", nmm.rfd().doppler() -  res.preddop);
-          auto corr = getHzCorrection(t, g_svstats);
+          auto corr = getHzCorrection(t, nmm.sourceid(), id.gnss, id.sigid, g_svstats);
           if(corr) {
             idb.addValue(id, "delta_hz_cor", nmm.rfd().doppler() -  res.preddop - (1561.098/1575.42) * (*corr));
           }
@@ -1500,7 +1495,7 @@ try
       }
       else if(g_svstats[id].completeIOD()) {
         double freqMHZ =  1575.42;
-        if(id.gnss == 2 && id.sigid == 5)
+        if(id.gnss == 2 && id.sigid == 5) // this is exactly the beidou b2i freq?
           freqMHZ = 1207.140;
         
         auto res = doDoppler(nmm.rfd().rcvtow(), g_srcpos[nmm.sourceid()].pos, g_svstats[id].liveIOD(),freqMHZ * 1000000);
@@ -1513,10 +1508,11 @@ try
         
         time_t t = utcFromGPS(nmm.rfd().rcvwn(), nmm.rfd().rcvtow());
 
-        if(t - g_svstats[id].deltaHz.first > 10) {
-          g_svstats[id].deltaHz = {t, nmm.rfd().doppler() -  res.preddop};
+        if(t - g_svstats[id].perrecv[nmm.sourceid()].deltaHzTime > 10) {
+          g_svstats[id].perrecv[nmm.sourceid()].deltaHz =  nmm.rfd().doppler() -  res.preddop;
+          g_svstats[id].perrecv[nmm.sourceid()].deltaHzTime =  t;
           idb.addValue(id, "delta_hz", nmm.rfd().doppler() -  res.preddop);
-          auto corr = getHzCorrection(t, g_svstats);
+          auto corr = getHzCorrection(t, nmm.sourceid(), id.gnss, id.sigid, g_svstats);
           if(corr) {
             idb.addValue(id, "delta_hz_cor", nmm.rfd().doppler() -  res.preddop - *corr);
           }
