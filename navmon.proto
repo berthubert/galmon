@@ -25,6 +25,7 @@ message NavMonMessage {
 	required uint32 gnssID =3;
 	required uint32 gnssSV =4;
 	required bytes contents =5;
+        optional uint32 sigid = 6;        
   }
 
   message GPSInav {
@@ -34,6 +35,7 @@ message NavMonMessage {
 	required uint32 gnssID =3;
 	required uint32 gnssSV =4;
 	required bytes contents =5;
+        optional uint32 sigid = 6;
   }
 
   message BeidouInavD1 {
@@ -43,6 +45,7 @@ message NavMonMessage {
 	required uint32 gnssID =3;
 	required uint32 gnssSV =4;
 	required bytes contents =5;
+                optional uint32 sigid = 6;      
   }
   message BeidouInavD2 {
 	required uint32 gnssWN =1;
@@ -51,6 +54,7 @@ message NavMonMessage {
 	required uint32 gnssID =3;
 	required uint32 gnssSV =4;
 	required bytes contents =5;
+        optional uint32 sigid = 6;        
   }
 
   message GlonassInav {
@@ -58,12 +62,14 @@ message NavMonMessage {
 	required uint32 gnssSV  = 2;
         required uint32 freq    = 3;
 	required bytes contents = 4;
+        optional uint32 sigid = 5;
   }
 
 
   message ReceptionData {
         required uint32 gnssID =1;
 	required uint32 gnssSV =2;
+        optional uint32 sigid = 7;
   	required uint32 db     =3;
         required uint32 el     =4;
         required uint32 azi    =5;
@@ -81,15 +87,15 @@ message NavMonMessage {
         required double locktimeMS = 8;
         required double doStd = 9;
         required double cpStd = 10;
-        required double prStd = 11
-        ;
+        required double prStd = 11;
+        optional uint32 sigid = 12;
   }
 
   message ObserverPosition {
           required double x = 1;
           required double y = 2;
           required double z = 3;
-          required double accCm = 4;
+          required double acc = 4;
   }
 
   optional GalileoInav gi=5;

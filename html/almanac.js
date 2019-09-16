@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "best-tle", "best-tle-dist", "best-tle-norad", "best-tle-int-desig", "e1bhs", "e5bhs", "health", "inclination", "eph-ecefX", "eph-ecefY", "eph-ecefZ", "tle-ecefX", "tle-ecefY", "tle-ecefZ", "eph-latitude", "eph-longitude", "tle-latitude", "tle-longitude", "t0e", "t"]; // , "tle-eciX", "tle-eciY", "tle-eciZ"
+    var columns = ["sv", "best-tle", "best-tle-dist", "best-tle-norad", "best-tle-int-desig", "eph-ecefX", "eph-ecefY", "eph-ecefZ", "tle-ecefX", "tle-ecefY", "tle-ecefZ", "eph-latitude", "eph-longitude", "tle-latitude", "tle-longitude", "tle-eciX", "tle-eciY", "tle-eciZ", "t0e", "t"];    
     
     // append the header row
     thead.append("tr")
@@ -23,10 +23,8 @@ function maketable(str, arr)
         .enter()
         .append("th")
         .text(function(column) {
-            if(column == "best-tle-dist")
-                return "tle-dist";
-            if(column == "best-tle-int-desig")
-                return "int-desig";
+            if(column == "delta_hz_corr")
+                return "ΔHz";
             else
                 return column;
         });
@@ -37,9 +35,7 @@ function maketable(str, arr)
                 var ret={};
                 ret.column = column;
                 ret.color=null;
-                if(row[column] != null && column != "sv" && column != "best-tle" &&
-                   column != "best-tle-norad" && column != "best-tle-int-desig" && column != "e1bhs" &&
-                   column != "e5bhs" && column!="health")
+                if(row[column] != null && column != "sv" && column != "best-tle" && column != "best-tle-norad" && column != "best-tle-int-desig")
                     ret.value = row[column].toFixed(1);
                 else
                     ret.value = row[column];
@@ -90,6 +86,9 @@ function update()
         var livearr=[];
         for(n = 0 ; n < arr.length; n++)
         {
+            if(arr[n].sv[0]!='G')
+                continue;
+
             livearr.push(arr[n]);
         }
 

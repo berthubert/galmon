@@ -5,7 +5,7 @@
 int ephAge(int tow, int t0e);
 
 template<typename T>
-void getCoordinates(int wn, double tow, const T& iod, Point* p, bool quiet=true)
+void getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
 {
   using namespace std;
   // here goes
@@ -165,25 +165,25 @@ struct DopplerData
 };
 
 template<typename T>
-void getSpeed(int wn, double tow, const T& eph, Vector* v)
+void getSpeed(double tow, const T& eph, Vector* v)
 {
   Point a, b;
-  getCoordinates(wn, tow-0.5, eph, &a);
-  getCoordinates(wn, tow+0.5, eph, &b);
+  getCoordinates(tow-0.5, eph, &a);
+  getCoordinates(tow+0.5, eph, &b);
   *v = Vector(a, b);
 }
 
 template<typename T>
-DopplerData doDoppler(int wn, int tow, const Point& us, const T& eph, double freq)
+DopplerData doDoppler(double tow, const Point& us, const T& eph, double freq)
 {
   DopplerData ret;
   
   // be careful with time here - we need to evaluate at the timestamp of this RFDataType update
   // which might be newer than .tow in g_svstats
-  getCoordinates(wn, tow, eph, &ret.sat);
+  getCoordinates(tow, eph, &ret.sat);
   Point core;
   Vector us2sat(us, ret.sat);
-  getSpeed(wn, tow, eph, &ret.speed);
+  getSpeed(tow, eph, &ret.speed);
   Vector core2us(core, us);
   Vector dx(us, ret.sat); //  = x-ourx, dy = y-oury, dz = z-ourz;
         
@@ -201,3 +201,5 @@ DopplerData doDoppler(int wn, int tow, const Point& us, const T& eph, double fre
 }
 
 std::pair<double,double> getLongLat(double x, double y, double z);
+double getElevationDeg(const Point& sat, const Point& our);
+double getAzimuthDeg(const Point& sat, const Point& our);

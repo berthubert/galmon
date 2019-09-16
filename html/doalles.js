@@ -200,6 +200,7 @@ function update()
         var livearr=[], stalearr=[];
         for(n = 0 ; n < arr.length; n++)
         {
+//            if(arr[n]["gnssid"]) continue;
             if(arr[n]["last-seen-s"] < 600)
                 livearr.push(arr[n]);
             else
@@ -212,6 +213,6 @@ function update()
     });
 }
 
-update();
+repeat=update();
 
 

@@ -368,7 +368,7 @@ int main(int argc, char** argv)
   int fd = initFD(serial[0].c_str(), doRTSCTS);
   
   g_srcid = atoi(serial[1].c_str());
-  
+  bool version9 = false;  
   if(!g_fromFile) {
     bool doInit = true;
     if(doInit) {
@@ -406,8 +406,15 @@ int main(int argc, char** argv)
       UBXMessage um1=waitForUBX(fd, 2, 0x0a, 0x04);
       cerr<<"swVersion: "<<um1.getPayload().c_str()<<endl;
       cerr<<"hwVersion: "<<um1.getPayload().c_str()+30<<endl;
-      for(unsigned int n=0; 40+30*n < um1.getPayload().size(); ++n)
+
+      for(unsigned int n=0; 40+30*n < um1.getPayload().size(); ++n) {
         cerr<<"Extended info: "<<um1.getPayload().c_str() + 40 +30*n<<endl;
+        if(um1.getPayload().find((const uint8_t*)"F9") != string::npos)
+          version9=true;
+      }
+
+      if(version9)
+        cerr<<"Detected version U-Blox 9"<<endl;
       
       cerr<<"Sending GNSS query"<<endl;
       msg = buildUbxMessage(0x06, 0x3e, {});
@@ -416,40 +423,42 @@ int main(int argc, char** argv)
       auto payload = um1.getPayload();
       cerr<<"GNSS status, got " << (int)payload[3]<<" rows:\n";
       for(uint8_t n = 0 ; n < payload[3]; ++n) {
-        cerr<<"GNSSID "<<(int)payload[4+8*n]<<" enabled "<<(int)payload[8+8*n]<<" minTrk "<< (int)payload[5+8*n] <<" maxTrk "<<(int)payload[6+8*n]<<endl;
+        cerr<<"GNSSID "<<(int)payload[4+8*n]<<" enabled "<<(int)payload[8+8*n]<<" minTrk "<< (int)payload[5+8*n] <<" maxTrk "<<(int)payload[6+8*n]<<" " << (int)payload[8+8*n]<<" " << (int)payload[9+8*n] << " " <<" " << (int)payload[10+8*n]<<" " << (int)payload[11+8*n]<<endl;
       }
 
       if(waitForUBXAckNack(fd, 2, 0x06, 0x3e)) {
         cerr<<"Got ACK for our poll of GNSS settings"<<endl;
       }
-      
-      //                                  ver   RO   maxch cfgs
-      msg = buildUbxMessage(0x06, 0x3e, {0x00, 0x00, 0xff, 0x06,
-          //                            GPS   min  max   res   x1         x2    x3,   x4
-                                        0x00, 0x04, 0x08, 0,  doGPS,    0x00, 0x01, 0x00,
-          //                            SBAS  min  max   rex   x1       x2    x3    x4
-                                        0x01, 0x03, 0x04, 0,   doSBAS,  0x00, 0x01, 0x00,
-          //                            BEI   min  max   res   x1       x2    x3,   x4
-                                        0x03, 0x04, 0x08, 0,  doBeidou, 0x00, 0x01, 0x00,
-          //                            ???   min  max   res   x1   x2    x3,   x4
-                                        0x05, 0x04, 0x08, 0,  0, 0x00, 0x01, 0x00,
+      if(!version9) {
+        //                                  ver   RO   maxch cfgs
+        msg = buildUbxMessage(0x06, 0x3e, {0x00, 0x00, 0xff, 0x06,
+              //                            GPS   min  max   res   x1         x2    x3,   x4
+              0x00, 0x04, 0x08, 0,  doGPS,    0x00, 0x01, 0x00,
+              //                            SBAS  min  max   rex   x1       x2    x3    x4
+              0x01, 0x03, 0x04, 0,   doSBAS,  0x00, 0x01, 0x00,
+              //                            BEI   min  max   res   x1       x2    x3,   x4
+              0x03, 0x04, 0x08, 0,  doBeidou, 0x00, 0x01, 0x00,
+              //                            ???   min  max   res   x1   x2    x3,   x4
+              0x05, 0x04, 0x08, 0,  0, 0x00, 0x01, 0x00,
             
-          //                            GAL   min  max   res   x1   x2    x3,   x4
-                                        0x02, 0x04, 0x08, 0,  doGalileo, 0x00, 0x01, 0x00,
-          //                            GLO   min  max   res   x1   x2    x3,   x4
-                                        0x06, 0x06, 0x08, 0,  doGlonass, 0x00, 0x01, 0x00
+              //                            GAL   min  max   res   x1   x2    x3,   x4
+              0x02, 0x04, 0x08, 0,  doGalileo, 0x00, 0x01, 0x00,
+              //                            GLO   min  max   res   x1   x2    x3,   x4
+              0x06, 0x06, 0x08, 0,  doGlonass, 0x00, 0x01, 0x00
 
-            });
+              });
       
-      cerr<<"Sending GNSS setting, GPS: "<<doGPS<<", Galileo: "<<doGalileo<<", BeiDou: "<<doBeidou<<", GLONASS: "<<doGlonass<<", SBAS: "<<doSBAS<<endl;
-      writen2(fd, msg.c_str(), msg.size());
+        cerr<<"Sending GNSS setting, GPS: "<<doGPS<<", Galileo: "<<doGalileo<<", BeiDou: "<<doBeidou<<", GLONASS: "<<doGlonass<<", SBAS: "<<doSBAS<<endl;
+        writen2(fd, msg.c_str(), msg.size());
       
-      if(waitForUBXAckNack(fd, 2, 0x06, 0x3e))
-        cerr<<"Got ack on GNSS setting"<<endl;
-      else {
-        cerr<<"Got nack on GNSS setting"<<endl;
-        exit(-1);
+        if(waitForUBXAckNack(fd, 2, 0x06, 0x3e))
+          cerr<<"Got ack on GNSS setting"<<endl;
+        else {
+          cerr<<"Got nack on GNSS setting"<<endl;
+          exit(-1);
+        }
       }
+
       if(doSBAS) {
         //                                 "on" "*.*"  ign   
         msg = buildUbxMessage(0x06, 0x16, {0x01, 0x07, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00});
@@ -495,16 +504,22 @@ int main(int argc, char** argv)
       enableUBXMessageUSB(fd, 0x02, 0x59);
       
       cerr<<"Enabling UBX-RXM-RAWX"<<endl; // RF doppler
-      enableUBXMessageUSB(fd, 0x02, 0x15);
+      enableUBXMessageUSB(fd, 0x02, 0x15, 16);
       
       cerr<<"Enabling UBX-RXM-SFRBX"<<endl; // raw navigation frames
       enableUBXMessageUSB(fd, 0x02, 0x13);
       
       cerr<<"Enabling UBX-NAV-POSECEF"<<endl; // position
       enableUBXMessageUSB(fd, 0x01, 0x01, 8);
-      
-      cerr<<"Enabling UBX-NAV-SAT"<<endl;  // satellite reception details
-      enableUBXMessageUSB(fd, 0x01, 0x35, 4);
+
+      if(version9)  {
+        cerr<<"Enabling UBX-NAV-SIG"<<endl;  // satellite reception details
+        enableUBXMessageUSB(fd, 0x01, 0x43, 8);
+      }
+      else {
+        cerr<<"Enabling UBX-NAV-SAT"<<endl;  // satellite reception details
+        enableUBXMessageUSB(fd, 0x01, 0x35, 8);
+      }
       
       cerr<<"Enabling UBX-NAV-PVT"<<endl; // position, velocity, time fix
       enableUBXMessageUSB(fd, 0x01, 0x07, 1);
@@ -586,7 +601,7 @@ int main(int argc, char** argv)
           //          fmt::fprintf(stderr, "Our UTC      : %02d:%02d:%06.4f -> %.4f or %d:%f -> delta = %.4fs\n", tm.tm_hour, tm.tm_min, seconds, ourutc, timestamp.tv_sec, 1.0*timestamp.tv_usec, ourutc - satutc);
         }
       }
-      else if(msg.getClass() == 0x02 && msg.getType() == 0x15) {  // RAWX
+      else if(msg.getClass() == 0x02 && msg.getType() == 0x15) {  // RAWX, the doppler stuff
         //        cerr<<"Got "<<(int)payload[11] <<" measurements "<<endl;
         double rcvTow;
         memcpy(&rcvTow, &payload[0], 8);
@@ -599,9 +614,21 @@ int main(int argc, char** argv)
           memcpy(&prMes, &payload[16+32*n], 8);
           memcpy(&cpMes, &payload[24+32*n], 8);
           memcpy(&doppler, &payload[32+32*n], 4);
-          
           int gnssid = payload[36+32*n];
           int sv = payload[37+32*n];
+          int sigid=0;
+          if(version9) {
+            sigid = payload[38+32*n];
+            if(gnssid == 2 && sigid ==6)  // they separate out I and Q, but the rest of UBX doesn't
+              sigid = 5;                  // so map it back
+            if(gnssid == 2 && sigid ==0)  // they separate out I and Q, but the rest of UBX doesn't
+              sigid = 1;                  // so map it back
+          }
+          else if(gnssid==2) { // version 8 defaults galileo to E1B
+            sigid = 1;
+          }
+
+          
           uint16_t locktimems;
           memcpy(&locktimems, &payload[40+32*n], 2);
           uint8_t prStddev = payload[43+23*n] & 0xf;
@@ -617,6 +644,7 @@ int main(int argc, char** argv)
 
           nmm.mutable_rfd()->set_gnssid(gnssid);
           nmm.mutable_rfd()->set_gnsssv(sv);
+          nmm.mutable_rfd()->set_sigid(sigid);
           nmm.mutable_rfd()->set_rcvtow(rcvTow);
           nmm.mutable_rfd()->set_rcvwn(rcvWn);
           nmm.mutable_rfd()->set_doppler(doppler);
@@ -655,7 +683,7 @@ int main(int argc, char** argv)
         nmm.mutable_op()->set_x(p.ecefX /100.0);
         nmm.mutable_op()->set_y(p.ecefY /100.0);
         nmm.mutable_op()->set_z(p.ecefZ /100.0);
-        nmm.mutable_op()->set_acccm(p.pAcc /100.0);
+        nmm.mutable_op()->set_acc(p.pAcc /100.0);
         emitNMM(1, nmm);
       }
       else if(msg.getClass() == 2 && msg.getType() == 0x13) {  // SFRBX
@@ -666,21 +694,22 @@ int main(int argc, char** argv)
         
         try {
           pair<int,int> id = make_pair(payload[0], payload[1]);
-          static set<pair<int,int>> svseen;
+          int sigid = payload[2];
+          static set<tuple<int,int,int>> svseen;
           static time_t lastStat;
-          svseen.insert(id);
+          svseen.insert({id.first, id.second, payload[2]});
 
           if(time(0)- lastStat > 30) {
             cerr<<"src "<<g_srcid<< " currently receiving: ";
             for(auto& s : svseen) {
-              cerr<<s.first<<","<<s.second<<" ";
+              cerr<<get<0>(s)<<","<<get<1>(s)<<"@"<<get<2>(s)<<" ";
             }
             cerr<<endl;
             lastStat = time(0);
             svseen.clear();
           }
           
-          if(id.first == 0) {
+          if(id.first == 0 && !sigid) { // can only parse the old stuff
             NavMonMessage nmm;
             nmm.set_type(NavMonMessage::GPSInavType);
             nmm.set_localutcseconds(g_gstutc.tv_sec);
@@ -691,13 +720,14 @@ int main(int argc, char** argv)
             auto gpsframe = getGPSFromSFRBXMsg(payload);
             auto cond = getCondensedGPSMessage(gpsframe);
             auto frameno = getbitu(&cond[0], 24+19, 3);
-            if(frameno == 1)
+            if(frameno == 1 && sigid==0)
               wn = 2048 + getbitu(&cond[0], 2*24, 10);
             if(!wn) 
               continue; // can't file this yet
               
             tow = 1.5*(getbitu(&cond[0], 24, 17)*4);
             nmm.mutable_gpsi()->set_gnsswn(wn);   // XXX this sucks
+            nmm.mutable_gpsi()->set_sigid(sigid);
             nmm.mutable_gpsi()->set_gnsstow(tow); // "with 6 second increments" -- needs to be adjusted
             nmm.mutable_gpsi()->set_gnssid(id.first);
             nmm.mutable_gpsi()->set_gnsssv(id.second);
@@ -706,6 +736,8 @@ int main(int argc, char** argv)
             continue;
           }
           else if(id.first ==2) {
+            //            cerr<<"gal nav sv "<<id.second<<" size "<<payload.size();
+            //            cerr<<" res1 "<<(int)payload[2]<<" numwords "<<(int)payload[4] << " channel "<< (int)payload[5] << " version " << (int)payload[6]<<" res2 "<<(int)payload[7]<<endl;
             auto inav = getInavFromSFRBXMsg(payload);
             unsigned int wtype = getbitu(&inav[0], 0, 6);
             tv[id] = timestamp;
@@ -754,9 +786,11 @@ int main(int argc, char** argv)
             nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
             
             nmm.mutable_gi()->set_gnsswn(g_wn);
+            
             nmm.mutable_gi()->set_gnsstow(msgTOW);
             nmm.mutable_gi()->set_gnssid(id.first);
             nmm.mutable_gi()->set_gnsssv(id.second);
+            nmm.mutable_gi()->set_sigid(sigid);
             nmm.mutable_gi()->set_contents((const char*)&inav[0], inav.size());
             
             emitNMM(1, nmm);
@@ -771,7 +805,7 @@ int main(int argc, char** argv)
             bm.parse(cond, &pageno);
             
             if(bm.wn < 0) {
-              cerr<<"BeiDou C"<<id.second<<" WN not yetknown, not yet emitting message"<<endl;
+              cerr<<"BeiDou C"<<id.second<<" WN not yet known, not yet emitting message"<<endl;
               continue;
             }
             NavMonMessage nmm;
@@ -785,6 +819,7 @@ int main(int argc, char** argv)
               nmm.mutable_bid1()->set_gnsstow(bm.sow); 
               nmm.mutable_bid1()->set_gnssid(id.first);
               nmm.mutable_bid1()->set_gnsssv(id.second);
+              nmm.mutable_bid1()->set_sigid(sigid);              
               nmm.mutable_bid1()->set_contents(string((char*)gstr.c_str(), gstr.size()));
             }
             else {
@@ -793,6 +828,7 @@ int main(int argc, char** argv)
               nmm.mutable_bid2()->set_gnsstow(bm.sow); 
               nmm.mutable_bid2()->set_gnssid(id.first);
               nmm.mutable_bid2()->set_gnsssv(id.second);
+              nmm.mutable_bid2()->set_sigid(sigid);              
               nmm.mutable_bid2()->set_contents(string((char*)gstr.c_str(), gstr.size()));
             }
             emitNMM(1, nmm);
@@ -815,12 +851,14 @@ int main(int argc, char** argv)
               nmm.mutable_gloi()->set_freq(payload[3]);
               nmm.mutable_gloi()->set_gnssid(id.first);
               nmm.mutable_gloi()->set_gnsssv(id.second);
+              nmm.mutable_gloi()->set_sigid(sigid);              
               nmm.mutable_gloi()->set_contents(string((char*)gstr.c_str(), gstr.size()));
+              
               emitNMM(1, nmm);
             }
           }
           else
-            cerr<<"SFRBX from unsupported GNSSID "<<id.first<<", sv "<<id.second<<", "<<payload.size()<<" bytes"<<endl;
+            cerr<<"SFRBX from unsupported GNSSID/sigid combination "<<id.first<<", sv "<<id.second<<", sigid "<<sigid<<", "<<payload.size()<<" bytes"<<endl;
         
 #if 0        
           if(0 && lasttv.count(id)) {
@@ -837,6 +875,8 @@ int main(int argc, char** argv)
         }
       }
       else if(msg.getClass() == 1 && msg.getType() == 0x35) { // UBX-NAV-SAT
+        //        if(version9) // we have UBX-NAV-SIG
+        //          continue;
         //        cerr<< "Info for "<<(int) payload[5]<<" svs: \n";
         for(unsigned int n = 0 ; n < payload[5]; ++n) {
           int gnssid = payload[8+12*n];
@@ -860,6 +900,43 @@ int main(int argc, char** argv)
           nmm.mutable_rd()->set_prres(*((int16_t*)(payload.c_str()+ 14 +12*n)) *0.1);
           emitNMM(1, nmm);
         }
+      }
+      else if(msg.getClass() == 1 && msg.getType() == 0x43) { // UBX-NAV-SIG
+        for(unsigned int n = 0 ; n < payload[5]; ++n) {
+          int gnssid = payload[8+16*n];
+          int sv = payload[9+16*n];
+          int sigid = 0;
+
+          if(version9) {
+            sigid = payload[10+16*n];
+            if(gnssid == 2 && sigid ==6)  // they separate out I and Q, but the rest of UBX doesn't
+              sigid = 5;                  // so map it back
+            if(gnssid == 2 && sigid ==0)  // they separate out I and Q, but the rest of UBX doesn't
+              sigid = 1;                  // so map it back
+          }
+          else if(gnssid==2) { // version 8 defaults galileo to E1B
+            sigid = 1;
+          }
+
+          auto db = (int)payload[14+16*n];
+          //          cerr <<"gnssid "<<gnssid<<" sv "<<sv<<" el "<<el<<endl;
+          NavMonMessage nmm;
+          nmm.set_sourceid(g_srcid);
+          nmm.set_localutcseconds(g_gstutc.tv_sec);
+          nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
+          
+          nmm.set_type(NavMonMessage::ReceptionDataType);
+          nmm.mutable_rd()->set_gnssid(gnssid);
+          nmm.mutable_rd()->set_gnsssv(sv);
+          nmm.mutable_rd()->set_db(db);
+          nmm.mutable_rd()->set_prres(*((int16_t*)(payload.c_str()+ 12 +16*n)) *0.1); // ENDIANISM
+          nmm.mutable_rd()->set_sigid(sigid);
+          nmm.mutable_rd()->set_el(0);
+          nmm.mutable_rd()->set_azi(0);
+          
+          emitNMM(1, nmm);
+        }
+        
       }
 
       //      writen2(1, payload.d_raw.c_str(),msg.d_raw.size());

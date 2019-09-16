@@ -48,3 +48,47 @@ std::pair<double,double> getLongLat(double x, double y, double z)
 
   return std::make_pair(longitude, latitude);
 }
+
+
+double getElevationDeg(const Point& sat, const Point& our)
+{
+
+  Point core{0,0,0};
+  
+  Vector core2us(core, our);
+  Vector dx(our, sat); //  = x-ourx, dy = y-oury, dz = z-ourz;
+  
+  // https://ds9a.nl/articles/
+  
+  double elev = acos ( core2us.inner(dx) / (core2us.length() * dx.length()));
+  double deg = 180.0* (elev/M_PI);
+  return 90.0 - deg;
+}
+
+// https://gis.stackexchange.com/questions/58923/calculating-view-angle
+
+double getAzimuthDeg(const Point& sat, const Point& our)
+{
+  Point core{0,0,0};
+
+  Vector north{
+    -our.z*our.x,
+    -our.z*our.y,
+    our.x*our.x + our.y * our.y};
+
+  Vector east{-our.y, our.x, 0};
+  
+  Vector dx(our, sat); //  = x-ourx, dy = y-oury, dz = z-ourz;
+  
+  // https://ds9a.nl/articles/
+  
+  double azicos = ( north.inner(dx) / (north.length() * dx.length()));
+  double azisin = ( east.inner(dx) / (east.length() * dx.length()));
+
+  double azi = atan2(azisin, azicos);
+  
+  double deg = 180.0* (azi/M_PI);
+  if(deg < 0)
+    deg += 360;
+  return deg;
+}

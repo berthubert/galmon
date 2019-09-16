@@ -29,7 +29,12 @@
 #include <Tle.h>
 using namespace std;
 
-std::map<int, Point> g_srcpos;
+struct ObserverPosition
+{
+  Point pos;
+  time_t lastSeen{0};
+};
+std::map<int, ObserverPosition> g_srcpos;
 
 template<typename T>
 class GetterSetter
@@ -399,16 +404,27 @@ void SVStat::addGalileoWord(std::basic_string_view<uint8_t> page)
   }
 }
 
-typedef std::map<pair<int,int>, SVStat> svstats_t;
+struct SatID
+{
+  uint32_t gnss{255}; // these could all be 'int16_t' but leads to howling numbers of warnings with protobuf
+  uint32_t sv{0};
+  uint32_t sigid{0};
+  bool operator<(const SatID& rhs) const
+  {
+    return tie(gnss, sv, sigid) < tie(rhs.gnss, rhs.sv, rhs.sigid);
+  }
+};
+
+typedef std::map<SatID, SVStat> svstats_t;
 svstats_t g_svstats;
 
-GetterSetter<std::map<pair<int,int>, SVStat>> g_statskeeper;
+GetterSetter<svstats_t> g_statskeeper;
 
 int latestWN(int gnssid, const svstats_t& stats)
 {
-  map<int, pair<int,int>> ages;
+  map<int, SatID> ages;
   for(const auto& s: stats)
-    if(s.first.first == gnssid)
+    if(s.first.gnss == (unsigned int)gnssid)
       ages[7*s.second.wn*86400 + s.second.tow]= s.first;
   if(ages.empty())
     throw runtime_error("Asked for latest WN for "+to_string(gnssid)+": we don't know it yet");
@@ -418,9 +434,9 @@ int latestWN(int gnssid, const svstats_t& stats)
 
 int latestTow(int gnssid, const svstats_t& stats)
 {
-  map<int, pair<int,int>> ages;
+  map<int, SatID> ages;
   for(const auto& s: stats)
-    if(s.first.first == gnssid)
+    if(s.first.gnss == (unsigned int) gnssid)
       ages[7*s.second.wn*86400 + s.second.tow]= s.first;
   if(ages.empty())
     throw runtime_error("Asked for latest TOW for "+to_string(gnssid)+": we don't know it yet");
@@ -428,7 +444,7 @@ int latestTow(int gnssid, const svstats_t& stats)
 }
 
 
-uint64_t nanoTime(int gnssid, int wn, int tow)
+int64_t nanoTime(int gnssid, int wn, double tow)
 {
   int offset;
   if(gnssid == 0) // GPS
@@ -460,33 +476,89 @@ struct InfluxPusher
   }
 
   template<typename T>
-  void addValue( const pair<pair<int,int>,SVStat>& ent, string_view name, const T& value)
+  void addValue( const pair<SatID,SVStat>& ent, string_view name, const T& value)
   {
     if(d_mute)
       return;
-    d_buffer+= string(name)+",gnssid="+to_string(ent.first.first)+ +",sv=" +to_string(ent.first.second)+" value="+to_string(value)+
-      " "+to_string(nanoTime(ent.first.first, ent.second.wn, ent.second.tow))+"\n";
+    if(nanoTime (ent.first.gnss, ent.second.wn, ent.second.tow)/1000000000 > 2000000000) {
+      cerr<<"Unable to store item "<<name<<" for sv "<<ent.first.gnss<<","<<ent.first.sv<<": time out of range "<<ent.second.wn<<" "<<ent.second.tow<<endl;
+      return;
+    }
+    d_buffer+= string(name)+",gnssid="+to_string(ent.first.gnss)+ +",sv=" +to_string(ent.first.sv)+",sigid="+to_string(ent.first.sigid);
+    d_buffer+=" value="+to_string(value)+
+      " "+to_string(nanoTime(ent.first.gnss, ent.second.wn, ent.second.tow))+"\n";
     checkSend();
   }
 
   template<typename T>
-  void addValue(pair<int,int> id, string_view name, const T& value, std::optional<int> src = std::optional<int>())
+  void addValueObserver(int src, string_view name, const T& value, time_t t)
+  {
+    if(d_mute)
+      return;
+    d_buffer+= string(name)+",src="+to_string(src)+ " value="+to_string(value)+
+      " "+to_string(t*1000000000)+"\n";
+    checkSend();
+  }
+
+  
+  template<typename T>
+  void addValue(const SatID& id, string_view name, const T& value, std::optional<int> src = std::optional<int>())
   {
     if(d_mute)
       return;
 
+    if(nanoTime (id.gnss, g_svstats[id].wn, g_svstats[id].tow)/1000000000 > 2000000000) {
+      cerr<<"Unable to store item "<<name<<" for sv "<<id.gnss<<","<<id.sv<<": time out of range "<<g_svstats[id].wn<<" "<< g_svstats[id].tow<<endl;
+      return;
+    }
+
+    
     if(g_svstats[id].wn ==0 && g_svstats[id].tow == 0)
       return;
       //      cout << g_svstats[id].wn <<", "<<g_svstats[id].tow<<" -> " <<nanoTime(id.first, g_svstats[id].wn, g_svstats[id].tow)<<endl;
-    d_buffer+= string(name) +",gnssid="+to_string(id.first)+",sv=" +to_string(id.second);
+    d_buffer+= string(name) +",gnssid="+to_string(id.gnss)+",sv=" +to_string(id.sv)+",sigid="+to_string(id.sigid);
     if(src)
       d_buffer += ",src="+to_string(*src);
+    
     d_buffer+= " value="+to_string(value)+" "+
-      to_string(nanoTime(id.first, g_svstats[id].wn, g_svstats[id].tow))+"\n";
+      to_string(nanoTime(id.gnss, g_svstats[id].wn, g_svstats[id].tow))+"\n";
 
     checkSend();
   }
 
+  void addValue(const SatID& id, uint64_t nanotime, string_view name, const initializer_list<pair<const char*, double>>& values, std::optional<int> src = std::optional<int>())
+  {
+    if(d_mute)
+      return;
+
+    if(nanotime/1000000000 > 2000000000) {
+      cerr<<"Unable to store item "<<name<<" for sv "<<id.gnss<<","<<id.sv<<": time out of range "<<nanotime;
+      return;
+    }
+    for(const auto& p : values) {
+      if(isnan(p.second))
+        return;
+    }
+    
+    d_buffer+= string(name) +",gnssid="+to_string(id.gnss)+",sv=" +to_string(id.sv)+",sigid="+to_string(id.sigid);
+    if(src)
+      d_buffer += ",src="+to_string(*src);
+    
+    d_buffer+= " ";
+    bool lefirst=true;
+    for(const auto& v : values) {
+      if(!lefirst) {
+        d_buffer +=",";
+      }
+      lefirst=false;
+      d_buffer += string(v.first) + "="+to_string(v.second);
+    }
+    d_buffer += " " + to_string(nanotime)+"\n";
+
+    checkSend();
+  }
+
+  
   void checkSend()
   {
     if(d_buffer.size() > 1000000 || (time(0) - d_lastsent) > 10) {
@@ -546,11 +618,11 @@ std::optional<double> getHzCorrection(time_t now, const svstats_t svstats)
     if(now - s.second.deltaHz.first < 60) {
       alltot+=s.second.deltaHz.second;
       allcount++;
-      if(s.first.first == 0) {
+      if(s.first.gnss == 0) {
         gpstot+=s.second.deltaHz.second;
         gpscount++;
       }
-      else if(s.first.first == 2) {
+      else if(s.first.gnss == 2 && s.first.sigid == 1) { // focus on E1
         galtot+=s.second.deltaHz.second;
         galcount++;
       }
@@ -583,20 +655,6 @@ char getGNSSChar(int id)
     return '0'+id;
 }
 
-double getElevationDeg(const Point& p, int sourceid)
-{
-  Point our = g_srcpos[sourceid];
-  Point core{0,0,0};
-  
-  Vector core2us(core, our);
-  Vector dx(our, p); //  = x-ourx, dy = y-oury, dz = z-ourz;
-  
-  // https://ds9a.nl/articles/
-  
-  double elev = acos ( core2us.inner(dx) / (core2us.length() * dx.length()));
-  double deg = 180.0* (elev/M_PI);
-  return 90.0 - deg;
-}
 
 std::string humanBhs(int bhs)
 {
@@ -631,7 +689,7 @@ try
       catch(...)
         {}
       
-      map<int, int> utcstats, gpsgststats, gpsutcstats;
+      map<int, SatID> utcstats, gpsgststats, gpsutcstats;
 
       for(const auto& s: svstats) {
         if(!s.second.wn) // this will suck in 20 years
@@ -640,41 +698,40 @@ try
         //Galileo-UTC offset: 3.22 ns, Galileo-GPS offset: 7.67 ns, 18 leap seconds
 
 
-        if(s.first.first == 0) { // GPS
-          int sv = s.first.second;
-          int dw = (uint8_t)svstats[{0,sv}].wn - svstats[{0,sv}].wn0t;
-          int age = dw * 7 * 86400 + svstats[{0,sv}].tow - svstats[{0,sv}].t0t; // t0t is PRESCALED
+        if(s.first.gnss == 0) { // GPS
+          int dw = (uint8_t)s.second.wn - s.second.wn0t;
+          int age = dw * 7 * 86400 + s.second.tow - s.second.t0t; // t0t is PRESCALED // XXX changed this, 
           
-          gpsutcstats[age]=s.first.second;
+          gpsutcstats[age]=s.first;
           continue;
         }
 
         int dw = (uint8_t)s.second.wn - s.second.wn0t;
         int age = dw * 7 * 86400 + s.second.tow - s.second.t0t; // t0t is pre-scaled
-        utcstats[age]=s.first.second;
+        utcstats[age]=s.first;
 
         uint8_t wn0g = s.second.wn0t;
         int dwg = (((uint8_t)s.second.wn)&(1+2+4+8+16+32)) - wn0g;
         age = dwg*7*86400 + s.second.tow - s.second.t0g * 3600;
-        gpsgststats[age]=s.first.second;
+        gpsgststats[age]=s.first;
 
       }
       if(utcstats.empty()) {
         ret["utc-offset-ns"]=nullptr;
       }
       else {
-        int sv = utcstats.begin()->second; // freshest SV
-        long shift = svstats[{2,sv}].a0 * (1LL<<20) + svstats[{2,sv}].a1 * utcstats.begin()->first; // in 2^-50 seconds units
+        auto satid = utcstats.begin()->second; // freshest SV
+        long shift = svstats[{2,satid.sv,satid.sigid}].a0 * (1LL<<20) + svstats[{2,satid.sv,satid.sigid}].a1 * utcstats.begin()->first; // in 2^-50 seconds units
         ret["utc-offset-ns"] = 1.073741824*ldexp(1.0*shift, -20);
-        ret["leap-second-planned"] = (svstats[{2,sv}].dtLSF != svstats[{2,sv}].dtLS);
+        ret["leap-second-planned"] = (svstats[satid].dtLSF != svstats[satid].dtLS);
       }
 
       if(gpsgststats.empty()) {
         ret["gps-offset-ns"]=nullptr;
       }
       else {
-        int sv = gpsgststats.begin()->second; // freshest SV
-        long shift = svstats[{2,sv}].a0g * (1L<<16) + svstats[{2,sv}].a1g * gpsgststats.begin()->first; // in 2^-51 seconds units
+        auto satid = gpsgststats.begin()->second; // freshest SV
+        long shift = svstats[{2,satid.sv, satid.sigid}].a0g * (1L<<16) + svstats[{2,satid.sv, satid.sigid}].a1g * gpsgststats.begin()->first; // in 2^-51 seconds units
         
         ret["gps-offset-ns"] = 1.073741824*ldexp(shift, -21);
       }
@@ -683,8 +740,8 @@ try
         ret["gps-utc-offset-ns"]=nullptr;
       }
       else {
-        int sv = gpsutcstats.begin()->second; // freshest SV
-        long shift = svstats[{0,sv}].a0 * (1LL<<20) + svstats[{0,sv}].a1 * gpsutcstats.begin()->first; // In 2^-50 seconds units
+        auto satid = gpsutcstats.begin()->second; // freshest SV
+        long shift = svstats[{0,satid.sv,satid.sigid}].a0 * (1LL<<20) + svstats[{0,satid.sv,satid.sigid}].a1 * gpsutcstats.begin()->first; // In 2^-50 seconds units
 
         ret["gps-utc-offset-ns"] = 1.073741824*ldexp(shift, -20);
       }
@@ -705,7 +762,7 @@ try
         if(ae.second.alma.getT0e() > 7*86400)
           continue;
         Point sat;
-        getCoordinates(0, latestTow(3, svstats), ae.second.alma, &sat);
+        getCoordinates(latestTow(3, svstats), ae.second.alma, &sat);
         item["eph-ecefX"]= sat.x/1000;
         item["eph-ecefY"]= sat.y/1000;
         item["eph-ecefZ"]= sat.z/1000;
@@ -716,6 +773,13 @@ try
         item["t0e"] = ae.second.alma.getT0e();
         item["t"]= ephAge(ae.second.alma.getT0e(), latestTow(3, svstats))/86400.0;
         item["inclination"] = 180 * ae.second.alma.getI0() /M_PI;
+
+        item["observed"]=false;
+        if(auto iter = svstats.find({3, (uint32_t)ae.first, 0}); iter != svstats.end()) {
+          if(time(0) - nanoTime(3, iter->second.wn, iter->second.tow)/1000000000 < 300)
+            item["observed"] = true;
+        }
+        
         if(ephAge(ae.second.alma.getT0e(), latestTow(3, svstats)) < 0) {
           auto match = g_tles.getBestMatch(nanoTime(3, latestWN(3, svstats), latestTow(3, svstats))/1000000000.0,
                                          sat.x, sat.y, sat.z);
@@ -756,6 +820,22 @@ try
         item["lambdana"] = ae.second.second.getLambdaNaDeg();
         item["hna"] = ae.second.second.hna;
 
+        item["observed"] = false;
+        for(uint32_t sigid : {0,1,2}) { // XXX SIGIDS
+          if(auto iter = svstats.find({6, (uint32_t)ae.first, sigid}); iter != svstats.end()) {
+            if(time(0) - nanoTime(6, iter->second.wn, iter->second.tow)/1000000000 < 300) {
+              item["observed"] = true;
+              auto longlat = getLongLat(iter->second.glonassMessage.x, iter->second.glonassMessage.y, iter->second.glonassMessage.z);
+              item["eph-longitude"] = 180*longlat.first/M_PI;
+              item["eph-latitude"]= 180*longlat.second/M_PI;
+              break;
+            }
+            
+          }
+        }
+
+
+        
         ret[fmt::sprintf("R%02d", ae.first)] = item;
       }
 
@@ -772,7 +852,7 @@ try
         item["i0"] = 180.0 * ae.second.getI0()/ M_PI;
         item["inclination"] = 180 * ae.second.getI0() /M_PI;
         Point sat;
-        getCoordinates(0, latestTow(2, svstats), ae.second, &sat);
+        getCoordinates(latestTow(2, svstats), ae.second, &sat);
         item["eph-ecefX"]= sat.x/1000;
         item["eph-ecefY"]= sat.y/1000;
         item["eph-ecefZ"]= sat.z/1000;
@@ -781,6 +861,16 @@ try
         item["eph-longitude"] = 180*longlat.first/M_PI;
         item["eph-latitude"]= 180*longlat.second/M_PI;
 
+
+        item["observed"] = false;
+        for(uint32_t sigid : {0,1,5}) {
+          if(auto iter = svstats.find({2, (uint32_t)ae.first, sigid}); iter != svstats.end()) {
+            if(time(0) - nanoTime(2, iter->second.wn, iter->second.tow)/1000000000 < 300)
+              item["observed"] = true;
+          }
+        }
+
+        
         auto match = g_tles.getBestMatch(nanoTime(2, latestWN(2, svstats), latestTow(2, svstats))/1000000000.0,
                                          sat.x, sat.y, sat.z);
         
@@ -817,7 +907,7 @@ try
         item["i0"] = 180.0 * ae.second.getI0()/ M_PI;
         item["inclination"] = 180 * ae.second.getI0() /M_PI;
         Point sat;
-        getCoordinates(0, latestTow(0, svstats), ae.second, &sat);
+        getCoordinates(latestTow(0, svstats), ae.second, &sat);
         item["eph-ecefX"]= sat.x/1000;
         item["eph-ecefY"]= sat.y/1000;
         item["eph-ecefZ"]= sat.z/1000;
@@ -826,6 +916,15 @@ try
         item["eph-longitude"] = 180*longlat.first/M_PI;
         item["eph-latitude"]= 180*longlat.second/M_PI;
 
+        item["observed"] = false;
+        for(uint32_t sigid : {0,1,4}) {
+          if(auto iter = svstats.find({0, (uint32_t)ae.first, sigid}); iter != svstats.end()) {
+            if(time(0) - nanoTime(0, iter->second.wn, iter->second.tow)/1000000000 < 300)
+              item["observed"] = true;
+          }
+        }
+
+        
         auto match = g_tles.getBestMatch(nanoTime(0, latestWN(0, svstats), latestTow(0, svstats))/1000000000.0,
                                          sat.x, sat.y, sat.z);
         
@@ -858,13 +957,14 @@ try
       for(const auto& src : g_srcpos) {
         nlohmann::json obj;
         obj["id"] = src.first;
-        auto longlat = getLongLat(src.second.x, src.second.y, src.second.z);
+        auto longlat = getLongLat(src.second.pos.x, src.second.pos.y, src.second.pos.z);
         longlat.first *= 180.0/M_PI;
         longlat.second *= 180.0/M_PI;
         longlat.first = ((int)(10*longlat.first))/10.0;
         longlat.second = ((int)(10*longlat.second))/10.0;
         obj["longitude"] = longlat.first;
         obj["latitude"] = longlat.second;
+        obj["last-seen"] = src.second.lastSeen;
         ret.push_back(obj);
       }
       return ret;
@@ -881,11 +981,12 @@ try
         if(!s.second.tow) // I know, I know, will suck briefly
           continue;
 
-        item["gnssid"] = s.first.first;
-        item["svid"] = s.first.second;
+        item["gnssid"] = s.first.gnss;
+        item["svid"] = s.first.sv;
+        item["sigid"] = s.first.sigid;
         // perhaps check oldBeidouMessage for sow >=0 as 'completeIOD'?
 
-        if(s.first.first == 3) { // beidou
+        if(s.first.gnss == 3) { // beidou
           item["sisa"]=humanUra(s.second.ura);
           if(s.second.t0eMSB >= 0 && s.second.t0eLSB >=0)
             item["eph-age-m"] = ephAge(s.second.tow, 8.0*((s.second.t0eMSB<<15) + s.second.t0eLSB))/60.0;
@@ -902,15 +1003,15 @@ try
             item["best-tle-int-desig"] = s.second.tleMatch.internat;
           }
           Point p;
-          getCoordinates(0, s.second.tow, s.second.oldBeidouMessage, &p);
+          getCoordinates(s.second.tow, s.second.oldBeidouMessage, &p);
           auto beidoualma = g_beidoualmakeeper.get();
-          if(auto iter = beidoualma.find(s.first.second); iter != beidoualma.end()) {
+          if(auto iter = beidoualma.find(s.first.sv); iter != beidoualma.end()) {
             Point almapos;
-            getCoordinates(0, s.second.tow, iter->second.alma, &almapos);
+            getCoordinates(s.second.tow, iter->second.alma, &almapos);
             item["alma-dist"] = Vector(almapos, p).length()/1000.0;
           }
         }
-        else if(s.first.first == 6) { // glonass
+        else if(s.first.gnss == 6) { // glonass
           if(s.second.glonassMessage.FT < 16)
             item["sisa"] = humanFt(s.second.glonassMessage.FT);
           item["aode"] = s.second.aode;
@@ -933,7 +1034,7 @@ try
         }
         if(s.second.completeIOD()) {
           item["iod"]=s.second.getIOD();
-          if(s.first.first == 0 || s.first.first == 3) {
+          if(s.first.gnss == 0 || s.first.gnss == 3) {
             item["sisa"]=humanUra(s.second.ura);
             //            cout<<"Asked to convert "<<s.second.ura<<" for sv "<<s.first.first<<","<<s.first.second<<endl;
           }
@@ -950,9 +1051,9 @@ try
           Point core;
           
           // this should actually use local time!
-          getCoordinates(0, s.second.tow, s.second.liveIOD(), &p);
+          getCoordinates(s.second.tow, s.second.liveIOD(), &p);
           auto match = g_tles.getBestMatch(
-                                           s.first.first ?
+                                           s.first.gnss ?
                                            utcFromGST((int)s.second.wn, (int)s.second.tow) : utcFromGPS(s.second.wn, s.second.tow),
                                            p.x, p.y, p.z);
 
@@ -971,19 +1072,19 @@ try
             if(hzCorrection)
               item["delta_hz_corr"] = s.second.deltaHz.second - *hzCorrection;
           }
-          if(s.first.first == 0) {
+          if(s.first.gnss == 0) {
             auto gpsalma = g_gpsalmakeeper.get();
-            if(auto iter = gpsalma.find(s.first.second); iter != gpsalma.end()) {
+            if(auto iter = gpsalma.find(s.first.sv); iter != gpsalma.end()) {
               Point almapos;
-              getCoordinates(0, s.second.tow, iter->second, &almapos);
+              getCoordinates(s.second.tow, iter->second, &almapos);
               item["alma-dist"] = Vector(almapos, p).length()/1000.0;
             }
           }
-          if(s.first.first == 2) {
+          if(s.first.gnss == 2) {
             auto galileoalma = g_galileoalmakeeper.get();
-            if(auto iter = galileoalma.find(s.first.second); iter != galileoalma.end()) {
+            if(auto iter = galileoalma.find(s.first.sv); iter != galileoalma.end()) {
               Point almapos;
-              getCoordinates(0, s.second.tow, iter->second, &almapos);
+              getCoordinates(s.second.tow, iter->second, &almapos);
               item["alma-dist"] = Vector(almapos, p).length()/1000.0;
             }
           }
@@ -993,13 +1094,13 @@ try
 
         item["a0"]=s.second.a0;
         item["a1"]=s.second.a1;
-        if(s.first.first == 0) { // GPS
+        if(s.first.gnss == 0) { // GPS
           auto deltaUTC = getGPSUTCOffset(s.second.tow, s.second.wn, s.second);
           item["delta-utc"] = fmt::sprintf("%.1f %+.1f/d", deltaUTC.first, deltaUTC.second * 86400);
           item["t0t"] = s.second.t0t;
           item["wn0t"] = s.second.wn0t;
         }
-        if(s.first.first == 2) {
+        if(s.first.gnss == 2) {
           auto deltaUTC = s.second.galmsg.getUTCOffset(s.second.tow, s.second.wn);
           item["delta-utc"] = fmt::sprintf("%.1f %+.1f/d", deltaUTC.first, deltaUTC.second * 86400);
           auto deltaGPS = s.second.galmsg.getGPSOffset(s.second.tow, s.second.wn);
@@ -1007,7 +1108,7 @@ try
           item["t0t"] = s.second.galmsg.t0t;
           item["wn0t"] = s.second.galmsg.wn0t;
         }
-        if(s.first.first == 3) {
+        if(s.first.gnss == 3) {
           auto deltaUTC = s.second.oldBeidouMessage.getUTCOffset(s.second.oldBeidouMessage.sow);
           item["delta-utc"] = fmt::sprintf("%.1f %+.1f/d", deltaUTC.first, deltaUTC.second * 86400);
 
@@ -1024,7 +1125,7 @@ try
         
         item["dtLS"]=s.second.dtLS;
 
-        if(s.first.first == 3) {  // beidou
+        if(s.first.gnss == 3) {  // beidou
           item["a0g"]=s.second.a0g;
           item["a1g"]=s.second.a1g;
           if(s.second.aode >= 0)
@@ -1035,7 +1136,7 @@ try
         }
 
         
-        if(s.first.first == 2) {  // galileo
+        if(s.first.gnss == 2) {  // galileo
           item["a0g"]=s.second.a0g;
           item["a1g"]=s.second.a1g;
           item["t0g"]=s.second.t0g;
@@ -1059,23 +1160,25 @@ try
             item["healthissue"] = 2;
           
         }
-        else if(s.first.first == 0 || s.first.first == 3 || s.first.first == 6) {// gps or beidou or GLONASS
+        else if(s.first.gnss == 0 || s.first.gnss == 3 || s.first.gnss == 6) {// gps or beidou or GLONASS
           item["health"]= s.second.gpshealth ? ("NOT OK: "+to_string(s.second.gpshealth)) : string("OK");
           item["healthissue"]= 2* !!s.second.gpshealth;
         }
         
         nlohmann::json perrecv  = nlohmann::json::object();
         for(const auto& pr : s.second.perrecv) {
-          if(pr.second.el > 0 && pr.second.el <= 90) {
+          if(pr.second.db > 0) {
             nlohmann::json det  = nlohmann::json::object();
             det["elev"] = pr.second.el;
             Point sat;
                         
-            if((s.first.first == 0 || s.first.first == 2) && s.second.completeIOD())
-              getCoordinates(0, latestTow(s.first.first, svstats), s.second.liveIOD(), & sat);
+            if((s.first.gnss == 0 || s.first.gnss == 2) && s.second.completeIOD())
+              getCoordinates(latestTow(s.first.gnss, svstats), s.second.liveIOD(), & sat);
 
             if(sat.x) {
-              det["elev"] = getElevationDeg(sat, pr.first);
+              Point our = g_srcpos[pr.first].pos;
+              det["elev"] = getElevationDeg(sat, our);
+              det["azi"] = getAzimuthDeg(sat, our);
             }
             else
               det["elev"] = pr.second.el;
@@ -1087,7 +1190,8 @@ try
         }
         item["perrecv"]=perrecv;
 
-        item["last-seen-s"] = time(0) - nanoTime(s.first.first, s.second.wn, s.second.tow)/1000000000;
+        item["last-seen-s"] = time(0) - nanoTime(s.first.gnss, s.second.wn, s.second.tow)/1000000000;
+
         if(s.second.latestDisco >=0) {
           item["latest-disco"]= s.second.latestDisco;
         }
@@ -1098,7 +1202,7 @@ try
         
         item["wn"] = s.second.wn;
         item["tow"] = s.second.tow;
-        ret[fmt::sprintf("%c%02d", getGNSSChar(s.first.first), s.first.second)] = item;
+        ret[fmt::sprintf("%c%02d@%d", getGNSSChar(s.first.gnss), s.first.sv, s.first.sigid)] = item;
       }
       return ret;
     });
@@ -1144,22 +1248,43 @@ try
     if(nmm.type() == NavMonMessage::ReceptionDataType) {
       int gnssid = nmm.rd().gnssid();
       int sv = nmm.rd().gnsssv();
-      pair<int,int> id{gnssid, sv};
+      int sigid = nmm.rd().sigid();
+      if(gnssid==2 && sigid == 0)
+        sigid = 1;
+      
+      SatID id{(uint32_t)gnssid, (uint32_t)sv, (uint32_t)sigid};
       g_svstats[id].perrecv[nmm.sourceid()].db = nmm.rd().db();
       g_svstats[id].perrecv[nmm.sourceid()].el = nmm.rd().el();
       g_svstats[id].perrecv[nmm.sourceid()].azi = nmm.rd().azi();
 
-      // THIS HAS TO SPLIT OUT PER SOURCE
-      idb.addValue(id, "db", nmm.rd().db(), nmm.sourceid());
-      if(nmm.rd().el() <= 90 && nmm.rd().el() > 0)
-        idb.addValue(id, "elev", nmm.rd().el(), nmm.sourceid());
-      idb.addValue(id, "azi", nmm.rd().azi(), nmm.sourceid());
-      idb.addValue(id, "prres", nmm.rd().prres(), nmm.sourceid());            
+      Point sat{0,0,0};
+      //cout<<"Got recdata for "<<id.gnss<<","<<id.sv<<","<<id.sigid<<": count="<<g_svstats.count(id)<<endl;
+      // XXX this needs to be unified somehow
+      if(id.gnss == 3 && g_svstats[id].oldBeidouMessage.sow >= 0 && g_svstats[id].oldBeidouMessage.sqrtA != 0) {
+        getCoordinates(g_svstats[id].tow, g_svstats[id].oldBeidouMessage, &sat);
+      }
+      else if(g_svstats[id].completeIOD()) {
+        getCoordinates(g_svstats[id].tow, g_svstats[id].liveIOD(), &sat);
+      }
+      if(sat.x != 0) {
+        idb.addValue(id, nmm.localutcseconds()*1000000000, "recdata",
+                     {
+                     {"db", nmm.rd().db()},
+                       {"azi", getAzimuthDeg(sat, g_srcpos[nmm.sourceid()].pos)},
+                         {"ele", getElevationDeg(sat, g_srcpos[nmm.sourceid()].pos)},
+                           {"prres", nmm.rd().prres()}}, nmm.sourceid());
+      }
+
     }
     else if(nmm.type() == NavMonMessage::GalileoInavType) {
       basic_string<uint8_t> inav((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
       int sv = nmm.gi().gnsssv();
-      pair<int, int> id={2,sv};
+      int sigid;
+      if(nmm.gi().has_sigid())
+        sigid = nmm.gi().sigid();
+      else
+        sigid = 1;  // default to E1B
+      SatID id={2,(uint32_t)sv,(uint32_t)sigid};
       g_svstats[id].wn = nmm.gi().gnsswn();
       auto& svstat = g_svstats[id];
       auto oldgm = svstat.galmsg;
@@ -1175,7 +1300,7 @@ try
         const auto& old5gm = svstat.galmsgTyped[5];
         if(make_tuple(old5gm.e5bhs, old5gm.e1bhs, old5gm.e5bdvs, old5gm.e1bdvs) !=
            make_tuple(gm.e5bhs, gm.e1bhs, gm.e5bdvs, gm.e1bdvs)) {
-          cout<<humanTime(id.first, svstat.wn, svstat.tow)<<" Galileo "<<id.second <<" change in health: ["<<humanBhs(old5gm.e5bhs)<<", "<<humanBhs(old5gm.e1bhs)<<", "<<(int)old5gm.e5bdvs <<", " << (int)old5gm.e1bdvs<<"] -> ["<< humanBhs(gm.e5bhs)<<", "<< humanBhs(gm.e1bhs)<<", "<< (int)gm.e5bdvs <<", " << (int)gm.e1bdvs<<"], lastseen "<<ephAge(old5gm.tow, gm.tow)/3600.0 <<" hours"<<endl;
+          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" Galileo "<<id.sv <<" sigid "<<id.sigid<<" change in health: ["<<humanBhs(old5gm.e5bhs)<<", "<<humanBhs(old5gm.e1bhs)<<", "<<(int)old5gm.e5bdvs <<", " << (int)old5gm.e1bdvs<<"] -> ["<< humanBhs(gm.e5bhs)<<", "<< humanBhs(gm.e1bhs)<<", "<< (int)gm.e5bdvs <<", " << (int)gm.e1bdvs<<"], lastseen "<<ephAge(old5gm.tow, gm.tow)/3600.0 <<" hours"<<endl;
         }
       }
       
@@ -1294,14 +1419,14 @@ try
             int ephage = ephAge(ent.second.tow, ent.second.prevIOD.second.t0e);
             if(ent.second.liveIOD().sisa != ent.second.prevIOD.second.sisa) {
               
-              cout<<humanTime(id.first, ent.second.wn, ent.second.tow)<<" gnssid "<<ent.first.first<<" sv "<<ent.first.second<<" changed sisa from "<<(unsigned int) ent.second.prevIOD.second.sisa<<" ("<<
+              cout<<humanTime(id.gnss, ent.second.wn, ent.second.tow)<<" gnssid "<<ent.first.gnss<<" sv "<<ent.first.sv<<"@"<<ent.first.sigid<<" changed sisa from "<<(unsigned int) ent.second.prevIOD.second.sisa<<" ("<<
                 humanSisa(ent.second.prevIOD.second.sisa)<<") to " << (unsigned int)ent.second.liveIOD().sisa << " ("<<
                 humanSisa(ent.second.liveIOD().sisa)<<"), lastseen = "<< (ephage/3600.0) <<"h"<<endl;
             }
             
             Point p, oldp;
-            getCoordinates(ent.second.wn, ent.second.tow, ent.second.liveIOD(), &p);
-            getCoordinates(ent.second.wn, ent.second.tow, ent.second.prevIOD.second, &oldp);
+            getCoordinates(ent.second.tow, ent.second.liveIOD(), &p);
+            getCoordinates(ent.second.tow, ent.second.prevIOD.second, &oldp);
 
             if(ent.second.prevIOD.second.t0e < ent.second.liveIOD().t0e) {
               double hours = ((ent.second.liveIOD().t0e - ent.second.prevIOD.second.t0e)/3600.0);
@@ -1320,15 +1445,15 @@ try
             
               
               if(0 && hours < 2) {
-                ofstream orbitcsv("orbit."+to_string(id.first)+"."+to_string(id.second)+"."+to_string(ent.second.prevIOD.first)+"-"+to_string(ent.second.getIOD())+".csv");
+                ofstream orbitcsv("orbit."+to_string(id.gnss)+"."+to_string(id.sv)+"."+to_string(ent.second.prevIOD.first)+"-"+to_string(ent.second.getIOD())+".csv");
                 
                 orbitcsv << "timestamp x y z oldx oldy oldz\n";
                 orbitcsv << fixed;
                 for(int offset = -7200; offset < 7200; offset += 30) {
                   int t = ent.second.liveIOD().t0e + offset;
                   Point p, oldp;
-                  getCoordinates(ent.second.wn, t, ent.second.liveIOD(), &p);
-                  getCoordinates(ent.second.wn, t, ent.second.prevIOD.second, &oldp);
+                  getCoordinates(t, ent.second.liveIOD(), &p);
+                  getCoordinates(t, ent.second.prevIOD.second, &oldp);
                   time_t posix = utcFromGST(ent.second.wn, t);
                   orbitcsv << posix <<" "
                            <<p.x<<" " <<p.y<<" "<<p.z<<" "
@@ -1341,17 +1466,24 @@ try
         }
     }
     else if(nmm.type() == NavMonMessage::ObserverPositionType) {
-      g_srcpos[nmm.sourceid()].x = nmm.op().x();
-      g_srcpos[nmm.sourceid()].y = nmm.op().y();
-      g_srcpos[nmm.sourceid()].z = nmm.op().z();
+      g_srcpos[nmm.sourceid()].lastSeen = nmm.localutcseconds();
+      g_srcpos[nmm.sourceid()].pos.x = nmm.op().x();
+      g_srcpos[nmm.sourceid()].pos.y = nmm.op().y();
+      g_srcpos[nmm.sourceid()].pos.z = nmm.op().z();
+      idb.addValueObserver(nmm.sourceid(), "accfix", nmm.op().acc(), nmm.localutcseconds());
     }
     else if(nmm.type() == NavMonMessage::RFDataType) {
-      pair<int,int> id{nmm.rfd().gnssid(), nmm.rfd().gnsssv()};
-      if(id.first == 3 && g_svstats[id].oldBeidouMessage.sow >= 0 && g_svstats[id].oldBeidouMessage.sqrtA != 0) {
-        auto res = doDoppler(nmm.rfd().rcvwn(), nmm.rfd().rcvtow(), g_srcpos[nmm.sourceid()], g_svstats[id].oldBeidouMessage, 1561.098 * 1000000);
+      SatID id{nmm.rfd().gnssid(), nmm.rfd().gnsssv(), nmm.rfd().sigid()};
+      idb.addValue(id, nanoTime(0, nmm.rfd().rcvwn(), nmm.rfd().rcvtow()), "rfdata",
+                   {{"carrierphase", nmm.rfd().carrierphase()},
+                       {"doppler", nmm.rfd().doppler()},
+                         {"locktime", nmm.rfd().locktimems()},
+                           {"pseudorange", nmm.rfd().pseudorange()}});
+      if(id.gnss == 3 && g_svstats[id].oldBeidouMessage.sow >= 0 && g_svstats[id].oldBeidouMessage.sqrtA != 0) {
+        auto res = doDoppler(nmm.rfd().rcvtow(), g_srcpos[nmm.sourceid()].pos, g_svstats[id].oldBeidouMessage, 1561.098 * 1000000);
 
         if(isnan(res.preddop)) {
-          cerr<<"Problem with doppler calculation for C"<<id.second<<": "<<endl;
+          cerr<<"Problem with doppler calculation for C"<<id.sv<<": "<<endl;
           exit(1);
         }
         
@@ -1367,7 +1499,18 @@ try
         }
       }
       else if(g_svstats[id].completeIOD()) {
-        auto res = doDoppler(nmm.rfd().rcvwn(), nmm.rfd().rcvtow(), g_srcpos[nmm.sourceid()], g_svstats[id].liveIOD(), 1575.42 * 1000000);
+        double freqMHZ =  1575.42;
+        if(id.gnss == 2 && id.sigid == 5)
+          freqMHZ = 1207.140;
+        
+        auto res = doDoppler(nmm.rfd().rcvtow(), g_srcpos[nmm.sourceid()].pos, g_svstats[id].liveIOD(),freqMHZ * 1000000);
+        
+        idb.addValue(id, nanoTime(0, nmm.rfd().rcvwn(), nmm.rfd().rcvtow()), "orbit",
+                   {{"preddop", res.preddop},
+                       {"radvel", res.radvel}});
+
+
+        
         time_t t = utcFromGPS(nmm.rfd().rcvwn(), nmm.rfd().rcvtow());
 
         if(t - g_svstats[id].deltaHz.first > 10) {
@@ -1381,8 +1524,12 @@ try
       }
     }
     else if(nmm.type()== NavMonMessage::GPSInavType) {
+      if(nmm.gpsi().sigid()) {
+        cout<<"ignoring sigid "<<nmm.gpsi().sigid()<<" for GPS "<<nmm.gpsi().gnsssv()<<endl;
+        continue;
+      }
       auto cond = getCondensedGPSMessage(std::basic_string<uint8_t>((uint8_t*)nmm.gpsi().contents().c_str(), nmm.gpsi().contents().size()));
-      pair<int,int> id{nmm.gpsi().gnssid(), nmm.gpsi().gnsssv()};
+      SatID id{nmm.gpsi().gnssid(), nmm.gpsi().gnsssv(), nmm.gpsi().sigid()};
 
       g_svstats[id].perrecv[nmm.sourceid()].t = nmm.localutcseconds();
       
@@ -1399,11 +1546,11 @@ try
         idb.addValue(id, "ura", svstat.ura);
 
         if(oldsvstat.af0 && oldsvstat.ura != svstat.ura && svstat.ura > 1)  { // XX find better way to check
-          cout<<humanTime(id.first, svstat.wn, svstat.tow)<<" wn "<<svstat.wn <<" GPS "<<id.second <<" change in URA ["<< humanUra(oldsvstat.ura) <<"] -> [" << humanUra(svstat.ura)<<"] "<<(int)svstat.ura<<", lastseen "<<ephAge(oldsvstat.tow, svstat.tow)/3600.0 <<" hours"<<endl;
+          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" wn "<<svstat.wn <<" GPS "<<id.sv <<"@"<<id.sigid<<" change in URA ["<< humanUra(oldsvstat.ura) <<"] -> [" << humanUra(svstat.ura)<<"] "<<(int)svstat.ura<<", lastseen "<<ephAge(oldsvstat.tow, svstat.tow)/3600.0 <<" hours"<<endl;
         }
 
         if(oldsvstat.af0 && oldsvstat.gpshealth != svstat.gpshealth)  { // XX find better way to check
-          cout<<humanTime(id.first, svstat.wn, svstat.tow)<<" wn "<<svstat.wn <<" GPS "<<id.second <<" change in health ["<< (int)oldsvstat.gpshealth <<"] -> [" << (int)svstat.gpshealth <<"], lastseen "<<ephAge(oldsvstat.tow, svstat.tow)/3600.0 <<" hours"<<endl;
+          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" wn "<<svstat.wn <<" GPS "<<id.sv <<"@"<<id.sigid<<" change in health ["<< (int)oldsvstat.gpshealth <<"] -> [" << (int)svstat.gpshealth <<"], lastseen "<<ephAge(oldsvstat.tow, svstat.tow)/3600.0 <<" hours"<<endl;
         }
 
 
@@ -1421,7 +1568,7 @@ try
       }
       else if(frame==2) {
         if(oldsvstat.gpshealth != svstat.gpshealth) {
-          cout<<humanTime(id.first, svstat.wn, svstat.tow)<<" GPS "<<id.second <<" change in health: ["<< (int)oldsvstat.gpshealth<<"] -> ["<< (int)svstat.gpshealth<<"] , lastseen "<<ephAge(oldsvstat.tow, svstat.tow)/3600.0 <<" hours"<<endl;
+          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" GPS "<<id.sv <<"@"<<id.sigid<<" change in health: ["<< (int)oldsvstat.gpshealth<<"] -> ["<< (int)svstat.gpshealth<<"] , lastseen "<<ephAge(oldsvstat.tow, svstat.tow)/3600.0 <<" hours"<<endl;
         }
         idb.addValue(id, "gpshealth", g_svstats[id].gpshealth);
       }
@@ -1444,7 +1591,7 @@ try
         g_svstats[id].wn += 2048;
     }
     else if(nmm.type()== NavMonMessage::BeidouInavTypeD1) {
-      pair<int,int> id{nmm.bid1().gnssid(), nmm.bid1().gnsssv()};
+      SatID id{nmm.bid1().gnssid(), nmm.bid1().gnsssv(), nmm.bid1().sigid()};
 
       g_svstats[id].perrecv[nmm.sourceid()].t = nmm.localutcseconds();
       
@@ -1466,7 +1613,7 @@ try
         svstat.aodc = bm.aodc;
 
         if(oldbm.sath1 != bm.sath1) {
-          cout<<humanTime(id.first, svstat.wn, svstat.tow)<<" BeiDou C"<<id.second<<" health changed from  "<<(int)oldbm.sath1 <<" to "<< (int)bm.sath1 <<", lastseen "<<ephAge(oldbm.sow, bm.sow)/3600.0<<endl;
+          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" BeiDou C"<<id.sv<<"@"<<id.sigid<<" health changed from  "<<(int)oldbm.sath1 <<" to "<< (int)bm.sath1 <<", lastseen "<<ephAge(oldbm.sow, bm.sow)/3600.0<<endl;
         }
         
         idb.addValue(id, "atomic_offset_ns", 1000000.0*bm.getAtomicOffset().first);
@@ -1491,7 +1638,7 @@ try
         svstat.t0eLSB = bm.t0eLSB;
         Point oldpoint, newpoint;
         if(bm.sow - svstat.lastBeidouMessage2.sow == 6 && svstat.oldBeidouMessage.sow >= 0) {
-          getCoordinates(svstat.wn, svstat.tow, bm, &newpoint);
+          getCoordinates(svstat.tow, bm, &newpoint);
 
           if(fabs(svstat.lastTLELookupX - newpoint.x) > 300000) {
             //            cout<<"fraid 3 lookup, delta " << fabs(svstat.lastTLELookupX - newpoint.x) << endl;
@@ -1501,7 +1648,7 @@ try
           }
           
           if(svstat.oldBeidouMessage.getT0e() != svstat.beidouMessage.getT0e()) {
-            getCoordinates(svstat.wn, svstat.tow, svstat.oldBeidouMessage, &oldpoint);
+            getCoordinates(svstat.tow, svstat.oldBeidouMessage, &oldpoint);
             Vector jump(oldpoint ,newpoint);
             /*            cout<<fmt::sprintf("Discontinuity C%02d (%f,%f,%f) -> (%f, %f, %f), jump: %f, seconds: %f\n",
                                id.second, oldpoint.x, oldpoint.y, oldpoint.z,
@@ -1559,7 +1706,7 @@ try
       */
     }
     else if(nmm.type()== NavMonMessage::GlonassInavType) {
-      pair<int,int> id{nmm.gloi().gnssid(), nmm.gloi().gnsssv()};
+      SatID id{nmm.gloi().gnssid(), nmm.gloi().gnsssv(), nmm.gloi().sigid()};
       auto& svstat = g_svstats[id];
 
       auto& gm = svstat.glonassMessage;
@@ -1574,7 +1721,7 @@ try
       }
       else if(strno == 2) {
         if(oldgm.Bn != gm.Bn) {
-          cout<<humanTime(id.first, svstat.wn, svstat.tow)<<" GLONASS R"<<id.second<<" health changed from  "<<(int)oldgm.Bn <<" to "<< (int)gm.Bn <<endl;
+          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" GLONASS R"<<id.sv<<"@"<<id.sigid<<" health changed from  "<<(int)oldgm.Bn <<" to "<< (int)gm.Bn <<endl;
 
         }
         svstat.gpshealth = gm.Bn;

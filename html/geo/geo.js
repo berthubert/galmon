@@ -80,7 +80,8 @@ function update()
             .attr("cx", d => aProjection([d["eph-longitude"],d["eph-latitude"]])[0])                
             .attr("cy", d => aProjection([d["eph-longitude"],d["eph-latitude"]])[1])
             .attr("fill", function(d) { if(d.gnssid==2) return "blue";
-                                        if(d.gnssid==3) return "red";
+                                        else if(d.gnssid==3) return "red";
+                                        else if(d.gnssid==6) return "yellow";
                                         else return "green"; });
 
         svg.selectAll("text").data(arr)             
@@ -88,7 +89,9 @@ function update()
             .append("text")
             .attr("dx", d => 5+aProjection([d["eph-longitude"],d["eph-latitude"]])[0])                
             .attr("dy", d => 5+aProjection([d["eph-longitude"],d["eph-latitude"]])[1])
-            .text(d => d.sv);
+            .text(d => d.sv)
+            .attr("fill", function(d) { if(d.observed==true) return "black"; return "#666666"; })
+            .attr("font-weight", function(d) { if(d.observed==true) return "bold"; return null; });
 
         svg.selectAll("rect").data(results[1])             
             .enter()
