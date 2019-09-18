@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "best-tle", "norad", "iod", "aodc/e", "eph-age-m", "latest-disco", "time-disco", "sisa", "delta_hz_corr", "health", "tle-dist", "alma-dist", "delta-utc", "delta-gps", "sources", "db", "elev", "last-seen-s"];    
+    var columns = ["sv", "best-tle", "iod", "aodc/e", "eph-age-m", "latest-disco", "time-disco", "sisa", "health", "tle-dist", "alma-dist", "delta-utc", "delta-gps", "sources", "db", "delta_hz_corr","prres", "elev", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -64,6 +64,17 @@ function maketable(str, arr)
                         ret.value="";
                 }
                 else if(column == "eph-age-m") {
+                    if(row["gnssid"]==0 && Math.abs(row[column]) > 120 && row["last-seen-s"] < 120)
+                        ret.color="orange";
+                    if(row["gnissid"]==2 && Math.abs(row[column]) > 60 && row["last-seen-s"] < 120)
+                        ret.color="orange";
+
+                    if(Math.abs(row[column]) >120 && row["last-seen-s"] < 120)
+                        ret.color="#ff4444";
+                    if(Math.abs(row[column]) > 4*60 && row["last-seen-s"] < 120)
+                        ret.color="#ff2222";
+
+                    
                     if(row[column] != null) {
                         var b = moment.duration(-row[column], 'm');
                         ret.value = b.humanize(true);
@@ -73,7 +84,7 @@ function maketable(str, arr)
                 }
                 else if(row[column] != null && (column == "delta_hz_corr" || column =="delta_hz")) {
 
-                    ret.value = row[column].toFixed(0);
+                    ret.value = row[column];
                 }
                 else if((column == "tle-dist")) {
                     if(row["best-tle-dist"] != null)
@@ -100,6 +111,9 @@ function maketable(str, arr)
                     var b = moment.duration(row[column], 's');
                     ret.value = b.humanize();
                 }
+                else if(column == "best-tle") {
+                    ret.value = "<small>"+row[column]+"</small>";
+                }
                 else if(column == "gpshealth" && row[column] != null) {
                     if(row[column]==0)
                         ret.value = "ok";
@@ -109,11 +123,11 @@ function maketable(str, arr)
                     }
                 }
                 else if(column == "latest-disco" && row[column] != null) 
-                    ret.value = ((100*row[column]).toFixed(2))+" cm";
+                    ret.value = ((100*row[column]).toFixed(1))+" cm";
                 else if(column == "time-disco" && row[column] != null) 
-                    ret.value = row[column].toFixed(2)+" ns";
+                    ret.value = row[column].toFixed(1)+" ns";
                 else if(column == "health")  {
-                    ret.value = row[column];
+                    ret.value = "<small>"+row[column]+"</small>";
                     if(row["healthissue"] == 1) {
                         ret.color="orange";
                     }
@@ -124,10 +138,6 @@ function maketable(str, arr)
                 else {
                     ret.value= row[column];
                 }
-                if(column == "eph-age-m" && row[column] > 60 && row["last-seen-s"] < 120)
-                    ret.color="orange";
-                if(column == "eph-age-m" && row[column] > 4*60 && row["last-seen-s"] < 120)
-                    ret.color="#ff2222";
 
                 if(column == "sisa" && parseInt(row[column]) > 312)
                     ret.color="#ffaaaa";
@@ -182,6 +192,22 @@ function update()
                         o.elev = o.elev + o.perrecv[k].elev.toFixed(0)+" ";
                     else
                         o.elev = o.elev + "? ";
+
+                    if(o.delta_hz_corr == null)
+                        o.delta_hz_corr ="";
+                    if(o.perrecv[k].delta_hz_corr != null)
+                        o.delta_hz_corr = o.delta_hz_corr + o.perrecv[k].delta_hz_corr.toFixed(0)+" ";
+                    else
+                        o.delta_hz_corr = o.delta_hz_corr + "_ ";
+
+                    if(o.prres == null)
+                        o.prres ="";
+                    if(o.perrecv[k].prres != null)
+                        o.prres = o.prres + o.perrecv[k].prres.toFixed(1)+" ";
+                    else
+                        o.prres = o.prres + "_ ";
+
+                    
                     
                 }
             });

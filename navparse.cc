@@ -235,6 +235,7 @@ struct SVPerRecv
   int el{-1}, azi{-1}, db{-1};
   time_t deltaHzTime{-1};
   double deltaHz{-1};
+  double prres{-1};
   time_t t; // last seen
 };
   
@@ -284,7 +285,7 @@ struct SVStat
   
   map<uint64_t, SVPerRecv> perrecv;
 
-  double latestDisco{-1}, timeDisco{-1000};
+  double latestDisco{-1}, latestDiscoAge{-1}, timeDisco{-1000};
   
   map<int, SVIOD> iods;
   void addGalileoWord(std::basic_string_view<uint8_t> page);
@@ -613,23 +614,28 @@ std::string humanTime(int gnssid, int wn, int tow)
 
 std::optional<double> getHzCorrection(time_t now, int src, unsigned int gnssid, unsigned int sigid, const svstats_t svstats)
 {
+  
   std::optional<double> allHzCorr;
   double alltot=0;
   int allcount=0;
-  
+  //  cout<<"getHzCorrection called for src "<<src<<" gnss "<<gnssid <<" sigid "<< sigid <<endl;
   for(const auto& s: svstats) {
     if(s.first.gnss != gnssid)
       continue;
     if(s.first.sigid != sigid)
       continue;
-    if(auto iter = s.second.perrecv.find(src); now - iter->second.deltaHzTime < 60) {
+    if(auto iter = s.second.perrecv.find(src); iter != s.second.perrecv.end() && now - iter->second.deltaHzTime < 60) {
+      //      cout<<"  Found entry for SV "<<s.first.gnss<<","<<s.first.sv<<","<<s.first.sigid<<" from src "<<iter->first<<", deltaHz: "<<iter->second.deltaHz<< " age " << now - iter->second.deltaHzTime<<" db "<<iter->second.db<<endl;
       alltot+=iter->second.deltaHz;
       allcount++;
     }
   }
-  if(allcount > 3)
+  if(allcount > 3) {
     allHzCorr = alltot/allcount;
-
+    //    cout<<"Returning "<<*allHzCorr<<endl;
+  }
+  else
+    ; //    cout<<"Not enough data"<<endl;
   return allHzCorr;
 }
 
@@ -1154,6 +1160,9 @@ try
                         
             if((s.first.gnss == 0 || s.first.gnss == 2) && s.second.completeIOD())
               getCoordinates(latestTow(s.first.gnss, svstats), s.second.liveIOD(), & sat);
+            if(s.first.gnss == 3 && s.second.oldBeidouMessage.sow >= 0 && s.second.oldBeidouMessage.sqrtA != 0) {
+              getCoordinates(latestTow(s.first.gnss, svstats), s.second.oldBeidouMessage, &sat);
+            }
 
             if(sat.x) {
               Point our = g_srcpos[pr.first].pos;
@@ -1165,7 +1174,7 @@ try
             
             det["db"] = pr.second.db;
             det["last-seen-s"] = time(0) - pr.second.t;
-
+            det["prres"] = pr.second.prres;
 
             if(time(0) - pr.second.deltaHzTime < 60) {
               det["delta_hz"] = pr.second.deltaHz;
@@ -1184,6 +1193,7 @@ try
 
         if(s.second.latestDisco >=0) {
           item["latest-disco"]= s.second.latestDisco;
+          item["latest-disco-age"]= s.second.latestDiscoAge;
         }
         if(s.second.timeDisco > -100 && s.second.timeDisco < 100) {
           item["time-disco"]= s.second.timeDisco;
@@ -1246,6 +1256,7 @@ try
       g_svstats[id].perrecv[nmm.sourceid()].db = nmm.rd().db();
       g_svstats[id].perrecv[nmm.sourceid()].el = nmm.rd().el();
       g_svstats[id].perrecv[nmm.sourceid()].azi = nmm.rd().azi();
+      g_svstats[id].perrecv[nmm.sourceid()].prres = nmm.rd().prres();
 
       Point sat{0,0,0};
       //cout<<"Got recdata for "<<id.gnss<<","<<id.sv<<","<<id.sigid<<": count="<<g_svstats.count(id)<<endl;
@@ -1419,7 +1430,7 @@ try
             getCoordinates(ent.second.tow, ent.second.prevIOD.second, &oldp);
 
             if(ent.second.prevIOD.second.t0e < ent.second.liveIOD().t0e) {
-              double hours = ((ent.second.liveIOD().t0e - ent.second.prevIOD.second.t0e)/3600.0);
+              double hours = (1.0*(ent.second.liveIOD().t0e - ent.second.prevIOD.second.t0e)/3600.0); // XXX week jump
               double disco = Vector(p, oldp).length();
               //              cout<<id.first<<","<<id.second<<" discontinuity after "<< hours<<" hours: "<< disco <<endl;
               idb.addValue(id, "iod-actual", ent.second.getIOD());
@@ -1427,7 +1438,15 @@ try
               
               if(hours < 4) {
                 idb.addValue(id, "eph-disco", disco);
+                idb.addValue(id, nanoTime(id.gnss, ent.second.wn, ent.second.tow), "eph-disco2",
+                             {{"meters", disco},
+                             {"seconds", hours*3600.0},
+                             {"oldx", oldp.x}, {"oldy", oldp.y}, {"oldz", oldp.z},
+                             {"x", p.x}, {"y", p.y}, {"z", p.z},
+                             {"oid", 1.0*ent.second.getIOD()},
+                               {"oldoid", 1.0*ent.second.prevIOD.first}});
                 g_svstats[id].latestDisco= disco;
+                g_svstats[id].latestDiscoAge= hours*3600;
               }
               else
                 g_svstats[id].latestDisco= -1;

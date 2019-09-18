@@ -139,6 +139,12 @@ try
 
         oldgm4s[nmm.gi().gnsssv()] = gm;
       }
+      if(wtype == 1) {
+        cout << " iodnav " << gm.iodnav <<" t0e "<< gm.t0e*60 <<" " << ephAge(gm.t0e*60, gm.tow);
+      }
+      if(wtype == 2 || wtype == 3) {
+        cout << " iodnav " << gm.iodnav;
+      }
       if(wtype == 1 || wtype == 2 || wtype == 3) {
         iodstream << nmm.localutcseconds()<<" " << nmm.gi().gnssid() <<" "<< nmm.gi().gnsssv() << " " << gm.iodnav << " " << gm.t0e*60 <<" " << ephAge(gm.t0e*60, gm.tow);
         if(wtype == 3)
