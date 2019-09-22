@@ -352,4 +352,29 @@ struct GalileoMessage
     wn0g = getbitu(&page[0], 122, 6);
   }
 
+  double getMu() const
+  {
+    return 3.986004418 * pow(10.0, 14.0);
+  } // m^3/s^2
+  // same for galileo & gps
+  double getOmegaE()    const { return 7.2921151467 * pow(10.0, -5.0);} // rad/s
+
+  uint32_t getT0e() const { return t0e * 60; }
+  double getSqrtA() const { return ldexp(sqrtA,     -19);   }
+  double getE()     const { return ldexp(e,         -33);   }
+  double getCuc()   const { return ldexp(cuc,       -29);   } // radians
+  double getCus()   const { return ldexp(cus,       -29);   } // radians
+  double getCrc()   const { return ldexp(crc,        -5);   } // meters
+  double getCrs()   const { return ldexp(crs,        -5);   } // meters
+  double getM0()    const { return ldexp(m0 * M_PI, -31);   } // radians
+  double getDeltan()const { return ldexp(deltan *M_PI, -43); } //radians/s
+  double getI0()        const { return ldexp(i0 * M_PI,       -31);   } // radians
+  double getCic()       const { return ldexp(cic,             -29);   } // radians
+  double getCis()       const { return ldexp(cis,             -29);   } // radians
+  double getOmegadot()  const { return ldexp(omegadot * M_PI, -43);   } // radians/s
+  double getOmega0()    const { return ldexp(omega0 * M_PI,   -31);   } // radians
+  double getIdot()      const { return ldexp(idot * M_PI,     -43);   } // radians/s
+  double getOmega()     const { return ldexp(omega * M_PI,    -31);   } // radians
+
+  
 };

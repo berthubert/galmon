@@ -9,7 +9,8 @@ message NavMonMessage {
     GPSInavType = 5;
     BeidouInavTypeD1 = 6;
     GlonassInavType = 7;
-    BeidouInavTypeD2 = 8;    
+    BeidouInavTypeD2 = 8;
+    SARResponseType = 9;
   }
 
   required uint64 sourceID = 1;
@@ -98,6 +99,17 @@ message NavMonMessage {
           required double acc = 4;
   }
 
+  message SARResponse {
+  	required uint32 gnssID =1;
+	required uint32 gnssSV =2;
+        required uint32 sigid =3;
+        required uint32 type =4;
+        required bytes identifier = 5;
+        required uint32 code= 6;
+        required bytes params =7;
+  }
+
+
   optional GalileoInav gi=5;
   optional ReceptionData rd=6;  
   optional RFData rfd=7;
@@ -106,4 +118,5 @@ message NavMonMessage {
   optional BeidouInavD1 bid1=10;
   optional BeidouInavD2 bid2=11;
   optional GlonassInav  gloi=12;
+  optional SARResponse sr=13;
 }

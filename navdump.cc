@@ -57,6 +57,30 @@ double utcFromGPS(int wn, double tow)
   return (315964800 + wn * 7*86400 + tow - 18); 
 }
 
+static double utcFromGST(int wn, double tow)
+{
+  return (935280000.0 + wn * 7*86400 + tow - 18);  
+}
+
+// GALILEO ONLY!!
+template<typename T>
+void doOrbitDump(int gnss, int sv, int wn, const T& oldEph, const T& newEph, int time_start, int time_end)
+{
+  ofstream orbitcsv("orbit."+to_string(gnss)+"."+to_string(sv)+"."+to_string(oldEph.iodnav)+"-"+to_string(newEph.iodnav)+".csv");
+                
+  orbitcsv << "timestamp x y z oldx oldy oldz\n";
+  orbitcsv << fixed;
+  for(int t = time_start; t < time_end; t += 30) {
+    Point p, oldp;
+    getCoordinates(t, newEph, &p);
+    getCoordinates(t, oldEph, &oldp);
+    time_t posix = utcFromGST(wn, t);
+    orbitcsv << posix <<" "
+                           <<p.x<<" " <<p.y<<" "<<p.z<<" "
+                           <<oldp.x<<" " <<oldp.y<<" "<<oldp.z<<"\n";
+  }
+}
+
 
 int main(int argc, char** argv)
 try
@@ -68,10 +92,10 @@ try
   tles.parseFile("gps-ops.txt");
   tles.parseFile("beidou.txt");
 
-  bool skipGPS{false};
-  bool skipBeidou{false};
+  bool skipGPS{true};
+  bool skipBeidou{true};
   bool skipGalileo{false};
-  bool skipGlonass{false};
+  bool skipGlonass{true};
   
   ofstream almanac("almanac.txt");
   ofstream iodstream("iodstream.csv");
@@ -125,11 +149,12 @@ try
       
       gm.tow = nmm.gi().gnsstow();
       gmwtypes[{nmm.gi().gnsssv(), wtype}] = gm;
+      static map<int,GalileoMessage> oldEph;
       cout << "gal inav for "<<nmm.gi().gnssid()<<","<<nmm.gi().gnsssv()<<","<<nmm.gi().sigid()<<" tow "<< nmm.gi().gnsstow()<<" wtype "<< wtype<<" ";
       static uint32_t tow;
       if(wtype == 4) {
         //              2^-34       2^-46
-        cout <<" af0 "<<gm.af0 <<" af1 "<<gm.af1 <<", scaled: "<<ldexp(1.0*gm.af0, 19-34)<<", "<<ldexp(1.0*gm.af1, 38-46);
+        cout <<" iodnav "<<gm.iodnav <<" af0 "<<gm.af0 <<" af1 "<<gm.af1 <<", scaled: "<<ldexp(1.0*gm.af0, 19-34)<<", "<<ldexp(1.0*gm.af1, 38-46);
         if(tow && oldgm4s.count(nmm.gi().gnsssv()) && oldgm4s[nmm.gi().gnsssv()].iodnav != gm.iodnav) {
           auto& oldgm4 = oldgm4s[nmm.gi().gnsssv()];
           auto oldOffset = oldgm4.getAtomicOffset(tow);
@@ -138,6 +163,27 @@ try
         }
 
         oldgm4s[nmm.gi().gnsssv()] = gm;
+        int sv = nmm.gi().gnsssv();
+        if(gmwtypes[{sv,1}].iodnav == gmwtypes[{sv,2}].iodnav &&
+           gmwtypes[{sv,2}].iodnav == gmwtypes[{sv,3}].iodnav &&
+           gmwtypes[{sv,3}].iodnav == gmwtypes[{sv,4}].iodnav) {
+          cout <<" have complete ephemeris at " << gm.iodnav;
+          if(!oldEph[sv].sqrtA)
+            oldEph[sv] = gm;
+          else if(oldEph[sv].iodnav != gm.iodnav) {
+            cout<<" disco! "<< oldEph[sv].iodnav << " - > "<<gm.iodnav <<", "<< (gm.getT0e() - oldEph[sv].getT0e())/3600.0 <<" hours-jump insta-age "<<ephAge(gm.tow, gm.getT0e())/3600.0<<" hours";
+            Point oldPoint, newPoint;
+            getCoordinates(gm.tow, oldEph[sv], &oldPoint);
+            getCoordinates(gm.tow, gm, &newPoint);
+            Vector jump(oldPoint, newPoint);
+            cout<<" distance "<< jump.length() << " ("<<jump.x<<", "<<jump.y <<", "<<jump.z<<")";
+            auto oldAtomic = oldEph[sv].getAtomicOffset(gm.tow);
+            auto newAtomic = gm.getAtomicOffset(gm.tow);
+            cout<<" clock-jump "<<oldAtomic.first - newAtomic.first<<" ns ";
+            doOrbitDump(2, sv, gm.wn, oldEph[sv], gm, gm.tow - 3*3600, gm.tow + 3*3600);
+            oldEph[sv]=gm;
+          }
+        }
       }
       if(wtype == 1) {
         cout << " iodnav " << gm.iodnav <<" t0e "<< gm.t0e*60 <<" " << ephAge(gm.t0e*60, gm.tow);
@@ -192,11 +238,14 @@ try
         }
         cout<<"  "<<gmwtypes[{sv,9}].alma3.svid <<" af0 "<<gm.alma3.af0<<" af1 "<< gm.alma3.af1 <<" e5bhs "<< gm.alma3.e5bhs<<" e1bhs "<< gm.alma3.e1bhs <<" a0g " << gm.a0g <<" a1g "<< gm.a1g <<" t0g "<<gm.t0g <<" wn0g "<<gm.wn0g;
       }
+      
       cout<<endl;      
     }
     else if(nmm.type() == NavMonMessage::GPSInavType) {
-      if(skipGPS)
+      if(skipGPS) {
+        cout<<endl;
         continue;
+      }
       
       int sv = nmm.gpsi().gnsssv();
       auto cond = getCondensedGPSMessage(std::basic_string<uint8_t>((uint8_t*)nmm.gpsi().contents().c_str(), nmm.gpsi().contents().size()));
@@ -280,8 +329,10 @@ try
       cout<<"\n";
     }
     else if(nmm.type() == NavMonMessage::BeidouInavTypeD1) {
-      if(skipBeidou)
+      if(skipBeidou) {
+        cout<<endl;
         continue;
+      }
 
       int sv = nmm.bid1().gnsssv();
       auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid1().contents().c_str(), nmm.bid1().contents().size()));
@@ -361,8 +412,10 @@ try
             
     }
     else if(nmm.type() == NavMonMessage::GlonassInavType) {
-      if(skipGlonass)
+      if(skipGlonass) {
+        cout<<endl;
         continue;
+      }
 
       static map<int, GlonassMessage> gms;
       auto& gm = gms[nmm.gloi().gnsssv()];

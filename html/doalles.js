@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "best-tle", "iod", "aodc/e", "eph-age-m", "latest-disco", "time-disco", "sisa", "health", "tle-dist", "alma-dist", "delta-utc", "delta-gps", "sources", "db", "delta_hz_corr","prres", "elev", "last-seen-s"];    
+    var columns = ["sv", "best-tle", "iod", "eph-age-m", "latest-disco", "time-disco", "sisa", "health", "tle-dist", "alma-dist", "delta-utc", "delta-gps", "sources", "db", "delta_hz_corr","prres", "elev", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -22,13 +22,18 @@ function maketable(str, arr)
         .data(columns)
         .enter()
         .append("th")
-        .text(function(column) {
+        .html(function(column) {
             if(column == "delta_hz_corr")
                 return "ΔHz";
             if(column == "delta-gps")
                 return "ΔGPS ns";
             if(column == "delta-utc")
                 return "ΔUTC ns";
+            if(column == "sources")
+                return '<a href="observers.html">sources</a>';
+            if(column == "alma-dist")
+                return '<a href="almanac.html">alma-dist</a>';
+            
             else
                 return column;
         });
@@ -53,7 +58,7 @@ function maketable(str, arr)
                     
                     ret.value = '<img width="16" height="16" src="https://ds9a.nl/tmp/'+ img +'"/>';
 //                    ret.value="";
-                    ret.value += "&nbsp;"+row.sv;
+                    ret.value += "&nbsp;<a href='sv.html?gnssid=2&sv="+row.svid+"&sigid="+row.sigid+"'>"+row.sv+"</a>";
                 }
                 else if(column == "aodc/e") {
                     if(row["aodc"] != null && row["aode"] != null)
@@ -158,35 +163,21 @@ function maketable(str, arr)
 
 var sats={};
 var lastseen=null;
-function update()
+
+function updateSats()
 {
-    var seconds = 2;
-    clearTimeout(repeat);
-    repeat=setTimeout(update, 1000.0*seconds);
-
-    if(lastseen != null)
-        d3.select("#freshness").html(lastseen.fromNow());
-
-    
-    d3.json("global", function(d) {
-        d3.select('#facts').html("Galileo-UTC offset: <b>"+d["utc-offset-ns"].toFixed(2)+"</b> ns, Galileo-GPS offset: <b>"+d["gps-offset-ns"].toFixed(2)+"</b> ns, GPS UTC offset: <b>"+d["gps-utc-offset-ns"].toFixed(2)+"</b>. "+d["leap-seconds"]+"</b> leap seconds");
-        lastseen = moment(1000*d["last-seen"]);
-        d3.select("#freshness").html(lastseen.fromNow());
-    });
-    
-    d3.json("svs", function(d) {
-        // put data in an array
-        sats=d;
-        var arr=[];
-        Object.keys(d).forEach(function(e) {
-            var o = d[e];
+    var arr=[];
+    setButtonSettings();
+        Object.keys(sats).forEach(function(e) {
+            var o = sats[e];
             o.sv=e;
             o.sources="";
             o.db="";
             o.elev="";
             Object.keys(o.perrecv).forEach(function(k) {
                 if(o.perrecv[k]["last-seen-s"] < 1800) {
-                    o.sources = o.sources + k +" ";
+                    o.sources = o.sources + '<a href="observer.html?observer=' + k + '">'+k+'</a> ';
+
                     o.db = o.db + o.perrecv[k].db +" ";
                     if(o.perrecv[k].elev != null)
                         o.elev = o.elev + o.perrecv[k].elev.toFixed(0)+" ";
@@ -203,7 +194,7 @@ function update()
                     if(o.prres == null)
                         o.prres ="";
                     if(o.perrecv[k].prres != null)
-                        o.prres = o.prres + o.perrecv[k].prres.toFixed(1)+" ";
+                        o.prres = o.prres + o.perrecv[k].prres.toFixed(0)+" ";
                     else
                         o.prres = o.prres + "_ ";
 
@@ -227,7 +218,26 @@ function update()
         var livearr=[], stalearr=[];
         for(n = 0 ; n < arr.length; n++)
         {
-//            if(arr[n]["gnssid"]) continue;
+            let wantIt = false;
+            if(d3.select("#GalE1").property("checked") && arr[n].gnssid==2 && arr[n].sigid == 1)
+                wantIt = true;
+            if(d3.select("#GalE5b").property("checked") && arr[n].gnssid==2 && arr[n].sigid == 5)
+                wantIt = true;
+            if(d3.select("#GPSL1CA").property("checked") && arr[n].gnssid==0 && arr[n].sigid == 0)
+                wantIt = true;
+            if(d3.select("#GPSL2C").property("checked") && arr[n].gnssid==0 && arr[n].sigid == 4)
+                wantIt = true;
+            if(d3.select("#BeiDouB1I").property("checked") && arr[n].gnssid==3 && arr[n].sigid == 0)
+                wantIt = true;
+            if(d3.select("#BeiDouB2I").property("checked") && arr[n].gnssid==3 && arr[n].sigid == 2)
+                wantIt = true;
+            if(d3.select("#GlonassL1").property("checked") && arr[n].gnssid==6 && arr[n].sigid == 0)
+                wantIt = true;
+            if(d3.select("#GlonassL2").property("checked") && arr[n].gnssid==6 && arr[n].sigid == 2)
+                wantIt = true;
+  
+            if(!wantIt)
+                continue;
             if(arr[n]["last-seen-s"] < 600)
                 livearr.push(arr[n]);
             else
@@ -236,9 +246,65 @@ function update()
 
         maketable("#svs", livearr);
         maketable("#svsstale", stalearr);
+
+}
+
+function update()
+{
+    var seconds = 20;
+    clearTimeout(repeat);
+    repeat=setTimeout(update, 1000.0*seconds);
+
+    if(lastseen != null)
+        d3.select("#freshness").html(lastseen.fromNow());
+
+    
+    d3.json("global.json", function(d) {
+        d3.select('#facts').html("Galileo-UTC offset: <b>"+d["utc-offset-ns"].toFixed(2)+"</b> ns, Galileo-GPS offset: <b>"+d["gps-offset-ns"].toFixed(2)+"</b> ns, GPS UTC offset: <b>"+d["gps-utc-offset-ns"].toFixed(2)+"</b>. "+d["leap-seconds"]+"</b> leap seconds");
+        lastseen = moment(1000*d["last-seen"]);
+        d3.select("#freshness").html(lastseen.fromNow());
+    });
+    
+    d3.json("svs.json", function(d) {
+        // put data in an array
+        sats=d;
+        updateSats();
         
     });
 }
+
+function getButtonSettings(name, def)
+{
+    let itemName = "want"+name;
+    let value = localStorage.getItem(itemName);
+    if(value == null) {
+        console.log("Defaulting "+itemName+" to "+def);
+        localStorage.setItem(itemName, def);
+    }
+//    else
+         // console.log("Found "+itemName+" set to '"+value+"'");
+    d3.select("#"+name).property("checked", localStorage.getItem(itemName)=="true");
+}
+
+function setButtonSetting(name)
+{
+//    console.log("Storing button state want"+name+" as "+d3.select("#"+name).property("checked"));
+    localStorage.setItem("want"+name, d3.select("#"+name).property("checked"));
+}
+
+var modes=["GalE1", "GalE5b", "GPSL1CA", "GPSL2C", "BeiDouB1I", "BeiDouB2I", "GlonassL1", "GlonassL2"];
+
+function setButtonSettings()
+{
+    modes.forEach(function(d) {
+        setButtonSetting(d);
+    });
+}
+
+getButtonSettings("GalE1", true);
+modes.forEach(function(d) {
+    getButtonSettings(d, false);
+});;
 
 repeat=update();
 

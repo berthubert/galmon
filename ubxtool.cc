@@ -515,6 +515,10 @@ int main(int argc, char** argv)
       if(version9)  {
         cerr<<"Enabling UBX-NAV-SIG"<<endl;  // satellite reception details
         enableUBXMessageUSB(fd, 0x01, 0x43, 8);
+
+        cerr<<"Enabling UBX-RXM-MEASX"<<endl;  // satellite reception details
+        enableUBXMessageUSB(fd, 0x02, 0x14, 1);
+
       }
       else {
         cerr<<"Enabling UBX-NAV-SAT"<<endl;  // satellite reception details
@@ -936,8 +940,66 @@ int main(int argc, char** argv)
           
           emitNMM(1, nmm);
         }
+      }
+      else if(msg.getClass() == 1 && msg.getType() == 0x30) { // UBX-NAV-SVINFO
         
       }
+      else if(msg.getClass() == 0x02 && msg.getType() == 0x14) { // UBX-RXM-MEASX
+        cerr<<"Got RXM-MEASX for "<<(int)payload[34]<<" satellites, r0 "<< (int)payload[30]<<" r1 " <<(int)payload[31]<<endl;
+        for(unsigned int n = 0 ; n < payload[34] ; ++n) {
+          uint16_t wholeChips;
+          uint16_t fracChips;
+          uint8_t intCodePhase = payload[64+24*n];
+          uint32_t codePhase;
+
+          memcpy(&wholeChips, &payload[56+24*n], 2);
+          memcpy(&fracChips, &payload[58+24*n], 2);
+          memcpy(&codePhase, &payload[60+24*n], 4);
+          
+          cerr<<(int)payload[44+24*n]<<","<<(int)payload[45+24*n]<<" whole-chips "<<wholeChips<<" frac-chips "<<fracChips<<" int-code-phase " <<(int)intCodePhase <<" frac-code-phase "<<ldexp(codePhase, -21) << " mpath " << (int)payload[47+24*n] << " r1 " << (int)payload[66+24*n] << " r2 " <<(int)payload[67+24*n]<<endl;
+        }
+      }
+      else if(msg.getClass() == 0x02 && msg.getType() == 0x59) { // UBX-RXM-RLM
+        int type = (int)payload[1];      
+        int sv = (int)payload[2];
+
+        NavMonMessage nmm;
+        nmm.set_sourceid(g_srcid);
+        nmm.set_localutcseconds(g_gstutc.tv_sec);
+        nmm.set_localutcnanoseconds(g_gstutc.tv_nsec);
+        
+        nmm.set_type(NavMonMessage::SARResponseType);
+        nmm.mutable_sr()->set_gnssid(2); // Galileo only for now
+        nmm.mutable_sr()->set_gnsssv(sv);
+        nmm.mutable_sr()->set_sigid(0); // we should fill this in later
+        nmm.mutable_sr()->set_type(payload[1]);
+        nmm.mutable_sr()->set_identifier(string((char*)payload.c_str()+4, 8));
+        nmm.mutable_sr()->set_code(payload[12]);
+        nmm.mutable_sr()->set_params(string((char*)payload.c_str()+13, payload.size()-14));
+        
+        string hexstring;
+        for(int n = 0; n < 15; ++n)
+          hexstring+=fmt::sprintf("%x", (int)getbitu(payload.c_str(), 36 + 4*n, 4));
+        cerr<<"SAR RLM type "<<type<<" from gal sv " << sv << " beacon "<<hexstring <<" code "<<(int)payload[12]<<" params "<<payload[12] + 256*payload[13]<<endl;
+
+      //      wk.emitLine(sv, "SAR "+hexstring);
+      //      cout<<"SAR: sv = "<< (int)msg[2] <<" ";
+      //      for(int n=4; n < 12; ++n)
+      //        fmt::printf("%02x", (int)msg[n]);
+
+      //      for(int n = 0; n < 15; ++n)
+      //        fmt::printf("%x", (int)getbitu(msg.c_str(), 36 + 4*n, 4));
+      
+      //      cout << " Type: "<< (int) msg[12] <<"\n";
+      //      cout<<"Parameter: (len = "<<msg.length()<<") ";
+      //      for(unsigned int n = 13; n < msg.length(); ++n)
+      //        fmt::printf("%02x ", (int)msg[n]);
+      //      cout<<"\n";
+
+      }
+
+      else 
+        cerr<<"Uknown UBX message of class "<<(int) msg.getClass() <<" and type "<< (int) msg.getType()<<endl;
 
       //      writen2(1, payload.d_raw.c_str(),msg.d_raw.size());
     }
