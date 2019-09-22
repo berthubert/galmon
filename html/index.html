@@ -42,6 +42,18 @@ tr:nth-child(odd) {background: #FFF}
 </style>
 <body>
   Last update: <span id="freshness"></span>. More information about this Galileo/GPS/BeiDou/Glonass open source monitor can be found <a href="https://github.com/ahupowerdns/galmon/blob/master/README.md#galmon">here</a>. Live map <a href="geo">here!</a>. Contact <a href="https://ds9a.nl/">me</a> if you want access to the Grafana dashboard.<br/>
+  <center>
+    <hr/>
+  <input type="checkbox"  id="GalE1" onclick="updateSats();">  <label for="GalE1">Galileo E1</label> &nbsp;
+  <input type="checkbox"  id="GalE5b" onclick="updateSats();">  <label for="GalE5b">Galileo E5b</label> &nbsp;
+  <input type="checkbox"  id="BeiDouB1I" onclick="updateSats();">  <label for="BeiDouB1I">BeiDou B1I</label> &nbsp;
+  <input type="checkbox"  id="BeiDouB2I" onclick="updateSats();">  <label for="BeiDouB2I">BeiDou B2I</label> &nbsp;
+  <input type="checkbox"  id="GlonassL1" onclick="updateSats();">  <label for="GlonassL1">Glonass L1</label> &nbsp;
+  <input type="checkbox"  id="GlonassL2" onclick="updateSats();">  <label for="GlonassL2">Glonass L2</label> &nbsp;
+  <input type="checkbox"  id="GPSL1CA" onclick="updateSats();">  <label for="GPSL1CA">GPS L1C/A</label> &nbsp;
+  <input type="checkbox"  id="GPSL2C" onclick="updateSats();">  <label for="GPSL2C">GPS L2C</label>
+  </center>
+  <hr/>
   <table id="svs"></table>
   <hr>
   <p>
@@ -50,7 +62,7 @@ tr:nth-child(odd) {background: #FFF}
   Stale:<br/>
   <table id="svsstale"></table>
   <p>
-    This table shows live output from four Galileo/GPS/BeiDou/GLONASS receivers hosted in Nootdorp, The Netherlands and California, United States.
+    This table shows live output from four Galileo/GPS/BeiDou/GLONASS receivers hosted in Nootdorp, The Netherlands and California, United States, Tonga, Brazil, Singapore, Austria ans Uruguay.
     It is very much a work in progress, and will not be available at all times. Extremely rough code is on
     <a href="https://github.com/ahuPowerDNS/galmon">GitHub</a>.
 

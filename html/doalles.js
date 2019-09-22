@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "best-tle", "iod", "aodc/e", "eph-age-m", "latest-disco", "time-disco", "sisa", "health", "tle-dist", "alma-dist", "delta-utc", "delta-gps", "sources", "db", "delta_hz_corr","prres", "elev", "last-seen-s"];    
+    var columns = ["sv", "best-tle", "iod", "eph-age-m", "latest-disco", "time-disco", "sisa", "health", "tle-dist", "alma-dist", "delta-utc", "delta-gps", "sources", "db", "delta_hz_corr","prres", "elev", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -163,28 +163,13 @@ function maketable(str, arr)
 
 var sats={};
 var lastseen=null;
-function update()
+
+function updateSats()
 {
-    var seconds = 2;
-    clearTimeout(repeat);
-    repeat=setTimeout(update, 1000.0*seconds);
-
-    if(lastseen != null)
-        d3.select("#freshness").html(lastseen.fromNow());
-
-    
-    d3.json("global.json", function(d) {
-        d3.select('#facts').html("Galileo-UTC offset: <b>"+d["utc-offset-ns"].toFixed(2)+"</b> ns, Galileo-GPS offset: <b>"+d["gps-offset-ns"].toFixed(2)+"</b> ns, GPS UTC offset: <b>"+d["gps-utc-offset-ns"].toFixed(2)+"</b>. "+d["leap-seconds"]+"</b> leap seconds");
-        lastseen = moment(1000*d["last-seen"]);
-        d3.select("#freshness").html(lastseen.fromNow());
-    });
-    
-    d3.json("svs.json", function(d) {
-        // put data in an array
-        sats=d;
-        var arr=[];
-        Object.keys(d).forEach(function(e) {
-            var o = d[e];
+    var arr=[];
+    setButtonSettings();
+        Object.keys(sats).forEach(function(e) {
+            var o = sats[e];
             o.sv=e;
             o.sources="";
             o.db="";
@@ -233,7 +218,26 @@ function update()
         var livearr=[], stalearr=[];
         for(n = 0 ; n < arr.length; n++)
         {
-//            if(arr[n]["gnssid"]) continue;
+            let wantIt = false;
+            if(d3.select("#GalE1").property("checked") && arr[n].gnssid==2 && arr[n].sigid == 1)
+                wantIt = true;
+            if(d3.select("#GalE5b").property("checked") && arr[n].gnssid==2 && arr[n].sigid == 5)
+                wantIt = true;
+            if(d3.select("#GPSL1CA").property("checked") && arr[n].gnssid==0 && arr[n].sigid == 0)
+                wantIt = true;
+            if(d3.select("#GPSL2C").property("checked") && arr[n].gnssid==0 && arr[n].sigid == 4)
+                wantIt = true;
+            if(d3.select("#BeiDouB1I").property("checked") && arr[n].gnssid==3 && arr[n].sigid == 0)
+                wantIt = true;
+            if(d3.select("#BeiDouB2I").property("checked") && arr[n].gnssid==3 && arr[n].sigid == 2)
+                wantIt = true;
+            if(d3.select("#GlonassL1").property("checked") && arr[n].gnssid==6 && arr[n].sigid == 0)
+                wantIt = true;
+            if(d3.select("#GlonassL2").property("checked") && arr[n].gnssid==6 && arr[n].sigid == 2)
+                wantIt = true;
+  
+            if(!wantIt)
+                continue;
             if(arr[n]["last-seen-s"] < 600)
                 livearr.push(arr[n]);
             else
@@ -242,9 +246,65 @@ function update()
 
         maketable("#svs", livearr);
         maketable("#svsstale", stalearr);
+
+}
+
+function update()
+{
+    var seconds = 20;
+    clearTimeout(repeat);
+    repeat=setTimeout(update, 1000.0*seconds);
+
+    if(lastseen != null)
+        d3.select("#freshness").html(lastseen.fromNow());
+
+    
+    d3.json("global.json", function(d) {
+        d3.select('#facts').html("Galileo-UTC offset: <b>"+d["utc-offset-ns"].toFixed(2)+"</b> ns, Galileo-GPS offset: <b>"+d["gps-offset-ns"].toFixed(2)+"</b> ns, GPS UTC offset: <b>"+d["gps-utc-offset-ns"].toFixed(2)+"</b>. "+d["leap-seconds"]+"</b> leap seconds");
+        lastseen = moment(1000*d["last-seen"]);
+        d3.select("#freshness").html(lastseen.fromNow());
+    });
+    
+    d3.json("svs.json", function(d) {
+        // put data in an array
+        sats=d;
+        updateSats();
         
     });
 }
+
+function getButtonSettings(name, def)
+{
+    let itemName = "want"+name;
+    let value = localStorage.getItem(itemName);
+    if(value == null) {
+        console.log("Defaulting "+itemName+" to "+def);
+        localStorage.setItem(itemName, def);
+    }
+//    else
+         // console.log("Found "+itemName+" set to '"+value+"'");
+    d3.select("#"+name).property("checked", localStorage.getItem(itemName)=="true");
+}
+
+function setButtonSetting(name)
+{
+//    console.log("Storing button state want"+name+" as "+d3.select("#"+name).property("checked"));
+    localStorage.setItem("want"+name, d3.select("#"+name).property("checked"));
+}
+
+var modes=["GalE1", "GalE5b", "GPSL1CA", "GPSL2C", "BeiDouB1I", "BeiDouB2I", "GlonassL1", "GlonassL2"];
+
+function setButtonSettings()
+{
+    modes.forEach(function(d) {
+        setButtonSetting(d);
+    });
+}
+
+getButtonSettings("GalE1", true);
+modes.forEach(function(d) {
+    getButtonSettings(d, false);
+});;
 
 repeat=update();
 

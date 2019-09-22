@@ -57,6 +57,30 @@ double utcFromGPS(int wn, double tow)
   return (315964800 + wn * 7*86400 + tow - 18); 
 }
 
+static double utcFromGST(int wn, double tow)
+{
+  return (935280000.0 + wn * 7*86400 + tow - 18);  
+}
+
+// GALILEO ONLY!!
+template<typename T>
+void doOrbitDump(int gnss, int sv, int wn, const T& oldEph, const T& newEph, int time_start, int time_end)
+{
+  ofstream orbitcsv("orbit."+to_string(gnss)+"."+to_string(sv)+"."+to_string(oldEph.iodnav)+"-"+to_string(newEph.iodnav)+".csv");
+                
+  orbitcsv << "timestamp x y z oldx oldy oldz\n";
+  orbitcsv << fixed;
+  for(int t = time_start; t < time_end; t += 30) {
+    Point p, oldp;
+    getCoordinates(t, newEph, &p);
+    getCoordinates(t, oldEph, &oldp);
+    time_t posix = utcFromGST(wn, t);
+    orbitcsv << posix <<" "
+                           <<p.x<<" " <<p.y<<" "<<p.z<<" "
+                           <<oldp.x<<" " <<oldp.y<<" "<<oldp.z<<"\n";
+  }
+}
+
 
 int main(int argc, char** argv)
 try
@@ -68,10 +92,10 @@ try
   tles.parseFile("gps-ops.txt");
   tles.parseFile("beidou.txt");
 
-  bool skipGPS{false};
-  bool skipBeidou{false};
+  bool skipGPS{true};
+  bool skipBeidou{true};
   bool skipGalileo{false};
-  bool skipGlonass{false};
+  bool skipGlonass{true};
   
   ofstream almanac("almanac.txt");
   ofstream iodstream("iodstream.csv");
@@ -139,6 +163,27 @@ try
         }
 
         oldgm4s[nmm.gi().gnsssv()] = gm;
+        int sv = nmm.gi().gnsssv();
+        if(gmwtypes[{sv,1}].iodnav == gmwtypes[{sv,2}].iodnav &&
+           gmwtypes[{sv,2}].iodnav == gmwtypes[{sv,3}].iodnav &&
+           gmwtypes[{sv,3}].iodnav == gmwtypes[{sv,4}].iodnav) {
+          cout <<" have complete ephemeris at " << gm.iodnav;
+          if(!oldEph[sv].sqrtA)
+            oldEph[sv] = gm;
+          else if(oldEph[sv].iodnav != gm.iodnav) {
+            cout<<" disco! "<< oldEph[sv].iodnav << " - > "<<gm.iodnav <<", "<< (gm.getT0e() - oldEph[sv].getT0e())/3600.0 <<" hours-jump insta-age "<<ephAge(gm.tow, gm.getT0e())/3600.0<<" hours";
+            Point oldPoint, newPoint;
+            getCoordinates(gm.tow, oldEph[sv], &oldPoint);
+            getCoordinates(gm.tow, gm, &newPoint);
+            Vector jump(oldPoint, newPoint);
+            cout<<" distance "<< jump.length() << " ("<<jump.x<<", "<<jump.y <<", "<<jump.z<<")";
+            auto oldAtomic = oldEph[sv].getAtomicOffset(gm.tow);
+            auto newAtomic = gm.getAtomicOffset(gm.tow);
+            cout<<" clock-jump "<<oldAtomic.first - newAtomic.first<<" ns ";
+            doOrbitDump(2, sv, gm.wn, oldEph[sv], gm, gm.tow - 3*3600, gm.tow + 3*3600);
+            oldEph[sv]=gm;
+          }
+        }
       }
       if(wtype == 1) {
         cout << " iodnav " << gm.iodnav <<" t0e "<< gm.t0e*60 <<" " << ephAge(gm.t0e*60, gm.tow);
