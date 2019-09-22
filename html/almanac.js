@@ -58,13 +58,13 @@ function update()
 
     if(lastseen != null)
         d3.select("#freshness").html(lastseen.fromNow());
-    d3.json("global", function(d) {
+    d3.json("global.json", function(d) {
         lastseen = moment(1000*d["last-seen"]);
         d3.select("#freshness").html(lastseen.fromNow());
     });
 
     
-    d3.json("almanac", function(d) {
+    d3.json("almanac.json", function(d) {
         // put data in an array
         sats=d;
         var arr=[];
@@ -86,9 +86,6 @@ function update()
         var livearr=[];
         for(n = 0 ; n < arr.length; n++)
         {
-            if(arr[n].sv[0]!='G')
-                continue;
-
             livearr.push(arr[n]);
         }
 

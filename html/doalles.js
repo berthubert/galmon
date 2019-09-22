@@ -22,13 +22,18 @@ function maketable(str, arr)
         .data(columns)
         .enter()
         .append("th")
-        .text(function(column) {
+        .html(function(column) {
             if(column == "delta_hz_corr")
                 return "ΔHz";
             if(column == "delta-gps")
                 return "ΔGPS ns";
             if(column == "delta-utc")
                 return "ΔUTC ns";
+            if(column == "sources")
+                return '<a href="observers.html">sources</a>';
+            if(column == "alma-dist")
+                return '<a href="almanac.html">alma-dist</a>';
+            
             else
                 return column;
         });
@@ -53,7 +58,7 @@ function maketable(str, arr)
                     
                     ret.value = '<img width="16" height="16" src="https://ds9a.nl/tmp/'+ img +'"/>';
 //                    ret.value="";
-                    ret.value += "&nbsp;"+row.sv;
+                    ret.value += "&nbsp;<a href='sv.html?gnssid=2&sv="+row.svid+"&sigid="+row.sigid+"'>"+row.sv+"</a>";
                 }
                 else if(column == "aodc/e") {
                     if(row["aodc"] != null && row["aode"] != null)
@@ -168,13 +173,13 @@ function update()
         d3.select("#freshness").html(lastseen.fromNow());
 
     
-    d3.json("global", function(d) {
+    d3.json("global.json", function(d) {
         d3.select('#facts').html("Galileo-UTC offset: <b>"+d["utc-offset-ns"].toFixed(2)+"</b> ns, Galileo-GPS offset: <b>"+d["gps-offset-ns"].toFixed(2)+"</b> ns, GPS UTC offset: <b>"+d["gps-utc-offset-ns"].toFixed(2)+"</b>. "+d["leap-seconds"]+"</b> leap seconds");
         lastseen = moment(1000*d["last-seen"]);
         d3.select("#freshness").html(lastseen.fromNow());
     });
     
-    d3.json("svs", function(d) {
+    d3.json("svs.json", function(d) {
         // put data in an array
         sats=d;
         var arr=[];
@@ -186,7 +191,8 @@ function update()
             o.elev="";
             Object.keys(o.perrecv).forEach(function(k) {
                 if(o.perrecv[k]["last-seen-s"] < 1800) {
-                    o.sources = o.sources + k +" ";
+                    o.sources = o.sources + '<a href="observer.html?observer=' + k + '">'+k+'</a> ';
+
                     o.db = o.db + o.perrecv[k].db +" ";
                     if(o.perrecv[k].elev != null)
                         o.elev = o.elev + o.perrecv[k].elev.toFixed(0)+" ";
@@ -203,7 +209,7 @@ function update()
                     if(o.prres == null)
                         o.prres ="";
                     if(o.perrecv[k].prres != null)
-                        o.prres = o.prres + o.perrecv[k].prres.toFixed(1)+" ";
+                        o.prres = o.prres + o.perrecv[k].prres.toFixed(0)+" ";
                     else
                         o.prres = o.prres + "_ ";
 

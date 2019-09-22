@@ -1,68 +1,30 @@
-<html>
-  <head>
-    <style>
-      body,
-svg {
-  height: 100%;
-  margin: 0;
-  width: 100%;
-  float: left;
-}
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<title>galmon.eu geo</title>
+	<link rel="stylesheet" type="text/css" href="geo.css">
 
+	<script src="../d3.v4.min.js"></script>
+	<script src="../ext/topojson.v1.min.js"></script>
+	<script src="../ext/d3-geo-projection.v2.min.js"></script> 
 
-path.countries {
-   stroke-width: 1;
-   stroke: #75739F;
-   fill: #5EAFC6;
-}
-circle.sats {
-   stroke-width: 1;
-   stroke: #4F442B;
-//   fill: #FCBC34;
-}
-circle.centroid {                   
-   fill: #75739F;
-   pointer-events: none;
-}
-rect.bbox {
-   fill: none;
-   stroke-dasharray: 5 5;
-   stroke: #75739F;
-   stroke-width: 2;
-   pointer-events: none;
-}
-path.graticule {                    
-   fill: none;
-   stroke-width: 1;
-   stroke: #9A8B7A;
-}
-path.graticule.outline {
-   stroke: #9A8B7A;
-}
+</head>
+<body>
+	<div id="galmongeo">
+		<h1>galmon.eu geo</h1>
+		<div id="galmoninfo">
+			This is a live map from the <a href="/">galmon.eu</a> project</p>
+		</div>
+		<div id="combined">
+			<svg id="svgworld"></svg>
+			<svg id="svggraticule"></svg>
+			<svg id="svgobservers"></svg>
+			<svg id="svgalmanac"></svg>
+		</div>
+	</div>
 
-path.merged {
-   fill: #9A8B7A;
-   stroke: #4F442B;
-   stroke-width: 2px;
-      }
-
-      #map {
-        position: fixed;
-        left: 0px;
-        right: 0px;
-        top: 0px;
-        bottom: 0px;
-      }
-
-      
-</style>
-
-  </head>
-  <body>
-    <div id="map">
-      <svg width="100%" height="100%"></svg>
-    </div>
-    <script src="../d3.v4.min.js"></script>
-    <script src="geo.js"></script>
-  </body>
+	<script src="geo.js"></script>
+</body>
 </html>
+
+

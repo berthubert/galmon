@@ -125,11 +125,12 @@ try
       
       gm.tow = nmm.gi().gnsstow();
       gmwtypes[{nmm.gi().gnsssv(), wtype}] = gm;
+      static map<int,GalileoMessage> oldEph;
       cout << "gal inav for "<<nmm.gi().gnssid()<<","<<nmm.gi().gnsssv()<<","<<nmm.gi().sigid()<<" tow "<< nmm.gi().gnsstow()<<" wtype "<< wtype<<" ";
       static uint32_t tow;
       if(wtype == 4) {
         //              2^-34       2^-46
-        cout <<" af0 "<<gm.af0 <<" af1 "<<gm.af1 <<", scaled: "<<ldexp(1.0*gm.af0, 19-34)<<", "<<ldexp(1.0*gm.af1, 38-46);
+        cout <<" iodnav "<<gm.iodnav <<" af0 "<<gm.af0 <<" af1 "<<gm.af1 <<", scaled: "<<ldexp(1.0*gm.af0, 19-34)<<", "<<ldexp(1.0*gm.af1, 38-46);
         if(tow && oldgm4s.count(nmm.gi().gnsssv()) && oldgm4s[nmm.gi().gnsssv()].iodnav != gm.iodnav) {
           auto& oldgm4 = oldgm4s[nmm.gi().gnsssv()];
           auto oldOffset = oldgm4.getAtomicOffset(tow);
@@ -192,11 +193,14 @@ try
         }
         cout<<"  "<<gmwtypes[{sv,9}].alma3.svid <<" af0 "<<gm.alma3.af0<<" af1 "<< gm.alma3.af1 <<" e5bhs "<< gm.alma3.e5bhs<<" e1bhs "<< gm.alma3.e1bhs <<" a0g " << gm.a0g <<" a1g "<< gm.a1g <<" t0g "<<gm.t0g <<" wn0g "<<gm.wn0g;
       }
+      
       cout<<endl;      
     }
     else if(nmm.type() == NavMonMessage::GPSInavType) {
-      if(skipGPS)
+      if(skipGPS) {
+        cout<<endl;
         continue;
+      }
       
       int sv = nmm.gpsi().gnsssv();
       auto cond = getCondensedGPSMessage(std::basic_string<uint8_t>((uint8_t*)nmm.gpsi().contents().c_str(), nmm.gpsi().contents().size()));
@@ -280,8 +284,10 @@ try
       cout<<"\n";
     }
     else if(nmm.type() == NavMonMessage::BeidouInavTypeD1) {
-      if(skipBeidou)
+      if(skipBeidou) {
+        cout<<endl;
         continue;
+      }
 
       int sv = nmm.bid1().gnsssv();
       auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid1().contents().c_str(), nmm.bid1().contents().size()));
@@ -361,8 +367,10 @@ try
             
     }
     else if(nmm.type() == NavMonMessage::GlonassInavType) {
-      if(skipGlonass)
+      if(skipGlonass) {
+        cout<<endl;
         continue;
+      }
 
       static map<int, GlonassMessage> gms;
       auto& gm = gms[nmm.gloi().gnsssv()];
