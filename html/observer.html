@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+text {
+  font: 12px sans-serif;
+}
+
+th, td {
+padding-left: 8px;
+padding-right: 8px;
+padding-top: 1px;
+padding-bottom: 1px;
+font-family: monospace;
+}
+tr:nth-child(even) {background: #CCC}
+tr:nth-child(odd) {background: #FFF}
+
+.Orbits{margin-top:3em;margin-bottom:1em}.Orbits .Variables{display:inline-block;vertical-align:top;width:28em;height:44em;overflow:auto;position:relative}.Orbits .Variables table{font-family:'Roboto Mono',monospace;color:#000;border-spacing:.5em;display:block;position:absolute;left:50%;transform:translateX(-50%)}.Orbits .Variables table tr{text-align:center}.Orbits .Variables table td{font-size:.85em}.Orbits .Drawing{display:inline-block;vertical-align:top;margin-top:.5em;width:44em;height:44em}.Orbits .Drawing .sats-label{font-size:12px;fill:#454545;font-weight:bold;stroke:transparent}.Orbits .Drawing .satellite circle{stroke-width:2px}.Orbits .Drawing svg{font-family:sans-serif;font-size:10px;text-anchor:middle;fill:none;stroke:#000;width:100%;height:100%}
+
+</style>
+<body>
+  Last update: <span id="freshness"></span>. More information about this Galileo/GPS/BeiDou/Glonass open source monitor can be found <a href="https://github.com/ahupowerdns/galmon/blob/master/README.md#galmon">here</a>. Live map <a href="geo">here!</a>. Contact <a href="https://ds9a.nl/">me</a> if you want access to the Grafana dashboard.<br/>
+<table><tr><td valign="top">
+  <table id="galileo"></table></td><td valign="top">
+
+  <div class="Orbits">
+    <center>
+      <div class="Drawing"></div>
+    </center>
+  </div>
+  </td></tr></table>
+  
+  <p>
+    This table shows live output from four Galileo/GPS/BeiDou/GLONASS receivers hosted in Nootdorp, The Netherlands and California, United States.
+    It is very much a work in progress, and will not be available at all times. Extremely rough code is on
+    <a href="https://github.com/ahuPowerDNS/galmon">GitHub</a>.
+
+    Some technical detail behind this setup can be found in <a href="https://ds9a.nl/articles/posts/galileo-notes/">this post</a>.
+
+    For updates, follow <a href="https://twitter.com/GalileoSats">@GalileoSats</a> on Twitter, or join us on our IRC channel (chat) via the
+    <a href="https://webchat.oftc.net/?channels=galileo">web gateway</a>.
+    
+    <script src="d3.v4.min.js"></script>
+    <script src="ext/moment-with-locales.js"></script>
+  <script src="observer.js"></script>
+</body>
+</html>
