@@ -524,7 +524,7 @@ int main(int argc, char** argv)
               0x05, 0x04, 0x08, 0,  0, 0x00, 0x01, 0x00,
             
               //                            GAL   min  max   res   x1   x2    x3,   x4
-              0x02, 0x04, 0x08, 0,  doGalileo, 0x00, 0x01, 0x00,
+              0x02, 0x08, 0x0A, 0,  doGalileo, 0x00, 0x01, 0x00,
               //                            GLO   min  max   res   x1   x2    x3,   x4
               0x06, 0x06, 0x08, 0,  doGlonass, 0x00, 0x01, 0x00
 
