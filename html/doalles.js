@@ -174,6 +174,8 @@ function updateSats()
             o.sources="";
             o.db="";
             o.elev="";
+            o.delta_hz_corr="";
+            o.prres="";
             Object.keys(o.perrecv).forEach(function(k) {
                 if(o.perrecv[k]["last-seen-s"] < 1800) {
                     o.sources = o.sources + '<a href="observer.html?observer=' + k + '">'+k+'</a> ';
@@ -251,7 +253,7 @@ function updateSats()
 
 function update()
 {
-    var seconds = 20;
+    var seconds = 2;
     clearTimeout(repeat);
     repeat=setTimeout(update, 1000.0*seconds);
 
