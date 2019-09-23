@@ -92,10 +92,10 @@ try
   tles.parseFile("gps-ops.txt");
   tles.parseFile("beidou.txt");
 
-  bool skipGPS{true};
-  bool skipBeidou{true};
+  bool skipGPS{false};
+  bool skipBeidou{false};
   bool skipGalileo{false};
-  bool skipGlonass{true};
+  bool skipGlonass{false};
   
   ofstream almanac("almanac.txt");
   ofstream iodstream("iodstream.csv");
