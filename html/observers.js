@@ -33,7 +33,10 @@ function makeTable(str, arr)
                 var ret={};
                 ret.align = "right";
                 ret.color = null;
-                if(column == "last-seen") {
+                if(column == "id") {
+                    ret.value='<a href="observer.html?observer='+row[column]+'">'+row[column]+"</a>";
+                }
+                else if(column == "last-seen") {
                     ret.value = moment(1000*row["last-seen"]).fromNow();
                     let lastSeen = moment(1000*row["last-seen"]);
                     let age = (moment() - lastSeen);

@@ -58,7 +58,7 @@ function maketable(str, arr)
                     
                     ret.value = '<img width="16" height="16" src="https://ds9a.nl/tmp/'+ img +'"/>';
 //                    ret.value="";
-                    ret.value += "&nbsp;<a href='sv.html?gnssid=2&sv="+row.svid+"&sigid="+row.sigid+"'>"+row.sv+"</a>";
+                    ret.value += "&nbsp;<a href='sv.html?gnssid="+row.gnssid+"&sv="+row.svid+"&sigid="+row.sigid+"'>"+row.sv+"</a>";
                 }
                 else if(column == "aodc/e") {
                     if(row["aodc"] != null && row["aode"] != null)

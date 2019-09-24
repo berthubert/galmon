@@ -51,6 +51,7 @@ var sats={};
 var lastseen=null;
 var sv=2;
 var gnssid=3;
+var sigid=0;
 
 function update()
 {
@@ -66,7 +67,7 @@ function update()
     });
 
 
-    d3.queue(1).defer(d3.json, "./sv.json?gnssid="+gnssid+"&sv="+sv).defer(d3.json, "./almanac.json").awaitAll(ready);
+    d3.queue(1).defer(d3.json, "./sv.json?gnssid="+gnssid+"&sv="+sv+"&sigid="+sigid).defer(d3.json, "./almanac.json").awaitAll(ready);
     
     function ready(error, results) {
         var arr=[];
@@ -90,6 +91,7 @@ console.log(window.location.href);
 var url = new URL(window.location.href);
 sv = url.searchParams.get("sv");
 gnssid = url.searchParams.get("gnssid");
+sigid = url.searchParams.get("sigid");
 
 
 
