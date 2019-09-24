@@ -630,6 +630,10 @@ std::string makeSatIDName(const SatID& satid)
 {
   return fmt::sprintf("%c%02d@%d", getGNSSChar(satid.gnss), satid.sv, satid.sigid);
 }
+std::string makeSatPartialName(const SatID& satid)
+{
+  return fmt::sprintf("%c%02d", getGNSSChar(satid.gnss), satid.sv);
+}
 
 std::optional<double> getHzCorrection(time_t now, int src, unsigned int gnssid, unsigned int sigid, const svstats_t svstats)
 {
@@ -807,8 +811,9 @@ try
             item["tle-altitude"] = match.altitude;
           }
         }
-        
-        ret[fmt::sprintf("C%02d", ae.first)] = item;
+        auto name = fmt::sprintf("C%02d", ae.first);
+        item["name"]=name;
+        ret[name] = item;
       }
 
       auto glonassalma = g_glonassalmakeeper.get();
@@ -839,8 +844,9 @@ try
         }
 
 
-        
-        ret[fmt::sprintf("R%02d", ae.first)] = item;
+        auto name = fmt::sprintf("R%02d", ae.first);
+        item["name"]=name;
+        ret[name] = item;
       }
 
       auto galileoalma = g_galileoalmakeeper.get();
@@ -896,7 +902,9 @@ try
           item["tle-longitude"] = 180*match.longitude/M_PI;
           item["tle-altitude"] = match.altitude;
         }
-        ret[fmt::sprintf("E%02d", ae.first)] = item;
+        auto name = fmt::sprintf("E%02d", ae.first);
+        item["name"]= name;
+        ret[name] = item;
       }
 
       auto gpsalma = g_gpsalmakeeper.get();
@@ -950,7 +958,9 @@ try
           item["tle-longitude"] = 180*match.longitude/M_PI;
           item["tle-altitude"] = match.altitude;
         }
-        ret[fmt::sprintf("G%02d", ae.first)] = item;
+        auto name = fmt::sprintf("G%02d", ae.first);
+        item["name"]=name;
+        ret[name] = item;
       }
       
       return ret;
@@ -1006,6 +1016,8 @@ try
               svo["gnss"] = sv.first.gnss;
               svo["sv"] = sv.first.sv;
               svo["sigid"] = sv.first.sigid;
+              svo["fullName"] = makeSatIDName(sv.first);
+              svo["name"] = makeSatPartialName(sv.first);
 
               svs[makeSatIDName(sv.first)] = svo;
             }
@@ -1021,7 +1033,7 @@ try
 
   h2s.addHandler("/sv.json", [](auto handler, auto req) {
       string_view path = convert(req->path);
-
+      cout<<path<<endl;
       nlohmann::json ret = nlohmann::json::object();
 
       SatID id;
@@ -1036,12 +1048,12 @@ try
         return ret;
       }
       id.gnss = atoi(&path[0]+pos+7);
+      
       id.sigid = 1;
       pos = path.find("sigid=");
       if(pos != string::npos) {
-        id.sigid = atoi(&path[0]+pos+7);
+        id.sigid = atoi(&path[0]+pos+6);
       }
-      
       
       auto svstats = g_statskeeper.get();
 
@@ -1350,6 +1362,8 @@ try
         
         item["wn"] = s.second.wn;
         item["tow"] = s.second.tow;
+        item["fullName"] = makeSatIDName(s.first);
+        item["name"] = makeSatPartialName(s.first);
         ret[makeSatIDName(s.first)] = item;
       }
       return ret;
