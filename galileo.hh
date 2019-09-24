@@ -179,11 +179,12 @@ struct GalileoMessage
   std::pair<double, double> getAtomicOffset(int tow) const
   {
     int delta = ephAge(tow, getT0c());
+    //           2^-34      2^-46                            2^-59
     double cur = af0  + ldexp(1.0*delta*af1, -12) + ldexp(1.0*delta*delta*af2, -25);
     double trend = ldexp(af1, -12) + ldexp(2.0*delta*af2, -25);
 
     // now in units of 2^-34 seconds, which are ~0.058 nanoseconds each
-    double factor = ldexp(1000000000, -34);
+    double factor = ldexp(1000000000.0, -34);
     return {factor * cur, factor * trend};
   }
 
