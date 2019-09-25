@@ -53,7 +53,8 @@ library installed. If you get an error about 'wslay', do the following, and run 
 echo WSLAY=-lwslay > Makefile.local
 ```
 
-Once compiled, run for example `./ubxtool --wait /dev/ttyACM0 1 | ./ubxparse 10000 html null`
+Once compiled, run for example `./ubxtool --wait --port /dev/ttyACM0
+--station 1 --stdout | ./ubxparse 10000 html null`
 
 Next up, browse to http://[::1]:10000 (or try http://localhost:10000/ and
 you should be in business. ubxtool changes (non-permanently) the
@@ -64,11 +65,18 @@ the doppler frames.
 To see what is going on, try:
 
 ```
-./ubxtool --wait /dev/ttyACM0 1 | ./navdump
+./ubxtool --wait --port /dev/ttyACM0 --station 1 --stdout | ./navdump
 ```
 
-Setting up a distributed setup is slightly more complicated & may still
-change.
+To distribute data to a remote `navrecv`, use:
+
+```
+./ubxtool --wait --port /dev/ttyACM0 --station 255 --dest 127.0.0.1
+```
+
+This will send protobuf to 127.0.0.1:29603. You can add as many destinations
+as you want, they will buffer and automatically reconnect. To also send data
+to stdout, add `--stdout`.
 
 Tooling:
 
