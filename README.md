@@ -32,21 +32,6 @@ Goals:
 
 Works on Linux (including Raspbian on Pi Zero W), OSX and OpenBSD.
 
-Build in Docker
----------------
-
-To build it in Docker:
-
-```
-git clone https://github.com/ahupowerdns/galmon.git --recursive
-docker build -t galmon --build-arg MAKE_FLAGS=-j2 .
-```
-
-To run a container with a shell in there:
-
-```
-docker run -it --rm galmon
-```
 
 
 Build locally
@@ -72,6 +57,23 @@ library installed. If you get an error about 'wslay', do the following, and run 
 ```
 echo WSLAY=-lwslay > Makefile.local
 ```
+
+Build in Docker
+---------------
+
+To build it in Docker:
+
+```
+git clone https://github.com/ahupowerdns/galmon.git --recursive
+docker build -t galmon --build-arg MAKE_FLAGS=-j2 .
+```
+
+To run a container with a shell in there:
+
+```
+docker run -it --rm galmon
+```
+
 
 Running
 -------
