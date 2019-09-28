@@ -32,6 +32,26 @@ Goals:
 
 Works on Linux (including Raspbian on Pi Zero W), OSX and OpenBSD.
 
+Build in Docker
+---------------
+
+To build it in Docker:
+
+```
+git clone https://github.com/ahupowerdns/galmon.git --recursive
+docker build -t galmon --build-arg MAKE_FLAGS=-j2 .
+```
+
+To run a container with a shell in there:
+
+```
+docker run -it --rm galmon
+```
+
+
+Build locally
+-------------
+
 To get started, make sure you have a C++17 compiler, git, protobuf-compiler.
 Then run 'make ubxtool navdump' to build the receiver-only tools.
 
@@ -52,6 +72,9 @@ library installed. If you get an error about 'wslay', do the following, and run 
 ```
 echo WSLAY=-lwslay > Makefile.local
 ```
+
+Running
+-------
 
 Once compiled, run for example `./ubxtool --wait --port /dev/ttyACM0
 --station 1 --stdout | ./ubxparse 10000 html null`
