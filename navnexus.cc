@@ -96,7 +96,7 @@ try
     }
     sort(nmms.begin(), nmms.end(), [](const auto& a, const auto& b)
          {
-           return make_pair(a.localutcseconds(), b.localutcnanoseconds()) <
+           return make_pair(a.localutcseconds(), a.localutcnanoseconds()) <
              make_pair(b.localutcseconds(), b.localutcnanoseconds());
          });
 
