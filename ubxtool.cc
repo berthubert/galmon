@@ -67,22 +67,43 @@ size_t writen2(int fd, const void *buf, size_t count)
    Current cycle: TOW - (TOW%30)
    Next cycle:    TOW - (TOW%30) + 30
 
+E1:
+
 t   n   w
-0   1:  2                   wn % 30 == 0           
-2   2:  4                   wn % 30 == 2           
-4   3:  6          WN/TOW              4           -> set startTow, startTowFresh
-6   4:  7/9                                        
+0   1:  2                   tow % 30 == 1           
+2   2:  4                   tow % 30 == 3           
+4   3:  6             TOW               5          -> set startTow, startTowFresh
+6   4:  7/9                             7           
+8   5:  8/10                            9          
+10  6:  0          WN/TOW              11            
+12  7:  0          WN/TOW              13
+14  8:  0          WN/TOW              15
+16  9:  0          WN/TOW              17
+18  10: 0          WN/TOW              19
+20  11: 1                              21          
+22  12: 3                              23
+24  13: 5          WN/TOW              25
+26  14: 0          WN/TOW              27
+28  15: 0          WN/TOW              29
+
+E5b-1:
+t   n   w
+0   1:  1 (2/2)             tow % 30 == 0           
+2   2:  3                   tow % 30 == 2           
+4   3:  5          WN/TOW               4           -> set startTow, startTowFresh
+6   4:  7/9                                       
 8   5:  8/10                                       
-10  6:  0             TOW                          
+10  6:  0          WN/TOW                          
 12  7:  0          WN/TOW
 14  8:  0          WN/TOW
 16  9:  0          WN/TOW
 18  10: 0          WN/TOW
-20  11: 1                                          
-22  12: 3
-24  13: 5          WN/TOW
+20  11: 2                                          
+22  12: 4
+24  13: 6             TOW
 26  14: 0          WN/TOW
-28  15: 0          WN/TOW
+28  15: 1 (1/2)    WN/TOW
+
 */
 
 class UBXMessage
@@ -818,14 +839,10 @@ int main(int argc, char** argv)
             ns.emitNMM( nmm);
             continue;
           }
-          else if(id.first ==2) {
-            //            cerr<<"gal nav sv "<<id.second<<" size "<<payload.size();
-            //            cerr<<" res1 "<<(int)payload[2]<<" numwords "<<(int)payload[4] << " channel "<< (int)payload[5] << " version " << (int)payload[6]<<" res2 "<<(int)payload[7]<<endl;
+          else if(id.first ==2) { // GALILEO
             auto inav = getInavFromSFRBXMsg(payload);
             unsigned int wtype = getbitu(&inav[0], 0, 6);
 
-            
-            //          cerr<<"gnssid "<<id.first<<" sv "<<id.second<<" " << wtype << endl;
             uint32_t satTOW;
             int msgTOW{0};
             if(getTOWFromInav(inav, &satTOW, &g_galwn)) { // 0, 6, 5
@@ -837,29 +854,52 @@ int main(int argc, char** argv)
               if(curCycleTOW < 0) // did not yet have a start of cycle
                 continue;
               //            cerr<<"   "<<wtype<<" sv "<<id.second<<" tow ";
-              if(wtype == 2) {
-                //              cerr<<"infered to be 1 "<<curCycleTOW + 31<<endl;
-                msgTOW = curCycleTOW + 31;
+              if(sigid == 5) {
+                if(wtype == 2) {
+                  msgTOW = curCycleTOW + 20;
+                }
+                else if(wtype == 4) {
+                  msgTOW = curCycleTOW + 22;
+                } // next have '6' which sets TOW
+                else if(wtype==7 || wtype == 9) {
+                  msgTOW = curCycleTOW + 6;
+                }
+                else if(wtype==8 || wtype == 10) {
+                  msgTOW = curCycleTOW + 8;
+                }
+                else if(wtype==1) {
+                  msgTOW = curCycleTOW+30;
+                }
+                else if(wtype==3) {
+                  msgTOW = curCycleTOW + 32; 
+                }
+                else { // dummy
+                  if(id.second != 20) // known broken XXX
+                    cerr<<"galileo E"<<id.second<<" what kind of wtype is this: "<<wtype<<endl;
+                  continue;
+                }
               }
-              else if(wtype == 4) {
-                //              cerr<<"infered to be 3 "<<curCycleTOW + 33<<endl;
-                msgTOW = curCycleTOW + 33;
-              } // next have '6' which sets TOW
-              else if(wtype==7 || wtype == 9) {
-                msgTOW = curCycleTOW + 7;
-              }
-              else if(wtype==8 || wtype == 10) {
-                msgTOW = curCycleTOW + 9;
-              }
-              else if(wtype==1) {
-                msgTOW = curCycleTOW + 21;
-              }
-              else if(wtype==3) {
-                msgTOW = curCycleTOW + 23; 
-              }
-              else { // dummy
-                cerr<<"galileo E"<<id.second<<" what kind of wtype is this: "<<wtype<<endl;
-                continue;
+              else {
+                if(wtype == 2) {
+                  //              cerr<<"infered to be 1 "<<curCycleTOW + 31<<endl;
+                  msgTOW = curCycleTOW + 31;
+                }
+                else if(wtype == 4) {
+                  //              cerr<<"infered to be 3 "<<curCycleTOW + 33<<endl;
+                  msgTOW = curCycleTOW + 33;
+                } // next have '6' which sets TOW
+                else if(wtype==7 || wtype == 9) {
+                  msgTOW = curCycleTOW + 7;
+                }
+                else if(wtype==8 || wtype == 10) {
+                  msgTOW = curCycleTOW + 9;
+                }
+                else if(wtype==1) {
+                  msgTOW = curCycleTOW + 21;
+                }
+                else if(wtype==3) {
+                  msgTOW = curCycleTOW + 23; 
+                }
               }
             }
             NavMonMessage nmm;
@@ -1049,7 +1089,7 @@ int main(int argc, char** argv)
           memcpy(&fracChips, &payload[58+24*n], 2);
           memcpy(&codePhase, &payload[60+24*n], 4);
           
-          cerr<<(int)payload[44+24*n]<<","<<(int)payload[45+24*n]<<" whole-chips "<<wholeChips<<" frac-chips "<<fracChips<<" int-code-phase " <<(int)intCodePhase <<" frac-code-phase "<<ldexp(codePhase, -21) << " mpath " << (int)payload[47+24*n] << " r1 " << (int)payload[66+24*n] << " r2 " <<(int)payload[67+24*n]<<endl;
+          //          cerr<<(int)payload[44+24*n]<<","<<(int)payload[45+24*n]<<" whole-chips "<<wholeChips<<" frac-chips "<<fracChips<<" int-code-phase " <<(int)intCodePhase <<" frac-code-phase "<<ldexp(codePhase, -21) << " mpath " << (int)payload[47+24*n] << " r1 " << (int)payload[66+24*n] << " r2 " <<(int)payload[67+24*n]<<endl;
         }
       }
       else if(msg.getClass() == 0x02 && msg.getType() == 0x59) { // UBX-RXM-RLM
