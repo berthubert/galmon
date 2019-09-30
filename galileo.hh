@@ -31,6 +31,11 @@ struct GalileoMessage
   int parse(std::basic_string_view<uint8_t> page)
   {
     wtype = getbitu(&page[0], 0, 6);
+    if(wtype >= parsers.size()) {
+      std::cerr<<"Asked for impossible galileo type "<<wtype<<std::endl;
+      return wtype;
+    }
+      
     std::invoke(parsers.at(wtype), this, page);
     return wtype;
   }
