@@ -1,7 +1,7 @@
 body {
 	height: 100%;
-	margin: 0;
 	width: 100%;
+	margin: 0;
 	float: left;
 	background-color: #ccc;
 	font-family: verdana, helvetica, arial, sans-serif;
@@ -26,55 +26,45 @@ body {
 	display: inline-block;
 	position: relative;
 	background-color: transparent;
-	// background-color: yellow;
-	height: 700px;
+	height: 620px;
 	width: 100%;
 	//margin-left: auto;
 	//margin-right: auto;
-	margin: 10px;
+	margin: 0px;
+	padding: 0px;
+	border: gray 1px solid;
 }
 
 #svgworld {
 	position: absolute; top: 0; right: 0; bottom: 0; left: 0;
-	// border: blue 1px solid;
 	display: inline-block;
-	// margin-left: auto;
-	// margin-right: auto;
+	// border: green 1px solid;
 }
 
 #svggraticule {
 	position: absolute; top: 0; right: 0; bottom: 0; left: 0;
-	// border: blue 1px solid;
 	display: inline-block;
-	// margin-left: auto;
-	// margin-right: auto;
+	// border: blue 1px solid;
 }
 
 #svgobservers {
 	position: absolute; top: 0; right: 0; bottom: 0; left: 0;
-	// border: blue 1px solid;
 	display: inline-block;
-	// margin-left: auto;
-	// margin-right: auto;
+	// border: blue 1px solid;
 }
 
 #svgalmanac {
 	position: absolute; top: 0; right: 0; bottom: 0; left: 0;
-	// border: blue 1px solid;
 	display: inline-block;
-	// margin-left: auto;
-	// margin-right: auto;
+	// border: blue 1px solid;
 }
 
 svg {
-	// border: red 1px solid;
-	// background-color: transparent;
-	padding: 20px;
-	// margin-left: auto;
-	// margin-right: auto;
+	//padding: 20px;
 }
 
 path.countries {
+	background: yellow;
 	stroke-width: 1;
 	stroke: #75739F;
 	fill: #5EAFC6;
@@ -85,10 +75,37 @@ path.coverage {
 	fill: #888;
 	fill-opacity: 0.1;
 }
-circle.sats {
+path.coverage.down {
+	stroke-width: 0;
+	fill: transparent;
+	fill-opacity: 0;
+}
+path.observers {
+	stroke-width: 1;
+	stroke: black;
+	fill: black;
+	fill-opacity: .75;
+}
+path.observers.down {
+	stroke-width: 1;
+	stroke: black;
+	fill: red;
+	fill-opacity: .75;
+}
+rect.observers {
+	stroke-width: 1;
+	stroke: black;
+	fill: black;
+	fill-opacity: 1;
+}
+circle.satellites {
 	stroke-width: 1;
 	stroke: #4F442B;
 	//fill: #FCBC34;
+}
+.radials {
+	stroke-width: 1;
+	stroke: red;
 }
 text.labels {
 	// stroke-width: 1;
@@ -125,4 +142,15 @@ path.merged {
 	stroke: #4F442B;
 	stroke-width: 2px;
 }
-
+.tooltip {
+	font-family: courier new, courier;
+	font-style: italic;
+	font-size: 12px;
+	width: 200px;
+	position: relative;
+	background-color: #ddd;
+	border: solid;
+	border-width: 1px;
+	border-radius: 2px;
+	padding: 2px;
+}
