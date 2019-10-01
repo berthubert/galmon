@@ -900,6 +900,12 @@ int main(int argc, char** argv)
                 else if(wtype==3) {
                   msgTOW = curCycleTOW + 23; 
                 }
+                else { // dummy
+                  if(id.second != 20) // known broken XXX
+                    cerr<<"galileo E"<<id.second<<" what kind of wtype is this: "<<wtype<<endl;
+                  continue;
+                }
+
               }
             }
             NavMonMessage nmm;

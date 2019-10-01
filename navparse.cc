@@ -408,16 +408,6 @@ void SVStat::addGalileoWord(std::basic_string_view<uint8_t> page)
   }
 }
 
-struct SatID
-{
-  uint32_t gnss{255}; // these could all be 'int16_t' but leads to howling numbers of warnings with protobuf
-  uint32_t sv{0};
-  uint32_t sigid{0};
-  bool operator<(const SatID& rhs) const
-  {
-    return tie(gnss, sv, sigid) < tie(rhs.gnss, rhs.sv, rhs.sigid);
-  }
-};
 
 typedef std::map<SatID, SVStat> svstats_t;
 svstats_t g_svstats;
@@ -667,6 +657,10 @@ std::optional<double> getHzCorrection(time_t now, int src, unsigned int gnssid, 
 std::string humanBhs(int bhs)
 {
   static vector<string> options{"ok", "out of service", "will be out of service", "test"};
+  if(bhs >= options.size()) {
+    cerr<<"Asked for humanBHS "<<bhs<<endl;
+    return "??";
+  }
   return options.at(bhs);
 }
 int main(int argc, char** argv)
@@ -1131,6 +1125,8 @@ try
   h2s.addHandler("/svs.json", [](auto handler, auto req) {
       auto svstats = g_statskeeper.get();
       nlohmann::json ret = nlohmann::json::object();
+      h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_CACHE_CONTROL, 
+                     NULL, H2O_STRLIT("max-age=3"));
 
       for(const auto& s: svstats) {
         nlohmann::json item  = nlohmann::json::object();

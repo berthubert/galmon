@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 #include "fmt/format.h"
 #include "fmt/printf.h"
+#include "CLI/CLI.hpp"
 #include <fstream>
 #include <map>
 #include <bitset>
@@ -22,11 +23,32 @@
 #include "galileo.hh"
 #include "navmon.hh"
 #include "tle.hh"
+#include "sp3.hh"
 
 #include <unistd.h>
 using namespace std;
 
 Point g_ourpos;
+
+
+vector<SP3Entry> g_sp3s;
+
+bool sp3Order(const SP3Entry& a, const SP3Entry& b)
+{
+  return tie(a.gnss, a.sv, a.t) < tie(b.gnss, b.sv, b.t);
+}
+
+void readSP3s(string_view fname)
+{
+  SP3Reader sp3(fname);
+  SP3Entry e;
+  while(sp3.get(e)) {
+    g_sp3s.push_back(e);
+  }
+
+  sort(g_sp3s.begin(), g_sp3s.end(), sp3Order);
+  
+}
 
 string beidouHealth(int in)
 {
@@ -82,9 +104,55 @@ void doOrbitDump(int gnss, int sv, int wn, const T& oldEph, const T& newEph, int
 }
 
 
+struct SVFilter
+{
+  struct SatID
+  {
+    int gnss, sv, sigid;
+    bool operator<(const SatID& rhs) const
+    {
+      return std::tie(gnss, sv, sigid) < std::tie(rhs.gnss, rhs.sv, rhs.sigid);
+    }
+  };
+  
+  void addFilter(string_view str)
+  {
+    SatID satid{0,0,-1};
+    satid.gnss = atoi(&str[0]);
+    auto pos=  str.find(',');
+    if( pos != string::npos)
+      satid.sv = atoi(&str[pos+1]);
+
+    pos = str.find(',', pos+1);
+    if(pos != string::npos)
+      satid.sigid = atoi(&str[pos+1]);
+    d_filter.insert(satid);
+  }
+  bool check(int gnss, int sv, int sigid=-1)
+  {
+    if(d_filter.empty())
+      return true;
+    if(d_filter.count({gnss,0,-1})) // gnss match
+      return true;
+    if(d_filter.count({gnss,sv,-1})) // gnss, sv match
+      return true;
+    if(d_filter.count({gnss,sv,sigid})) // gnss, sv match, sigid
+      return true;
+        
+    return false;
+  }
+  set<SatID> d_filter;
+  
+};
+
 int main(int argc, char** argv)
 try
 {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  CLI::App app("navdump");
+
+  
   TLERepo tles;
   //  tles.parseFile("active.txt");
   tles.parseFile("galileo.txt");
@@ -92,10 +160,26 @@ try
   tles.parseFile("gps-ops.txt");
   tles.parseFile("beidou.txt");
 
-  bool skipGPS{false};
-  bool skipBeidou{false};
-  bool skipGalileo{false};
-  bool skipGlonass{false};
+  readSP3s("all.sp3");
+  if(!g_sp3s.empty()) {
+    //    sort(g_sp3s.begin(), g_sp3s.end(), [](const auto& a, const auto&b) { return a.t < b.t; });
+    cout<<"Have "<<g_sp3s.size()<<" sp3 entries"; //, from "<<humanTime(g_sp3s.begin()->t) <<" to "<< humanTime(g_sp3s.rbegin()->t)<<endl;
+  }
+
+  vector<string> svpairs;
+  bool doReceptionData{false};
+  bool doRFData{false};
+  bool doObserverPosition{false};
+  app.add_option("--svs", svpairs, "Listen to specified svs. '0' = gps, '2' = Galileo, '2,1' is E01");
+  try {
+    app.parse(argc, argv);
+  } catch(const CLI::Error &e) {
+    return app.exit(e);
+  }
+  SVFilter svfilter;
+  for(const auto& svp : svpairs) {
+    svfilter.addFilter(svp);
+  }
   
   ofstream almanac("almanac.txt");
   ofstream iodstream("iodstream.csv");
@@ -103,6 +187,11 @@ try
 
   ofstream csv("delta.csv");
   csv <<"timestamp gnssid sv tow tle_distance alma_distance utc_dist x y z vx vy vz rad inclination e iod"<<endl;
+
+  ofstream sp3csv;
+
+  sp3csv.open ("sp3.csv", std::ofstream::out | std::ofstream::app);
+  sp3csv<<"timestamp gnssid sv ephAge sp3X sp3Y sp3Z ephX ephY ephZ  sp3Clock ephClock distance clockDelta"<<endl;
   
   for(;;) {
     char bert[4];
@@ -130,27 +219,51 @@ try
     //    if(nmm.type() == NavMonMessage::ReceptionDataType)
     //      continue;
 
+    auto etstamp = [&nmm]()  {
+      cout<<humanTime(nmm.localutcseconds(), nmm.localutcnanoseconds())<<" src "<< nmm.sourceid()<<" ";
+      uint32_t imptow = ((uint32_t)round(nmm.localutcseconds() + nmm.localutcnanoseconds()/1000000000.0) - 935280000 + 18) % (7*86400);
+      if(!(imptow % 2))
+        imptow--;
+      
+      cout<< "imptow "<<imptow-2<<" ";
+    };
     
-    cout<<humanTime(nmm.localutcseconds())<<" "<<nmm.localutcnanoseconds()<<" ";
-    cout<<"src "<<nmm.sourceid()<< " ";
+
     if(nmm.type() == NavMonMessage::ReceptionDataType) {
-      cout<<"receptiondata for "<<nmm.rd().gnssid()<<","<<nmm.rd().gnsssv()<<","<< (nmm.rd().has_sigid() ? nmm.rd().sigid() : 0) <<" db "<<nmm.rd().db()<<" ele "<<nmm.rd().el() <<" azi "<<nmm.rd().azi()<<" prRes "<<nmm.rd().prres() << endl;
+      if(doReceptionData) {
+        etstamp();
+        cout<<"receptiondata for "<<nmm.rd().gnssid()<<","<<nmm.rd().gnsssv()<<","<< (nmm.rd().has_sigid() ? nmm.rd().sigid() : 0) <<" db "<<nmm.rd().db()<<" ele "<<nmm.rd().el() <<" azi "<<nmm.rd().azi()<<" prRes "<<nmm.rd().prres() << endl;
+      }
     }
     else if(nmm.type() == NavMonMessage::GalileoInavType) {
-      if(skipGalileo)
-        continue;
       basic_string<uint8_t> inav((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
       static map<int, GalileoMessage> gms;
       static map<pair<int, int>, GalileoMessage> gmwtypes;
       static map<int, GalileoMessage> oldgm4s;
       int sv = nmm.gi().gnsssv();
+      if(!svfilter.check(2, sv, nmm.gi().sigid()))
+        continue;
+      etstamp();
+
+      int64_t imptow = (((uint32_t)round(nmm.localutcseconds() + nmm.localutcnanoseconds()/1000000000.0) - 935280000 + 18) % (7*86400)) - 2;
+      if(nmm.gi().sigid() != 5) {
+        if(!(imptow % 2))
+          imptow--;
+      }
+      else if((imptow % 2))
+          imptow--;
+
+      if(imptow != nmm.gi().gnsstow())
+        cout<< " !!"<< (imptow - nmm.gi().gnsstow()) <<"!! ";
+
+      
       GalileoMessage& gm = gms[sv];
       int wtype = gm.parse(inav);
       
       gm.tow = nmm.gi().gnsstow();
       gmwtypes[{nmm.gi().gnsssv(), wtype}] = gm;
       static map<int,GalileoMessage> oldEph;
-      cout << "gal inav for "<<nmm.gi().gnssid()<<","<<nmm.gi().gnsssv()<<","<<nmm.gi().sigid()<<" tow "<< nmm.gi().gnsstow()<<" wtype "<< wtype<<" ";
+      cout << "gal inav wtype "<<wtype<<" for "<<nmm.gi().gnssid()<<","<<nmm.gi().gnsssv()<<","<<nmm.gi().sigid()<<" pbwn "<<nmm.gi().gnsswn()<<" pbtow "<< nmm.gi().gnsstow();
       static uint32_t tow;
       if(wtype == 4) {
         //              2^-34       2^-46
@@ -168,6 +281,34 @@ try
            gmwtypes[{sv,2}].iodnav == gmwtypes[{sv,3}].iodnav &&
            gmwtypes[{sv,3}].iodnav == gmwtypes[{sv,4}].iodnav) {
           cout <<" have complete ephemeris at " << gm.iodnav;
+
+
+          int start = utcFromGST(gm.wn, gm.tow);
+          
+          SP3Entry e{2, sv, start};
+          auto bestSP3 = lower_bound(g_sp3s.begin(), g_sp3s.end(), e, sp3Order);
+          if(bestSP3 != g_sp3s.end() && bestSP3->gnss == e.gnss && bestSP3->sv == sv) {
+            static set<pair<int,int>> haveSeen;
+            if(!haveSeen.count({sv, bestSP3->t})) {
+              haveSeen.insert({sv, bestSP3->t});
+              Point newPoint;
+              getCoordinates(gm.tow + (bestSP3->t - start), gm, &newPoint);
+              Point sp3Point(bestSP3->x, bestSP3->y, bestSP3->z);
+              Vector dist(newPoint, sp3Point);
+              cout<<"\nsp3 "<<(bestSP3->t - start)<<" E"<<sv<<" "<<humanTime(bestSP3->t)<<" (" << newPoint.x/1000.0 <<", "<<newPoint.y/1000.0<<", "<<newPoint.z/1000.0<< ") (" <<
+                (bestSP3->x/1000.0) <<", " << (bestSP3->y/1000.0) <<", " << (bestSP3->z/1000.0) << ") "<<bestSP3->clockBias << " " << gm.getAtomicOffset(gm.tow + (bestSP3->t-start)).first<< " " << dist.length()<< " ";
+              cout << (bestSP3->clockBias - gm.getAtomicOffset(gm.tow + (bestSP3->t-start)).first);
+              cout << " " << gm.af0 <<" " << gm.af1;
+              cout << endl;
+              
+              sp3csv <<std::fixed<< bestSP3->t << " 2 "<< sv <<" " << ephAge(gm.tow+(bestSP3->t - start), gm.getT0e()) <<" "<<bestSP3->x<<" " << bestSP3->y<<" " <<bestSP3->z <<" " << newPoint.x<<" " <<newPoint.y <<" " <<newPoint.z << " " <<bestSP3->clockBias <<" ";
+              sp3csv << gm.getAtomicOffset(gm.tow + (bestSP3->t-start)).first<<" " << dist.length() <<" ";
+              sp3csv << (bestSP3->clockBias - gm.getAtomicOffset(gm.tow + (bestSP3->t-start)).first) << endl;
+            }
+            
+          }
+
+          
           if(!oldEph[sv].sqrtA)
             oldEph[sv] = gm;
           else if(oldEph[sv].iodnav != gm.iodnav) {
@@ -181,6 +322,8 @@ try
             auto newAtomic = gm.getAtomicOffset(gm.tow);
             cout<<" clock-jump "<<oldAtomic.first - newAtomic.first<<" ns ";
             doOrbitDump(2, sv, gm.wn, oldEph[sv], gm, gm.tow - 3*3600, gm.tow + 3*3600);
+
+            
             oldEph[sv]=gm;
           }
         }
@@ -190,6 +333,8 @@ try
       }
       if(wtype == 2 || wtype == 3) {
         cout << " iodnav " << gm.iodnav;
+        if(wtype == 3)
+          cout<<" sisa "<<(int)gm.sisa;
       }
       if(wtype == 1 || wtype == 2 || wtype == 3) {
         iodstream << nmm.localutcseconds()<<" " << nmm.gi().gnssid() <<" "<< nmm.gi().gnsssv() << " " << gm.iodnav << " " << gm.t0e*60 <<" " << ephAge(gm.t0e*60, gm.tow);
@@ -198,8 +343,19 @@ try
         else
           iodstream<<"\n";
       }
-      if(wtype == 0 || wtype == 5 || wtype == 6)
-        tow = gm.tow;
+      if(wtype == 0 || wtype == 5 || wtype == 6) {
+        if(wtype != 0 || gm.sparetime == 2) {
+          cout << " tow "<< gm.tow;
+          tow = gm.tow;
+        }
+      }
+      if(wtype == 5) {
+        cout <<" e1bhs "<< (int) gm.e1bhs << " e5bhs "<< (int) gm.e5bhs <<  " e1bdvs "<< (int) gm.e1bdvs << " e5bdvs "<< (int) gm.e5bdvs<< " wn "<<gm.wn <<" ai0 "<< gm.ai0 <<" ai1 " << gm.ai1 <<" ai2 " <<gm.ai2 << " BGDE1E5a " << gm.BGDE1E5a <<" BGDE1E5b " <<gm.BGDE1E5b;
+        //        wn = gm.wn;
+      }
+      if(wtype == 6) {
+        cout<<" a0 " << gm.a0 <<" a1 " << gm.a1 <<" t0t "<<gm.t0t << " dtLS "<<(int)gm.dtLS;
+      }
       
       //      if(wtype < 7)
       //        gm = GalileoMessage{};
@@ -242,12 +398,13 @@ try
       cout<<endl;      
     }
     else if(nmm.type() == NavMonMessage::GPSInavType) {
-      if(skipGPS) {
-        cout<<endl;
-        continue;
-      }
       
       int sv = nmm.gpsi().gnsssv();
+
+      if(!svfilter.check(0, sv))
+        continue;
+      etstamp();
+      
       auto cond = getCondensedGPSMessage(std::basic_string<uint8_t>((uint8_t*)nmm.gpsi().contents().c_str(), nmm.gpsi().contents().size()));
       struct GPSState gs;
       static map<int, GPSState> eph;
@@ -329,12 +486,14 @@ try
       cout<<"\n";
     }
     else if(nmm.type() == NavMonMessage::BeidouInavTypeD1) {
-      if(skipBeidou) {
-        cout<<endl;
-        continue;
-      }
-
       int sv = nmm.bid1().gnsssv();
+
+      if(!svfilter.check(3, sv))
+        continue;
+      etstamp();
+
+
+      
       auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid1().contents().c_str(), nmm.bid1().contents().size()));
       uint8_t pageno;
       static map<int, BeidouMessage> bms;
@@ -403,6 +562,11 @@ try
     }
     else if(nmm.type() == NavMonMessage::BeidouInavTypeD2) {
       int sv = nmm.bid2().gnsssv();
+
+      if(!svfilter.check(3, sv))
+        continue;
+      etstamp();
+      
       auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid2().contents().c_str(), nmm.bid2().contents().size()));
       BeidouMessage bm;
       uint8_t pageno;
@@ -412,11 +576,9 @@ try
             
     }
     else if(nmm.type() == NavMonMessage::GlonassInavType) {
-      if(skipGlonass) {
-        cout<<endl;
+      if(!svfilter.check(6, nmm.gloi().gnsssv()))
         continue;
-      }
-
+      etstamp();
       static map<int, GlonassMessage> gms;
       auto& gm = gms[nmm.gloi().gnsssv()];
       
@@ -456,16 +618,23 @@ try
       cout<<endl;
     }
     else if(nmm.type() == NavMonMessage::ObserverPositionType) {
+      if(!doObserverPosition)
+        continue;
+      etstamp();
+      
       auto lonlat = getLongLat(nmm.op().x(), nmm.op().y(), nmm.op().z());
       cout<<std::fixed<<"ECEF "<<nmm.op().x()<<", "<<nmm.op().y()<<", "<<nmm.op().z()<< " lon "<< 180*lonlat.first/M_PI << " lat "<<
         180*lonlat.second/M_PI<< " acc "<<nmm.op().acc()<<" m "<<endl;
       g_ourpos = Point(nmm.op().x(), nmm.op().y(), nmm.op().z());
     }
     else if(nmm.type() == NavMonMessage::RFDataType) {
+      if(!doRFData)
+        continue;
+      etstamp();
       cout<<"RFdata for "<<nmm.rfd().gnssid()<<","<<nmm.rfd().gnsssv()<<","<<(nmm.rfd().has_sigid() ? nmm.rfd().sigid() : 0) <<endl;
-
     }
     else {
+      etstamp();
       cout<<"Unknown type "<< (int)nmm.type()<<endl;
     }
   }
