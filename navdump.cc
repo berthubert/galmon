@@ -160,15 +160,17 @@ try
   tles.parseFile("gps-ops.txt");
   tles.parseFile("beidou.txt");
 
+  /*
   readSP3s("all.sp3");
   if(!g_sp3s.empty()) {
     //    sort(g_sp3s.begin(), g_sp3s.end(), [](const auto& a, const auto&b) { return a.t < b.t; });
-    cout<<"Have "<<g_sp3s.size()<<" sp3 entries"; //, from "<<humanTime(g_sp3s.begin()->t) <<" to "<< humanTime(g_sp3s.rbegin()->t)<<endl;
+    cout<<"Have "<<g_sp3s.size()<<" sp3 entries"<<endl; //, from "<<humanTime(g_sp3s.begin()->t) <<" to "<< humanTime(g_sp3s.rbegin()->t)<<endl;
   }
+  */
 
   vector<string> svpairs;
   bool doReceptionData{false};
-  bool doRFData{false};
+  bool doRFData{true};
   bool doObserverPosition{false};
   app.add_option("--svs", svpairs, "Listen to specified svs. '0' = gps, '2' = Galileo, '2,1' is E01");
   try {
@@ -631,7 +633,16 @@ try
       if(!doRFData)
         continue;
       etstamp();
-      cout<<"RFdata for "<<nmm.rfd().gnssid()<<","<<nmm.rfd().gnsssv()<<","<<(nmm.rfd().has_sigid() ? nmm.rfd().sigid() : 0) <<endl;
+      cout<<"RFdata for "<<nmm.rfd().gnssid()<<","<<nmm.rfd().gnsssv()<<","<<(nmm.rfd().has_sigid() ? nmm.rfd().sigid() : 0) <<": ";
+      cout<<" doppler-hz " << nmm.rfd().doppler();
+      cout<<" carrier-phase " << nmm.rfd().carrierphase();
+      cout<<" pseudo-range " << nmm.rfd().pseudorange();
+      cout<<" pr-std " << nmm.rfd().prstd();
+      cout<<" dop-std " << nmm.rfd().dostd();
+      cout<<" cp-std " << nmm.rfd().cpstd();
+      cout<<" locktime-ms " <<nmm.rfd().locktimems();
+      cout<<endl;
+      
     }
     else {
       etstamp();
