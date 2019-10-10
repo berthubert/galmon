@@ -120,6 +120,29 @@ Tooling:
    computations on ephemerides. 
  * grafana dashboard: makes pretty graphs
 
+Linux Systemd
+-------------
+
+This is very much a first stab. Do the following at root.
+```
+mkdir /run/ubxtool
+mkdir /usr/local/ubxtool
+cp ubxtool.sh /usr/local/ubxtool/
+cp ubxtool /usr/local/ubxtool/
+cp ubxtool.service /etc/systemd/system/ubxtool.service
+touch /usr/local/ubxtool/destination
+touch /usr/local/ubxtool/station
+```
+Then edit /usr/local/ubxtool/destination with an IP address collected from Bert.
+Then edit /usr/local/ubxtool/station with a station number collected from Bert.
+
+The start up the service.
+```
+sudo systemctl enable ubxtool
+sudo systemctl start ubxtool
+```
+This will be cleaned up and better packaged sometime soon.
+
 Distributed setup
 -----------------
 Run `navrecv :: ./storage` to receive frames on port 29603 of ::, aka all your IPv6 addresses (and IPv4 too on Linux).
