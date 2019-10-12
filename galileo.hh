@@ -32,7 +32,7 @@ struct GalileoMessage
   {
     wtype = getbitu(&page[0], 0, 6);
     if(wtype >= parsers.size()) {
-      std::cerr<<"Asked for impossible galileo type "<<wtype<<std::endl;
+      //      std::cerr<<"Asked for impossible galileo type "<<(int)wtype<<std::endl;
       return wtype;
     }
       
