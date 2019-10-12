@@ -402,7 +402,7 @@ int initFD(const char* fname, bool doRTSCTS)
     }
 
     bzero(&newtio, sizeof(newtio));                                         
-    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;             
+    newtio.c_cflag = CS8 | CLOCAL | CREAD;             
     if (doRTSCTS)
       newtio.c_cflag |= CRTSCTS;
     newtio.c_iflag = IGNPAR;                                                
@@ -414,8 +414,8 @@ int initFD(const char* fname, bool doRTSCTS)
     newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */         
     newtio.c_cc[VMIN]     = 5;   /* blocking read until 5 chars received */ 
     
-    tcflush(fd, TCIFLUSH);                                                  
-    if(tcsetattr(fd,TCSANOW, &newtio)) {
+    cfsetspeed(&newtio, BAUDRATE);
+    if(tcsetattr(fd, TCSAFLUSH, &newtio)) {
       perror("tcsetattr");
       exit(-1);
     }
