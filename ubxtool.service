@@ -1,0 +1,18 @@
+[Unit]
+Description=galmon ubxtool
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+#User=ubxtool
+#Group=ubxtool
+#DynamicUser=yes
+#RuntimeDirectory=ubxtool
+WorkingDirectory=/run/ubxtool
+ExecStart=/usr/local/ubxtool/ubxtool.sh
+
+[Install]
+WantedBy=multi-user.target

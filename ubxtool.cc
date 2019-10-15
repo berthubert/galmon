@@ -32,6 +32,9 @@
 #include "swrappers.hh"
 #include "sclasses.hh"
 
+bool doDEBUG{false};
+bool doLOGFILE{false};
+
 struct timespec g_gnssutc;
 uint16_t g_galwn;
 
@@ -144,11 +147,13 @@ bool g_fromFile{false};
 
 std::pair<UBXMessage, struct timeval> getUBXMessage(int fd)
 {
-  static int logfile;
-  if(!logfile && !g_fromFile) {
+  static int logfile=0;
+  if (doLOGFILE) {
+    if(!logfile && !g_fromFile) {
     logfile = open("./logfile", O_WRONLY|O_CREAT|O_APPEND|O_LARGEFILE, 0600);
-    if(!logfile)
-      throw std::runtime_error("Failed to open logfile for writing");
+      if(!logfile)
+        throw std::runtime_error("Failed to open logfile for writing");
+    }
   }
   uint8_t marker[2]={0};
   for(;;) {
@@ -158,7 +163,7 @@ std::pair<UBXMessage, struct timeval> getUBXMessage(int fd)
     if(res < 0)
       throw EofException();
     
-    //    cerr<<"marker now: "<< (int)marker[0]<<" " <<(int)marker[1]<<endl;
+    //    if (doDEBUG) { cerr<<humanTimeNow()<<" marker now: "<< (int)marker[0]<<" " <<(int)marker[1]<<endl; }
     if(marker[0]==0xb5 && marker[1]==0x62) { // bingo
       struct timeval tv;
       gettimeofday(&tv, 0);
@@ -169,13 +174,15 @@ std::pair<UBXMessage, struct timeval> getUBXMessage(int fd)
       msg.append(b, 4); // class, type, len1, len2
 
       uint16_t len = b[2] + 256*b[3];
-      //      cerr<<"Got class "<<(int)msg[2]<<" type "<<(int)msg[3]<<", len = "<<len<<endl;
+      //      if (doDEBUG) { cerr<<humanTimeNow()<<" Got class "<<(int)msg[2]<<" type "<<(int)msg[3]<<", len = "<<len<<endl; }
       uint8_t buffer[len+2];
       res=readn2(fd, buffer, len+2);
 
       msg.append(buffer, len+2); // checksum
-      if(!g_fromFile)
-        writen2(logfile, msg.c_str(), msg.size());      
+      if (doLOGFILE) {
+        if(!g_fromFile)
+          writen2(logfile, msg.c_str(), msg.size());      
+      }
       return make_pair(UBXMessage(msg), tv);
     }
   }                                                                       
@@ -191,7 +198,7 @@ UBXMessage waitForUBX(int fd, int seconds, uint8_t ubxClass, uint8_t ubxType)
       return msg;
     }
     else
-      cerr<<"Got: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<" while waiting for "<<(int)ubxClass<<" " <<(int)ubxType<<endl;
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Got: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<" while waiting for "<<(int)ubxClass<<" " <<(int)ubxType<<endl; }
   }
   throw std::runtime_error("Did not get response on time");
 }
@@ -210,16 +217,16 @@ bool waitForUBXAckNack(int fd, int seconds, int ubxClass, int ubxType)
     }
 
     if(msg.getClass() != 5 || !(msg.getType() == 0 || msg.getType() == 1)) {
-      cerr<<"Got: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<" while waiting for ack/nack of " << ubxClass<<" "<<ubxType<<endl;
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Got: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<" while waiting for ack/nack of " << ubxClass<<" "<<ubxType<<endl; }
       continue;
     }
       
     const auto& payload = msg.getPayload();
     if(payload.size() != 2) {
-      cerr << "Wrong payload size for ack/nack: "<<payload.size()<<endl;
+      if (doDEBUG) { cerr<<"Wrong payload size for ack/nack: "<<payload.size()<<endl; }
       continue;
     }
-    cerr<<"Got an " << (msg.getType() ? "ack" : "nack")<<" for "<<(int)payload[0] <<" " << (int)payload[1]<<" while waiting for "<<ubxClass<<" " <<ubxType<<endl;
+    if (doDEBUG) { cerr<<humanTimeNow()<<" Got an " << (msg.getType() ? "ack" : "nack")<<" for "<<(int)payload[0] <<" " << (int)payload[1]<<" while waiting for "<<ubxClass<<" " <<ubxType<<endl; }
     
     if(msg.getClass() == 0x05 && msg.getType() == 0x01 && payload[0]==ubxClass && payload[1]==ubxType) {
       return true;
@@ -276,7 +283,7 @@ public:
         SocketCommunicator sc(s);
         sc.setTimeout(3);
         sc.connect(d->dst);
-        cerr<<"Connected to "<<d->dst.toStringWithPort()<<endl;
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Connected to "<<d->dst.toStringWithPort()<<endl; }
         for(;;) {
           std::string msg;
           {
@@ -293,18 +300,18 @@ public:
         }
       }
       catch(std::exception& e) {
-        cerr<<"Sending thread for "<<d->dst.toStringWithPort()<<" had error: "<<e.what()<<endl;
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Sending thread for "<<d->dst.toStringWithPort()<<" had error: "<<e.what()<<endl; }
         {
           std::lock_guard<std::mutex> mut(d->mut);
-          cerr<<"There are now "<<d->queue.size()<<" messages queued for "<<d->dst.toStringWithPort()<<endl;
+          if (doDEBUG) { cerr<<humanTimeNow()<<" There are now "<<d->queue.size()<<" messages queued for "<<d->dst.toStringWithPort()<<endl; }
         }
         sleep(1);
       }
       catch(...) {
-        cerr<<"Sending thread for "<<d->dst.toStringWithPort()<<" had error";
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Sending thread for "<<d->dst.toStringWithPort()<<" had error"; }
         {
           std::lock_guard<std::mutex> mut(d->mut);
-          cerr<<"There are now "<<d->queue.size()<<" messages queued for "<<d->dst.toStringWithPort()<<endl;
+          if (doDEBUG) { cerr<<"There are now "<<d->queue.size()<<" messages queued for "<<d->dst.toStringWithPort()<<endl; }
         }
         sleep(1);
       }
@@ -357,11 +364,19 @@ void enableUBXMessageUSB(int fd, uint8_t ubxClass, uint8_t ubxType, uint8_t rate
         throw std::runtime_error("Got NACK enabling UBX message "+to_string((int)ubxClass)+" "+to_string((int)ubxType));
     }
     catch(TimeoutError& te) {
-      cerr<<"Had "<<n<<"th timeout in enableUBXMessageUSB"<<endl;
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Had "<<n<<"th timeout in enableUBXMessageUSB"<<endl; }
       continue;
     }
   }
   throw TimeoutError();
+}
+
+bool isPresent(string_view fname)
+{
+  struct stat sb;
+  if(stat(&fname[0], &sb) < 0)
+    return false;
+  return true;
 }
 
 bool isCharDevice(string_view fname)
@@ -378,9 +393,9 @@ void readSome(int fd)
   for(int n=0; n < 5; ++n) {
     auto [msg, timestamp] = getUBXMessage(fd);
     (void)timestamp;
-    cerr<<"Read some init: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<endl;
+    if (doDEBUG) { cerr<<humanTimeNow()<<" Read some init: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<endl; }
     if(msg.getClass() == 0x4)
-      cerr<<string((char*)msg.getPayload().c_str(), msg.getPayload().size()) <<endl;
+      if (doDEBUG) { cerr<<humanTimeNow()<<" "<<string((char*)msg.getPayload().c_str(), msg.getPayload().size()) <<endl; }
   }
 }
 
@@ -389,11 +404,18 @@ struct termios g_oldtio;
 int initFD(const char* fname, bool doRTSCTS)
 {
   int fd;
+  if (doDEBUG) { cerr<<humanTimeNow()<<" initFD()"<<endl; }
+  if (!isPresent(fname)) {
+    if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - "<<fname<<" - not present"<<endl; }
+    throw runtime_error("Opening file "+string(fname));
+  }
   if(string(fname) != "stdin" && string(fname) != "/dev/stdin" && isCharDevice(fname)) {
+    if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - open("<<fname<<")"<<endl; }
     fd = open(fname, O_RDWR | O_NOCTTY );
     if (fd <0 ) {
       throw runtime_error("Opening file "+string(fname));
     }
+    if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - open successful"<<endl; }
 
     struct termios newtio;
     if(tcgetattr(fd, &g_oldtio)) { /* save current port settings */
@@ -419,10 +441,12 @@ int initFD(const char* fname, bool doRTSCTS)
       perror("tcsetattr");
       exit(-1);
     }
+    if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - tty set"<<endl; }
   }
   else {
     g_fromFile = true;
     
+    if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - open("<<fname<<") - from file"<<endl; }
     fd = open(fname, O_RDONLY );
     if(fd < 0)
       throw runtime_error("Opening file "+string(fname));
@@ -459,6 +483,8 @@ int main(int argc, char** argv)
   app.add_flag("--stdout", doSTDOUT, "Emit output to stdout");
   app.add_option("--port,-p", portName, "Device or file to read serial from");
   app.add_option("--station", g_srcid, "Station id");  
+  app.add_flag("--debug", doDEBUG, "Display debug information");  
+  app.add_flag("--logfile", doLOGFILE, "Create logfile");  
   try {
     app.parse(argc, argv);
   } catch(const CLI::Error &e) {
@@ -479,20 +505,20 @@ int main(int argc, char** argv)
       
       std::basic_string<uint8_t> msg;
       if(doReset) {
-        cerr<<"Sending a soft reset"<<endl;
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Sending a soft reset"<<endl; }
         msg = buildUbxMessage(0x06, 0x04, {0x00, 0x00, 0x01, 0x00});
         writen2(fd, msg.c_str(), msg.size());
         usleep(100000);
         close(fd);
         for(int n=0 ; n< 20; ++n) {
-          cerr<<"Waiting for device to come back"<<endl;
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Waiting for device to come back"<<endl; }
           try {
             fd = initFD(portName.c_str(), doRTSCTS);
             readSome(fd);          
           }
           catch(...)
             {
-              cerr<<"Not yet back"<<endl;
+              if (doDEBUG) { cerr<<humanTimeNow()<<" Not yet back"<<endl; }
               usleep(400000);
               continue;
             }
@@ -500,34 +526,36 @@ int main(int argc, char** argv)
         }
       }
 
-      cerr<<"Sending version query"<<endl;
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Sending version query"<<endl; }
       msg = buildUbxMessage(0x0a, 0x04, {});
       writen2(fd, msg.c_str(), msg.size());      
       UBXMessage um1=waitForUBX(fd, 2, 0x0a, 0x04);
-      cerr<<"swVersion: "<<um1.getPayload().c_str()<<endl;
-      cerr<<"hwVersion: "<<um1.getPayload().c_str()+30<<endl;
+      cerr<<humanTimeNow()<<" swVersion: "<<um1.getPayload().c_str()<<endl;
+      cerr<<humanTimeNow()<<" hwVersion: "<<um1.getPayload().c_str()+30<<endl;
 
       for(unsigned int n=0; 40+30*n < um1.getPayload().size(); ++n) {
-        cerr<<"Extended info: "<<um1.getPayload().c_str() + 40 +30*n<<endl;
+        cerr<<humanTimeNow()<<" Extended info: "<<um1.getPayload().c_str() + 40 +30*n<<endl;
         if(um1.getPayload().find((const uint8_t*)"F9") != string::npos)
           version9=true;
       }
 
       if(version9)
-        cerr<<"Detected version U-Blox 9"<<endl;
+        cerr<<humanTimeNow()<<" Detected version U-Blox 9"<<endl;
       
-      cerr<<"Sending GNSS query"<<endl;
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Sending GNSS query"<<endl; }
       msg = buildUbxMessage(0x06, 0x3e, {});
       writen2(fd, msg.c_str(), msg.size());
       um1=waitForUBX(fd, 2, 0x06, 0x3e);
       auto payload = um1.getPayload();
-      cerr<<"GNSS status, got " << (int)payload[3]<<" rows:\n";
-      for(uint8_t n = 0 ; n < payload[3]; ++n) {
-        cerr<<"GNSSID "<<(int)payload[4+8*n]<<" enabled "<<(int)payload[8+8*n]<<" minTrk "<< (int)payload[5+8*n] <<" maxTrk "<<(int)payload[6+8*n]<<" " << (int)payload[8+8*n]<<" " << (int)payload[9+8*n] << " " <<" " << (int)payload[10+8*n]<<" " << (int)payload[11+8*n]<<endl;
+      if (doDEBUG) {
+        cerr<<humanTimeNow()<<" GNSS status, got " << (int)payload[3]<<" rows:"<<endl;
+        for(uint8_t n = 0 ; n < payload[3]; ++n) {
+          cerr<<humanTimeNow()<<" GNSSID "<<(int)payload[4+8*n]<<" enabled "<<(int)payload[8+8*n]<<" minTrk "<< (int)payload[5+8*n] <<" maxTrk "<<(int)payload[6+8*n]<<" " << (int)payload[8+8*n]<<" " << (int)payload[9+8*n] << " " <<" " << (int)payload[10+8*n]<<" " << (int)payload[11+8*n]<<endl;
+        }
       }
 
       if(waitForUBXAckNack(fd, 2, 0x06, 0x3e)) {
-        cerr<<"Got ACK for our poll of GNSS settings"<<endl;
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Got ACK for our poll of GNSS settings"<<endl; }
       }
       if(!version9) {
         //                                  ver   RO   maxch cfgs
@@ -548,13 +576,14 @@ int main(int argc, char** argv)
 
               });
       
-        cerr<<"Sending GNSS setting, GPS: "<<doGPS<<", Galileo: "<<doGalileo<<", BeiDou: "<<doBeidou<<", GLONASS: "<<doGlonass<<", SBAS: "<<doSBAS<<endl;
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Sending GNSS setting, GPS: "<<doGPS<<", Galileo: "<<doGalileo<<", BeiDou: "<<doBeidou<<", GLONASS: "<<doGlonass<<", SBAS: "<<doSBAS<<endl; }
         writen2(fd, msg.c_str(), msg.size());
       
-        if(waitForUBXAckNack(fd, 2, 0x06, 0x3e))
-          cerr<<"Got ack on GNSS setting"<<endl;
+        if(waitForUBXAckNack(fd, 2, 0x06, 0x3e)) {
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on GNSS setting"<<endl; }
+        }
         else {
-          cerr<<"Got nack on GNSS setting"<<endl;
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Got nack on GNSS setting"<<endl; }
           exit(-1);
         }
       }
@@ -564,65 +593,71 @@ int main(int argc, char** argv)
         msg = buildUbxMessage(0x06, 0x16, {0x01, 0x07, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00});
         writen2(fd, msg.c_str(), msg.size());
         
-        if(waitForUBXAckNack(fd, 2, 0x06, 0x16))
-          cerr<<"Got ack on SBAS setting"<<endl;
+        if(waitForUBXAckNack(fd, 2, 0x06, 0x16)) {
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on SBAS setting"<<endl; }
+        }
         else {
-          cerr<<"Got nack on SBAS setting"<<endl;
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Got nack on SBAS setting"<<endl; }
           exit(-1);
         }
       }
        
       
-      cerr<<"Disabling NMEA"<<endl;
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Disabling NMEA"<<endl; }
       msg = buildUbxMessage(0x06, 0x00, {0x03,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x01,0x00,0x00,0x00,0x00,0x00});
       writen2(fd, msg.c_str(), msg.size());
-      if(waitForUBXAckNack(fd, 10, 0x06, 0x00))
-        cerr<<"NMEA disabled"<<endl;
-      else
-        cerr<<"Got NACK disabling NMEA"<<endl;
+      if(waitForUBXAckNack(fd, 10, 0x06, 0x00)) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" NMEA disabled"<<endl; }
+      }
+      else {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Got NACK disabling NMEA"<<endl; }
+      }
       
-      cerr<<"Polling USB settings"<<endl; // UBX-CFG-PRT, 0x03 == USB
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Polling USB settings"<<endl; } // UBX-CFG-PRT, 0x03 == USB
       msg = buildUbxMessage(0x06, 0x00, {0x03});
       writen2(fd, msg.c_str(), msg.size());
       
       UBXMessage um=waitForUBX(fd, 4, 0x06, 0x00); // UBX-CFG-PRT
-      cerr<<"Protocol settings on USB: \n";
-      for(const auto& c : um.getPayload())
-        cerr<<(int)c<< " ";
-      cerr<<endl;
+      if (doDEBUG) {
+        cerr<<humanTimeNow()<<" Protocol settings on USB: "<<endl;
+        for(const auto& c : um.getPayload())
+          cerr<<(int)c<< " ";
+        cerr<<endl;
+      }
       
-      if(waitForUBXAckNack(fd, 10, 0x06, 0x00))
-        cerr<<"Got ACK on USB port config"<<endl;
-      else
-        cerr<<"Got NACK on USB port config"<<endl;
+      if(waitForUBXAckNack(fd, 10, 0x06, 0x00)) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Got ACK on USB port config"<<endl; }
+      }
+      else {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Got NACK on USB port config"<<endl; }
+      }
       
-      
-      cerr<<"Enabling UBX-RXM-RLM"<<endl; // SAR
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RLM"<<endl; } // SAR
       enableUBXMessageUSB(fd, 0x02, 0x59);
       
-      cerr<<"Enabling UBX-RXM-RAWX"<<endl; // RF doppler
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RAWX"<<endl; } // RF doppler
       enableUBXMessageUSB(fd, 0x02, 0x15, 16);
       
-      cerr<<"Enabling UBX-RXM-SFRBX"<<endl; // raw navigation frames
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-SFRBX"<<endl; } // raw navigation frames
       enableUBXMessageUSB(fd, 0x02, 0x13);
       
-      cerr<<"Enabling UBX-NAV-POSECEF"<<endl; // position
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-POSECEF"<<endl; } // position
       enableUBXMessageUSB(fd, 0x01, 0x01, 8);
 
       if(version9)  {
-        cerr<<"Enabling UBX-NAV-SIG"<<endl;  // satellite reception details
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-SIG"<<endl; }  // satellite reception details
         enableUBXMessageUSB(fd, 0x01, 0x43, 8);
 
-        cerr<<"Enabling UBX-RXM-MEASX"<<endl;  // satellite reception details
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-MEASX"<<endl; }  // satellite reception details
         enableUBXMessageUSB(fd, 0x02, 0x14, 1);
 
       }
       else {
-        cerr<<"Enabling UBX-NAV-SAT"<<endl;  // satellite reception details
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-SAT"<<endl; }  // satellite reception details
         enableUBXMessageUSB(fd, 0x01, 0x35, 8);
       }
       
-      cerr<<"Enabling UBX-NAV-PVT"<<endl; // position, velocity, time fix
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-PVT"<<endl; } // position, velocity, time fix
       enableUBXMessageUSB(fd, 0x01, 0x07, 1); // we use this to get timing
     }
   }
@@ -649,7 +684,7 @@ int main(int argc, char** argv)
   ns.launch();
   
   
-  cerr<<"Entering main loop"<<endl;
+  cerr<<humanTimeNow()<<" Entering main loop"<<endl;
   for(;;) {
     try {
       auto [msg, timestamp] = getUBXMessage(fd);
@@ -691,20 +726,22 @@ int main(int argc, char** argv)
           pvt.nano += 1000000000;
         }
         if(!g_gnssutc.tv_sec) {
-          cerr<<"Got initial timestamp: "<<humanTime(satt)<<endl;
+
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Got initial timestamp: "<<humanTime(satt)<<endl; }
         }
         g_gnssutc.tv_sec = satt;
         g_gnssutc.tv_nsec = pvt.nano;
         continue;
       }
       if(!g_gnssutc.tv_sec) {
-        cerr<<"Ignoring message with class "<<(int)msg.getClass()<< " and type "<< (int)msg.getType()<<": have not yet received a timestamp"<<endl;
+
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Ignoring message with class "<<(int)msg.getClass()<< " and type "<< (int)msg.getType()<<": have not yet received a timestamp"<<endl; }
         continue;
       }
       
       
       if(msg.getClass() == 0x02 && msg.getType() == 0x15) {  // RAWX, the doppler stuff
-        //        cerr<<"Got "<<(int)payload[11] <<" measurements "<<endl;
+        //        if (doDEBUG) { cerr<<humanTimeNow()<<" Got "<<(int)payload[11] <<" measurements "<<endl; }
         double rcvTow;
         memcpy(&rcvTow, &payload[0], 8);
         uint16_t rcvWn = payload[8] + 256*payload[9];
@@ -771,9 +808,13 @@ int main(int argc, char** argv)
         };
         pos p;
         memcpy(&p, payload.c_str(), sizeof(pos));
-        /*        cerr<<"Position: ("<< p.ecefX / 100000.0<<", "
+        /*
+        if (doDEBUG) {
+          cerr<<humanTimeNow()<<" Position: ("<< p.ecefX / 100000.0<<", "
             << p.ecefY / 100000.0<<", "
-            << p.ecefZ / 100000.0<<") +- "<<p.pAcc<<" cm"<<endl;*/
+            << p.ecefZ / 100000.0<<") +- "<<p.pAcc<<" cm"<<endl;
+        }
+        */
 
 //        g_ourpos = {p.ecefX/100.0, p.ecefY/100.0, p.ecefZ/100.0};
         
@@ -802,7 +843,7 @@ int main(int argc, char** argv)
           svseen.insert({id.first, id.second, payload[2]});
 
           if(time(0)- lastStat > 30) {
-            cerr<<"src "<<g_srcid<< " currently receiving: ";
+            cerr<<humanTimeNow()<<" src "<<g_srcid<< " currently receiving: ";
             for(auto& s : svseen) {
               cerr<<get<0>(s)<<","<<get<1>(s)<<"@"<<get<2>(s)<<" ";
             }
@@ -817,7 +858,7 @@ int main(int argc, char** argv)
             nmm.set_localutcseconds(g_gnssutc.tv_sec);
             nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
             nmm.set_sourceid(g_srcid);         
-            //            cerr<<"GPS frame, numwords: "<<(int)payload[4]<<", version: "<<(int)payload[6]<<endl;
+            //            if (doDEBUG) { cerr<<humanTimeNow()<<" GPS frame, numwords: "<<(int)payload[4]<<", version: "<<(int)payload[6]<<endl; }
             static int wn, tow;
             auto gpsframe = getGPSFromSFRBXMsg(payload);
             auto cond = getCondensedGPSMessage(gpsframe);
@@ -844,14 +885,14 @@ int main(int argc, char** argv)
             uint32_t satTOW;
             int msgTOW{0};
             if(getTOWFromInav(inav, &satTOW, &g_galwn)) { // 0, 6, 5
-              //            cerr<<"   "<<wtype<<" sv "<<id.second<<" tow "<<satTOW << " % 30 = "<< satTOW % 30<<", implied start of cycle: "<<(satTOW - (satTOW %30)) <<endl;
+              //            if (doDEBUG) { cerr<<humanTimeNow()<<"    "<<wtype<<" sv "<<id.second<<" tow "<<satTOW << " % 30 = "<< satTOW % 30<<", implied start of cycle: "<<(satTOW - (satTOW %30)) <<endl; }
               msgTOW = satTOW;
               curCycleTOW = satTOW - (satTOW %30);
             }
             else {
               if(curCycleTOW < 0) // did not yet have a start of cycle
                 continue;
-              //            cerr<<"   "<<wtype<<" sv "<<id.second<<" tow ";
+              //            if (doDEBUG) { cerr<<humanTimeNow()<<"    "<<wtype<<" sv "<<id.second<<" tow "; }
               if(sigid == 5) {
                 if(wtype == 2) {
                   msgTOW = curCycleTOW + 20;
@@ -873,17 +914,17 @@ int main(int argc, char** argv)
                 }
                 else { // dummy
                   if(id.second != 20) // known broken XXX
-                    cerr<<"galileo E"<<id.second<<" what kind of wtype is this: "<<wtype<<endl;
+                    if (doDEBUG) { cerr<<humanTimeNow()<<" galileo E"<<id.second<<" what kind of wtype is this: "<<wtype<<endl; }
                   continue;
                 }
               }
               else {
                 if(wtype == 2) {
-                  //              cerr<<"infered to be 1 "<<curCycleTOW + 31<<endl;
+                  //              if (doDEBUG) { cerr<<humanTimeNow()<<" infered to be 1 "<<curCycleTOW + 31<<endl; }
                   msgTOW = curCycleTOW + 31;
                 }
                 else if(wtype == 4) {
-                  //              cerr<<"infered to be 3 "<<curCycleTOW + 33<<endl;
+                  //              if (doDEBUG) { cerr<<humanTimeNow()<<" infered to be 3 "<<curCycleTOW + 33<<endl; }
                   msgTOW = curCycleTOW + 33;
                 } // next have '6' which sets TOW
                 else if(wtype==7 || wtype == 9) {
@@ -900,7 +941,7 @@ int main(int argc, char** argv)
                 }
                 else { // dummy
                   if(id.second != 20) // known broken XXX
-                    cerr<<"galileo E"<<id.second<<" what kind of wtype is this: "<<wtype<<endl;
+                    if (doDEBUG) { cerr<<humanTimeNow()<<" galileo E"<<id.second<<" what kind of wtype is this: "<<wtype<<endl; }
                   continue;
                 }
 
@@ -932,7 +973,7 @@ int main(int argc, char** argv)
             bm.parse(cond, &pageno);
             
             if(bm.wn < 0) {
-              cerr<<"BeiDou C"<<id.second<<" WN not yet known, not yet emitting message"<<endl;
+              if (doDEBUG) { cerr<<humanTimeNow()<<" BeiDou C"<<id.second<<" WN not yet known, not yet emitting message"<<endl; }
               continue;
             }
             NavMonMessage nmm;
@@ -967,7 +1008,7 @@ int main(int argc, char** argv)
             continue;
           }
           else if(id.first==6) {
-            //            cerr<<"SFRBX from GLONASS "<<id.second<<" @ frequency "<<(int)payload[3]<<", msg of "<<(int)payload[4]<< " words"<<endl;
+            //            if (doDEBUG) { cerr<<humanTimeNow()<<" SFRBX from GLONASS "<<id.second<<" @ frequency "<<(int)payload[3]<<", msg of "<<(int)payload[4]<< " words"<<endl; }
             auto gstr = getGlonassFromSFRBXMsg(payload);
             /*
             static map<int, GlonassMessage> gms;
@@ -992,17 +1033,17 @@ int main(int argc, char** argv)
           else if(id.first == 1) {// SBAS
           }
           else
-            ; //            cerr<<"SFRBX from unsupported GNSSID/sigid combination "<<id.first<<", sv "<<id.second<<", sigid "<<sigid<<", "<<payload.size()<<" bytes"<<endl;
-        
+            ; //            if (doDEBUG) { cerr<<humanTimeNow()<<" SFRBX from unsupported GNSSID/sigid combination "<<id.first<<", sv "<<id.second<<", sigid "<<sigid<<", "<<payload.size()<<" bytes"<<endl; }
+       
         }
         catch(CRCMismatch& cm) {
-          cerr<<"Had CRC mismatch!"<<endl;
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Had CRC mismatch!"<<endl; }
         }
       }
       else if(msg.getClass() == 1 && msg.getType() == 0x35) { // UBX-NAV-SAT
         //        if(version9) // we have UBX-NAV-SIG
         //          continue;
-        //        cerr<< "Info for "<<(int) payload[5]<<" svs: \n";
+        //        if (doDEBUG) { cerr<<humanTimeNow()<<" Info for "<<(int) payload[5]<<" svs: \n"; }
         for(unsigned int n = 0 ; n < payload[5]; ++n) {
           int gnssid = payload[8+12*n];
           int sv = payload[9+12*n];
@@ -1010,7 +1051,7 @@ int main(int argc, char** argv)
           auto el = (int)(char)payload[11+12*n];
           auto azi = ((int)payload[13+12*n]*256 + payload[12+12*n]);
           auto db = (int)payload[10+12*n];
-          //          cerr <<"gnssid "<<gnssid<<" sv "<<sv<<" el "<<el<<endl;
+          //          if (doDEBUG) { cerr<<"gnssid "<<gnssid<<" sv "<<sv<<" el "<<el<<endl; }
           NavMonMessage nmm;
           nmm.set_sourceid(g_srcid);
           nmm.set_localutcseconds(g_gnssutc.tv_sec);
@@ -1026,18 +1067,20 @@ int main(int argc, char** argv)
           /*
           uint32_t status;
           memcpy(&status, &payload[16+12*n], 4);
-          cerr<<gnssid<<","<<sv<<":";
-          if(status & (1<<3))
-            cerr<<" used";
-          cerr<< " qualityind "<<(status & 7);
-          cerr<<" db "<<db<<" el "<< el;
-          cerr<<" health " << (status & (1<<5));
-          cerr<<" sbasCorr " << (status & (1<<16));
-          cerr<<" prRes "<<nmm.rd().prres();
-          cerr<<" orbsrc " << ((status >> 8)&7);
-          cerr<<" eph-avail " << !!(status & (1<<11));
-          cerr<<" alm-avail " << !!(status & (1<<12)); 
-          cerr<<endl;
+          if (doDEBUG) {
+            cerr<<humanTimeNow()<<" "<<gnssid<<","<<sv<<":";
+            if(status & (1<<3))
+              cerr<<" used";
+            cerr<< " qualityind "<<(status & 7);
+            cerr<<" db "<<db<<" el "<< el;
+            cerr<<" health " << (status & (1<<5));
+            cerr<<" sbasCorr " << (status & (1<<16));
+            cerr<<" prRes "<<nmm.rd().prres();
+            cerr<<" orbsrc " << ((status >> 8)&7);
+            cerr<<" eph-avail " << !!(status & (1<<11));
+            cerr<<" alm-avail " << !!(status & (1<<12)); 
+            cerr<<endl;
+          }
           */
           ns.emitNMM( nmm);
         }
@@ -1060,7 +1103,7 @@ int main(int argc, char** argv)
           }
 
           auto db = (int)payload[14+16*n];
-          //          cerr <<"gnssid "<<gnssid<<" sv "<<sv<<" el "<<el<<endl;
+          //          if (doDEBUG) { cerr<<"gnssid "<<gnssid<<" sv "<<sv<<" el "<<el<<endl; }
           NavMonMessage nmm;
           nmm.set_sourceid(g_srcid);
           nmm.set_localutcseconds(g_gnssutc.tv_sec);
@@ -1082,7 +1125,8 @@ int main(int argc, char** argv)
         
       }
       else if(msg.getClass() == 0x02 && msg.getType() == 0x14) { // UBX-RXM-MEASX
-        //        cerr<<"Got RXM-MEASX for "<<(int)payload[34]<<" satellites, r0 "<< (int)payload[30]<<" r1 " <<(int)payload[31]<<endl;
+
+        //        if (doDEBUG) { cerr<<humanTimeNow()<<" Got RXM-MEASX for "<<(int)payload[34]<<" satellites, r0 "<< (int)payload[30]<<" r1 " <<(int)payload[31]<<endl; }
         for(unsigned int n = 0 ; n < payload[34] ; ++n) {
           uint16_t wholeChips;
           uint16_t fracChips;
@@ -1093,7 +1137,7 @@ int main(int argc, char** argv)
           memcpy(&fracChips, &payload[58+24*n], 2);
           memcpy(&codePhase, &payload[60+24*n], 4);
           
-          //          cerr<<(int)payload[44+24*n]<<","<<(int)payload[45+24*n]<<" whole-chips "<<wholeChips<<" frac-chips "<<fracChips<<" int-code-phase " <<(int)intCodePhase <<" frac-code-phase "<<ldexp(codePhase, -21) << " mpath " << (int)payload[47+24*n] << " r1 " << (int)payload[66+24*n] << " r2 " <<(int)payload[67+24*n]<<endl;
+          //          if (doDEBUG) { cerr<<humanTimeNow()<<" "<<(int)payload[44+24*n]<<","<<(int)payload[45+24*n]<<" whole-chips "<<wholeChips<<" frac-chips "<<fracChips<<" int-code-phase " <<(int)intCodePhase <<" frac-code-phase "<<ldexp(codePhase, -21) << " mpath " << (int)payload[47+24*n] << " r1 " << (int)payload[66+24*n] << " r2 " <<(int)payload[67+24*n]<<endl; }
         }
       }
       else if(msg.getClass() == 0x02 && msg.getType() == 0x59) { // UBX-RXM-RLM
@@ -1117,7 +1161,8 @@ int main(int argc, char** argv)
         string hexstring;
         for(int n = 0; n < 15; ++n)
           hexstring+=fmt::sprintf("%x", (int)getbitu(payload.c_str(), 36 + 4*n, 4));
-        cerr<<humanTime(g_gnssutc.tv_sec)<<" SAR RLM type "<<type<<" from gal sv " << sv << " beacon "<<hexstring <<" code "<<(int)payload[12]<<" params "<<payload[12] + 256*payload[13]<<endl;
+
+        if (doDEBUG) { cerr<<humanTimeNow()<<" "<<humanTime(g_gnssutc.tv_sec)<<" SAR RLM type "<<type<<" from gal sv " << sv << " beacon "<<hexstring <<" code "<<(int)payload[12]<<" params "<<payload[12] + 256*payload[13]<<endl; }
 
       //      wk.emitLine(sv, "SAR "+hexstring);
       //      cout<<"SAR: sv = "<< (int)msg[2] <<" ";
@@ -1136,12 +1181,12 @@ int main(int argc, char** argv)
       }
 
       else 
-        cerr<<"Uknown UBX message of class "<<(int) msg.getClass() <<" and type "<< (int) msg.getType()<<endl;
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Uknown UBX message of class "<<(int) msg.getClass() <<" and type "<< (int) msg.getType()<<endl; }
 
       //      writen2(1, payload.d_raw.c_str(),msg.d_raw.size());
     }
     catch(UBXMessage::BadChecksum &e) {
-      cerr<<"Bad UBX checksum, skipping message"<<endl;
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Bad UBX checksum, skipping message"<<endl; }
     }
   }
   if(!g_fromFile)
