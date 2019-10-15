@@ -29,13 +29,27 @@ size_t readn2(int fd, void* buffer, size_t len)
   return len;
 }
 
+std::string humanTimeNow()
+{
+  time_t now = time(0);
+  return humanTime(now);
+}
+
 std::string humanTime(time_t t)
 {
+  static bool set_tz = false;
   struct tm tm={0};
   gmtime_r(&t, &tm);
 
+  if (!set_tz) {
+    setenv("TZ", "UTC", 1); // We think in UTC.
+    tzset();
+    set_tz = true;
+  }
+
   char buffer[80];
   strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S %z", &tm);
+  // strftime(buffer, sizeof(buffer), "%F %T ", &tm);
   return buffer;
 }
 

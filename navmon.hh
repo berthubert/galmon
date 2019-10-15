@@ -7,6 +7,7 @@
 
 struct EofException{};
 size_t readn2(int fd, void* buffer, size_t len);
+std::string humanTimeNow();
 std::string humanTime(time_t t);
 std::string humanTime(time_t t, uint32_t nanoseconds);
 struct SatID
