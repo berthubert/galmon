@@ -142,6 +142,8 @@ struct SVStat
 
 typedef std::map<SatID, SVStat> svstats_t;
 
-typedef vector<pair<double,vector<pair<double, int> > > > covmap_t;
+// a vector of pairs of latidude,vector<longitude,numsats>
+typedef vector<pair<double,vector<tuple<double, int, int, int> > > > covmap_t;
+
 covmap_t emitCoverage();
 
