@@ -150,7 +150,7 @@ function maketable(str, arr)
                 if(column == "sisa" && myRe.test(row[column]))
                     ret.color="#ff2222";
 
-                if(column == "sisa" && row[column]=="NO SIS AVAILABLE")
+                if(column == "sisa" && row[column]=="NO SISA AVAILABLE")
                     ret.color="#ff2222";                    
                 return ret;
             })

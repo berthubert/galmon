@@ -98,7 +98,7 @@ TLERepo::Match TLERepo::getBestMatch(time_t now, double x, double y, double z, T
       distances.insert({1000.0*(rot - sat).Magnitude(),sgp4.first});
     }
     catch(SatelliteException& se) {
-      cerr<<"TLE error: "<<se.what()<<endl;
+      //      cerr<<"TLE error: "<<se.what()<<endl;
       continue;
     }
   }

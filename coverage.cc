@@ -12,8 +12,6 @@ using namespace std;
 extern GetterSetter<map<int, GalileoMessage::Almanac>> g_galileoalmakeeper;
 extern GetterSetter<svstats_t> g_statskeeper;
 
-// a vector of pairs of latidude,vector<longitude,numsats>
-typedef vector<pair<double,vector<pair<double, int> > > > covmap_t;
 
 covmap_t emitCoverage()
 {
@@ -24,7 +22,7 @@ covmap_t emitCoverage()
   auto galileoalma = g_galileoalmakeeper.get();
   auto svstats = g_statskeeper.get();
   auto pseudoTow = (time(0) - 820368000) % (7*86400);
-  cout<<"pseudoTow "<<pseudoTow<<endl;
+  //  cout<<"pseudoTow "<<pseudoTow<<endl;
   for(const auto &g : galileoalma) {
     Point sat;
     getCoordinates(pseudoTow, g.second, &sat);
@@ -32,21 +30,18 @@ covmap_t emitCoverage()
     if(g.first < 0)
       continue;
     if(svstats[{2,g.first,1}].completeIOD() && svstats[{2,g.first,1}].liveIOD().sisa == 255) {
-      cout<<g.first<<" NAPA!"<<endl;
+      //      cout<<g.first<<" NAPA!"<<endl;
       continue;
     }
     sats[g.first]=sat;
   }
-  cout<<"Have "<<sats.size()<<" SVs active"<<endl;
   double R = 6371000;
-  for(int latitude = 90 ; latitude > -90; latitude-=1) {  // north-south
+  for(double latitude = 90 ; latitude > -90; latitude-=0.5) {  // north-south
     double phi = M_PI* latitude / 180;
     double longsteps = 1 + 360.0 * cos(phi);
-    double step = 360.0 / longsteps;
-    cout<<"lat "<<latitude<<" Step size: "<<step<<endl;
-    vector<pair<double, int>> latvect;
+    double step = 180.0 / longsteps;
+    vector<tuple<double, int, int, int>> latvect;
     for(double longitude = -180; longitude < 180; longitude += step) { // east - west
-      cout<<" long "<<longitude<<endl;
       Point p;
       // phi = latitude, lambda = longitude
 
@@ -72,11 +67,12 @@ covmap_t emitCoverage()
         if(elev > 20.0)
           numsats20++;
       }
-      latvect.push_back(make_pair(longitude, numsats10));
-      cmap << longitude <<" " <<latitude <<" " << numsats5 << " " <<numsats10<<" "<<numsats20<<endl;
+      if(numsats20 < 4)
+        latvect.push_back(make_tuple(longitude, numsats5, numsats10, numsats20));
+      //      cmap << longitude <<" " <<latitude <<" " << numsats5 << " " <<numsats10<<" "<<numsats20<<endl;
     }
-    ret.push_back(make_pair(latitude, latvect));
-    cout<<endl;
+    if(!latvect.empty())
+      ret.push_back(make_pair(latitude, latvect));
   }
   return ret;
 }
