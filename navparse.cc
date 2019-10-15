@@ -93,7 +93,7 @@ string humanSisa(uint8_t sisa)
     return std::to_string(200 + 16*(sval-100))+" cm";
   if(sisa < 255)
     return "SPARE";
-  return "NO SIS AVAILABLE";
+  return "NO SISA AVAILABLE";
 }
 
 string humanUra(uint8_t ura)
@@ -715,8 +715,17 @@ try
         item["observed"] = false;
         for(uint32_t sigid : {0,1,5}) {
           if(auto iter = svstats.find({2, (uint32_t)ae.first, sigid}); iter != svstats.end()) {
-            if(time(0) - nanoTime(2, iter->second.wn, iter->second.tow)/1000000000 < 300)
+
+            if(iter->second.completeIOD()) { 
+              item["sisa"] = iter->second.liveIOD().sisa;
+            }
+            // if we hit an 'observed', stop trying sigids
+            if(time(0) - nanoTime(2, iter->second.wn, iter->second.tow)/1000000000 < 300) {
               item["observed"] = true;
+              break;
+            }
+
+            
           }
         }
 
@@ -873,7 +882,6 @@ try
 
   h2s.addHandler("/sv.json", [](auto handler, auto req) {
       string_view path = convert(req->path);
-      cout<<path<<endl;
       nlohmann::json ret = nlohmann::json::object();
 
       SatID id;
@@ -973,7 +981,7 @@ try
       auto ret = nlohmann::json::array();
 
       // ret = 
-      // [ [90, [[-180, 3], [-179, 3], ... [180,3] ]]  
+      // [ [90, [[-180, 3,2,1], [-179, 3,2,1], ... [180,3,2,1] ]]  
       //   [89, [[-180, 4], [-179, 4], ... [180,2] ]]
       // ]
       for(const auto& latvect : cov) {
@@ -981,8 +989,10 @@ try
         auto jslongvect = nlohmann::json::array();
         for(const auto& longpair : latvect.second) {
           auto jsdatum = nlohmann::json::array();
-          jsdatum.push_back((int)longpair.first);
-          jsdatum.push_back(longpair.second);
+          jsdatum.push_back((int)get<0>(longpair));
+          jsdatum.push_back(get<1>(longpair));
+          jsdatum.push_back(get<2>(longpair));
+          jsdatum.push_back(get<3>(longpair));
           jslongvect.push_back(jsdatum);
         }
         jslatvect.push_back(latvect.first);
