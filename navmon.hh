@@ -4,6 +4,7 @@
 #include <time.h>
 #include <string>
 #include <tuple>
+#include <mutex>
 
 struct EofException{};
 size_t readn2(int fd, void* buffer, size_t len);
@@ -20,3 +21,28 @@ struct SatID
     return std::tie(gnss, sv, sigid) < std::tie(rhs.gnss, rhs.sv, rhs.sigid);
   }
 };
+
+template<typename T>
+class GetterSetter
+{
+public:
+  void set(const T& t)
+  {
+    std::lock_guard<std::mutex> mut(d_lock);
+    d_t = t;
+  }
+
+  T get()
+  {
+    T ret;
+    {
+      std::lock_guard<std::mutex> mut(d_lock);
+      ret = d_t;
+    }
+    return ret;
+  }
+private:
+  T d_t;
+  std::mutex d_lock;
+};
+

@@ -726,6 +726,7 @@ int main(int argc, char** argv)
           pvt.nano += 1000000000;
         }
         if(!g_gnssutc.tv_sec) {
+
           if (doDEBUG) { cerr<<humanTimeNow()<<" Got initial timestamp: "<<humanTime(satt)<<endl; }
         }
         g_gnssutc.tv_sec = satt;
@@ -733,6 +734,7 @@ int main(int argc, char** argv)
         continue;
       }
       if(!g_gnssutc.tv_sec) {
+
         if (doDEBUG) { cerr<<humanTimeNow()<<" Ignoring message with class "<<(int)msg.getClass()<< " and type "<< (int)msg.getType()<<": have not yet received a timestamp"<<endl; }
         continue;
       }
@@ -1032,7 +1034,7 @@ int main(int argc, char** argv)
           }
           else
             ; //            if (doDEBUG) { cerr<<humanTimeNow()<<" SFRBX from unsupported GNSSID/sigid combination "<<id.first<<", sv "<<id.second<<", sigid "<<sigid<<", "<<payload.size()<<" bytes"<<endl; }
-        
+       
         }
         catch(CRCMismatch& cm) {
           if (doDEBUG) { cerr<<humanTimeNow()<<" Had CRC mismatch!"<<endl; }
@@ -1123,6 +1125,7 @@ int main(int argc, char** argv)
         
       }
       else if(msg.getClass() == 0x02 && msg.getType() == 0x14) { // UBX-RXM-MEASX
+
         //        if (doDEBUG) { cerr<<humanTimeNow()<<" Got RXM-MEASX for "<<(int)payload[34]<<" satellites, r0 "<< (int)payload[30]<<" r1 " <<(int)payload[31]<<endl; }
         for(unsigned int n = 0 ; n < payload[34] ; ++n) {
           uint16_t wholeChips;
@@ -1158,6 +1161,7 @@ int main(int argc, char** argv)
         string hexstring;
         for(int n = 0; n < 15; ++n)
           hexstring+=fmt::sprintf("%x", (int)getbitu(payload.c_str(), 36 + 4*n, 4));
+
         if (doDEBUG) { cerr<<humanTimeNow()<<" "<<humanTime(g_gnssutc.tv_sec)<<" SAR RLM type "<<type<<" from gal sv " << sv << " beacon "<<hexstring <<" code "<<(int)payload[12]<<" params "<<payload[12] + 256*payload[13]<<endl; }
 
       //      wk.emitLine(sv, "SAR "+hexstring);
