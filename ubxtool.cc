@@ -160,9 +160,6 @@ std::pair<UBXMessage, struct timeval> getUBXMessage(int fd)
     
     //    cerr<<"marker now: "<< (int)marker[0]<<" " <<(int)marker[1]<<endl;
     if(marker[0]==0xb5 && marker[1]==0x62) { // bingo
-
-
-      
       struct timeval tv;
       gettimeofday(&tv, 0);
       basic_string<uint8_t> msg;
@@ -405,7 +402,7 @@ int initFD(const char* fname, bool doRTSCTS)
     }
 
     bzero(&newtio, sizeof(newtio));                                         
-    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;             
+    newtio.c_cflag = CS8 | CLOCAL | CREAD;             
     if (doRTSCTS)
       newtio.c_cflag |= CRTSCTS;
     newtio.c_iflag = IGNPAR;                                                
@@ -417,8 +414,8 @@ int initFD(const char* fname, bool doRTSCTS)
     newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */         
     newtio.c_cc[VMIN]     = 5;   /* blocking read until 5 chars received */ 
     
-    tcflush(fd, TCIFLUSH);                                                  
-    if(tcsetattr(fd,TCSANOW, &newtio)) {
+    cfsetspeed(&newtio, BAUDRATE);
+    if(tcsetattr(fd, TCSAFLUSH, &newtio)) {
       perror("tcsetattr");
       exit(-1);
     }
@@ -693,14 +690,15 @@ int main(int argc, char** argv)
           satt--;
           pvt.nano += 1000000000;
         }
-        if(!g_gnssutc.tv_sec)
-          cerr<<"Got initial timestamp"<<endl;
+        if(!g_gnssutc.tv_sec) {
+          cerr<<"Got initial timestamp: "<<humanTime(satt)<<endl;
+        }
         g_gnssutc.tv_sec = satt;
         g_gnssutc.tv_nsec = pvt.nano;
         continue;
       }
       if(!g_gnssutc.tv_sec) {
-        cerr<<"Ignoring message with class "<<msg.getClass()<< " and type "<< msg.getType()<<": have not yet received a timestamp"<<endl;
+        cerr<<"Ignoring message with class "<<(int)msg.getClass()<< " and type "<< (int)msg.getType()<<": have not yet received a timestamp"<<endl;
         continue;
       }
       
@@ -994,7 +992,7 @@ int main(int argc, char** argv)
           else if(id.first == 1) {// SBAS
           }
           else
-            cerr<<"SFRBX from unsupported GNSSID/sigid combination "<<id.first<<", sv "<<id.second<<", sigid "<<sigid<<", "<<payload.size()<<" bytes"<<endl;
+            ; //            cerr<<"SFRBX from unsupported GNSSID/sigid combination "<<id.first<<", sv "<<id.second<<", sigid "<<sigid<<", "<<payload.size()<<" bytes"<<endl;
         
         }
         catch(CRCMismatch& cm) {
@@ -1084,7 +1082,7 @@ int main(int argc, char** argv)
         
       }
       else if(msg.getClass() == 0x02 && msg.getType() == 0x14) { // UBX-RXM-MEASX
-        cerr<<"Got RXM-MEASX for "<<(int)payload[34]<<" satellites, r0 "<< (int)payload[30]<<" r1 " <<(int)payload[31]<<endl;
+        //        cerr<<"Got RXM-MEASX for "<<(int)payload[34]<<" satellites, r0 "<< (int)payload[30]<<" r1 " <<(int)payload[31]<<endl;
         for(unsigned int n = 0 ; n < payload[34] ; ++n) {
           uint16_t wholeChips;
           uint16_t fracChips;
@@ -1119,7 +1117,7 @@ int main(int argc, char** argv)
         string hexstring;
         for(int n = 0; n < 15; ++n)
           hexstring+=fmt::sprintf("%x", (int)getbitu(payload.c_str(), 36 + 4*n, 4));
-        cerr<<"SAR RLM type "<<type<<" from gal sv " << sv << " beacon "<<hexstring <<" code "<<(int)payload[12]<<" params "<<payload[12] + 256*payload[13]<<endl;
+        cerr<<humanTime(g_gnssutc.tv_sec)<<" SAR RLM type "<<type<<" from gal sv " << sv << " beacon "<<hexstring <<" code "<<(int)payload[12]<<" params "<<payload[12] + 256*payload[13]<<endl;
 
       //      wk.emitLine(sv, "SAR "+hexstring);
       //      cout<<"SAR: sv = "<< (int)msg[2] <<" ";
