@@ -128,6 +128,7 @@ This is very much a first stab. Do the following at root.
 mkdir /run/ubxtool
 mkdir /usr/local/ubxtool
 cp ubxtool.sh /usr/local/ubxtool/
+chmod +x /usr/local/ubxtool/ubxtool.sh
 cp ubxtool /usr/local/ubxtool/
 cp ubxtool.service /etc/systemd/system/ubxtool.service
 touch /usr/local/ubxtool/destination
