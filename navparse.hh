@@ -143,7 +143,17 @@ struct SVStat
 typedef std::map<SatID, SVStat> svstats_t;
 
 // a vector of pairs of latidude,vector<longitude,numsats>
-typedef vector<pair<double,vector<tuple<double, int, int, int> > > > covmap_t;
+typedef vector<pair<double,vector<tuple<double, int, int, int, double, double, double> > > > covmap_t;
 
 covmap_t emitCoverage();
 
+struct xDOP
+{
+  double gdop{-1};
+  double pdop{-1};
+  double tdop{-1};
+  //  double hdop;
+  //  double vdop;
+};
+
+xDOP getDOP(Point& us, vector<Point> sats);

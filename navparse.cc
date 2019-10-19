@@ -993,6 +993,10 @@ try
           jsdatum.push_back(get<1>(longpair));
           jsdatum.push_back(get<2>(longpair));
           jsdatum.push_back(get<3>(longpair));
+          
+          jsdatum.push_back((int)(10*get<4>(longpair)));
+          jsdatum.push_back((int)(10*get<5>(longpair)));
+          jsdatum.push_back((int)(10*get<6>(longpair)));
           jslongvect.push_back(jsdatum);
         }
         jslatvect.push_back(latvect.first);
