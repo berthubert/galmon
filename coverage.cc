@@ -29,7 +29,7 @@ covmap_t emitCoverage()
 
     if(g.first < 0)
       continue;
-    if(svstats[{2,g.first,1}].completeIOD() && svstats[{2,g.first,1}].liveIOD().sisa == 255) {
+    if(svstats[{2,uint32_t(g.first),1}].completeIOD() && svstats[{2,uint32_t(g.first),1}].liveIOD().sisa == 255) {
       //      cout<<g.first<<" NAPA!"<<endl;
       continue;
     }
@@ -51,7 +51,7 @@ covmap_t emitCoverage()
       p.z = R * sin(phi);
 
       if(longitude == -180) {
-        auto longlat = getLongLat(p.x, p.y, p.z);
+        // auto longlat = getLongLat(p.x, p.y, p.z);
         //        cout<<fmt::sprintf("%3.0f ", 180.0*longlat.second/M_PI);
       }
         
