@@ -72,7 +72,7 @@ struct BeidouMessage
   int wn{-1}, a0,     a1,     a2;
   //                  2^17    2^30
 
-  uint32_t getT0c()
+  uint32_t getT0c() const
   {
     return 8 * t0c;
   }

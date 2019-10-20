@@ -916,29 +916,64 @@ try
       ret["a1"] = s.a1;
       ret["a0g"] = s.a0g;
       ret["a1g"] = s.a1g;
-      ret["sf1"] = s.sf1;
-      ret["sf2"] = s.sf2;
-      ret["sf3"] = s.sf3;
-      ret["sf4"] = s.sf4;
-      ret["sf5"] = s.sf5;
+      if(id.gnss == 2) {
+        ret["sf1"] = s.sf1;
+        ret["sf2"] = s.sf2;
+        ret["sf3"] = s.sf3;
+        ret["sf4"] = s.sf4;
+        ret["sf5"] = s.sf5;
+        ret["BGDE1E5a"] = s.BGDE1E5a;
+        ret["BGDE1E5b"] = s.BGDE1E5b;
+        ret["e5bdvs"]=s.e5bdvs;
+        ret["e1bdvs"]=s.e1bdvs;
+        ret["e5bhs"]=s.e5bhs;
+        ret["e1bhs"]=s.e1bhs;
+      }
       ret["ai0"] = s.ai0;
       ret["ai1"] = s.ai1;
       ret["ai2"] = s.ai2;
-      ret["BGDE1E5a"] = s.BGDE1E5a;
-      ret["BGDE1E5b"] = s.BGDE1E5b;
       ret["wn"] = s.wn;
       ret["tow"] = s.tow;
       ret["dtLS"] = s.dtLS;
       ret["dtLSF"] = s.dtLSF;
       ret["wnLSF"] = s.wnLSF;
       ret["dn"] = s.dn;
-      ret["e5bdvs"]=s.e5bdvs;
-      ret["e1bdvs"]=s.e1bdvs;
-      ret["e5bhs"]=s.e5bhs;
-      ret["e1bhs"]=s.e1bhs;
 
-      
-      if(svstats[id].completeIOD()) {
+
+      if(id.gnss == 3 && svstats[id].oldBeidouMessage.sow >= 0 && svstats[id].oldBeidouMessage.sqrtA != 0) {
+        const auto& iod = svstats[id].oldBeidouMessage;
+        ret["e"] = iod.getE();
+        ret["omega"] = iod.getOmega();
+        ret["sqrtA"]= iod.getSqrtA();
+        ret["M0"] = iod.getM0();
+        ret["i0"] = iod.getI0();
+        ret["delta-n"] = iod.getDeltan();
+        ret["omega-dot"] = iod.getOmegadot();
+        ret["omega0"] = iod.getOmega0();
+        ret["idot"] = iod.getIdot();
+        ret["t0e"] = iod.getT0e();
+        ret["t0c"] = iod.getT0c();
+        ret["cuc"] = iod.getCuc();
+        ret["cus"] = iod.getCus();
+        ret["crc"] = iod.getCrc();
+        ret["crs"] = iod.getCrs();
+        ret["cic"] = iod.getCic();
+        ret["cis"] = iod.getCis();
+        //        ret["sisa"] = iod.sisa;
+        ret["af0"] = iod.a0;
+        ret["af1"] = iod.a1;
+        ret["af2"] = iod.a2;
+        Point p;
+        getCoordinates(s.tow, iod, &p);
+        ret["x"] = p.x;
+        ret["y"] = p.y;
+        ret["z"] = p.z;
+        auto longlat = getLongLat(p.x, p.y, p.z);
+        ret["longitude"] = 180.0*longlat.first/M_PI;
+        ret["latitude"] = 180.0*longlat.second/M_PI;
+
+      }
+      else if(svstats[id].completeIOD()) {
         const auto& iod =  svstats[id].liveIOD();
         ret["iod"]= svstats[id].getIOD();
         ret["e"] = iod.getE();
