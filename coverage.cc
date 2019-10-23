@@ -29,7 +29,7 @@ covmap_t emitCoverage()
 
     if(g.first < 0)
       continue;
-    if(svstats[{2,g.first,1}].completeIOD() && svstats[{2,g.first,1}].liveIOD().sisa == 255) {
+    if(svstats[{2,(uint32_t)g.first,1}].completeIOD() && svstats[{2,(uint32_t)g.first,1}].liveIOD().sisa == 255) {
       //      cout<<g.first<<" NAPA!"<<endl;
       continue;
     }
