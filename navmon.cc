@@ -9,6 +9,25 @@
 
 using namespace std;
 
+size_t writen2(int fd, const void *buf, size_t len)
+{
+  const char *ptr = (char*)buf;
+  const char *eptr = ptr + len;
+
+  ssize_t res;
+  while(ptr != eptr) {
+    res = ::write(fd, ptr, eptr - ptr);
+    if(res < 0) {
+      throw runtime_error("failed in writen2: "+string(strerror(errno)));
+    }
+    else if (res == 0)
+      throw EofException();
+
+    ptr += (size_t) res;
+  }
+
+  return len;
+}
 
 size_t readn2(int fd, void* buffer, size_t len)
 {

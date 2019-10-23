@@ -7,6 +7,7 @@
 #include <mutex>
 
 struct EofException{};
+size_t writen2(int fd, const void* buffer, size_t len);
 size_t readn2(int fd, void* buffer, size_t len);
 std::string humanTimeNow();
 std::string humanTime(time_t t);
