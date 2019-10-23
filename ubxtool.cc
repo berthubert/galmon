@@ -31,6 +31,7 @@
 #include "comboaddress.hh"
 #include "swrappers.hh"
 #include "sclasses.hh"
+#include "ubxos.hh"
 
 bool doDEBUG{false};
 bool doLOGFILE{false};
@@ -42,28 +43,6 @@ using namespace std;
 
 uint16_t g_srcid{0};
 
-
-#define BAUDRATE B115200
-
-size_t writen2(int fd, const void *buf, size_t count)
-{
-  const char *ptr = (char*)buf;
-  const char *eptr = ptr + count;
-
-  ssize_t res;
-  while(ptr != eptr) {
-    res = ::write(fd, ptr, eptr - ptr);
-    if(res < 0) {
-      throw runtime_error("failed in writen2: "+string(strerror(errno)));
-    }
-    else if (res == 0)
-      throw EofException();
-
-    ptr += (size_t) res;
-  }
-
-  return count;
-}
 
 /* inav schedule:
 1) Find plausible start time of next cycle
@@ -371,23 +350,6 @@ void enableUBXMessageUSB(int fd, uint8_t ubxClass, uint8_t ubxType, uint8_t rate
   throw TimeoutError();
 }
 
-bool isPresent(string_view fname)
-{
-  struct stat sb;
-  if(stat(&fname[0], &sb) < 0)
-    return false;
-  return true;
-}
-
-bool isCharDevice(string_view fname)
-{
-  struct stat sb;
-  if(stat(&fname[0], &sb) < 0)
-    return false;
-  return (sb.st_mode & S_IFMT) == S_IFCHR;
-}
-
-
 void readSome(int fd)
 {
   for(int n=0; n < 5; ++n) {
@@ -399,61 +361,6 @@ void readSome(int fd)
   }
 }
 
-struct termios g_oldtio;
-
-int initFD(const char* fname, bool doRTSCTS)
-{
-  int fd;
-  if (doDEBUG) { cerr<<humanTimeNow()<<" initFD()"<<endl; }
-  if (!isPresent(fname)) {
-    if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - "<<fname<<" - not present"<<endl; }
-    throw runtime_error("Opening file "+string(fname));
-  }
-  if(string(fname) != "stdin" && string(fname) != "/dev/stdin" && isCharDevice(fname)) {
-    if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - open("<<fname<<")"<<endl; }
-    fd = open(fname, O_RDWR | O_NOCTTY );
-    if (fd <0 ) {
-      throw runtime_error("Opening file "+string(fname));
-    }
-    if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - open successful"<<endl; }
-
-    struct termios newtio;
-    if(tcgetattr(fd, &g_oldtio)) { /* save current port settings */
-      perror("tcgetattr");
-      exit(-1);
-    }
-
-    bzero(&newtio, sizeof(newtio));                                         
-    newtio.c_cflag = CS8 | CLOCAL | CREAD;             
-    if (doRTSCTS)
-      newtio.c_cflag |= CRTSCTS;
-    newtio.c_iflag = IGNPAR;                                                
-    newtio.c_oflag = 0;                                                     
-    
-    /* set input mode (non-canonical, no echo,...) */                       
-    newtio.c_lflag = 0;                                                     
-    
-    newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */         
-    newtio.c_cc[VMIN]     = 5;   /* blocking read until 5 chars received */ 
-    
-    cfsetspeed(&newtio, BAUDRATE);
-    if(tcsetattr(fd, TCSAFLUSH, &newtio)) {
-      perror("tcsetattr");
-      exit(-1);
-    }
-    if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - tty set"<<endl; }
-  }
-  else {
-    g_fromFile = true;
-    
-    if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - open("<<fname<<") - from file"<<endl; }
-    fd = open(fname, O_RDONLY );
-    if(fd < 0)
-      throw runtime_error("Opening file "+string(fname));
-  }
-  return fd;
-
-}
 
 // ubxtool device srcid
 int main(int argc, char** argv)
@@ -491,8 +398,9 @@ int main(int argc, char** argv)
     return app.exit(e);
   }
 
-
-  int fd = initFD(portName.c_str(), doRTSCTS);
+  openDevice *tty_device = new ::openDevice(portName.c_str(), doRTSCTS);
+  int fd = tty_device->fd();
+  g_fromFile = tty_device->isPlainFile();
   
   bool version9 = false;  
   if(!g_fromFile) {
@@ -509,11 +417,13 @@ int main(int argc, char** argv)
         msg = buildUbxMessage(0x06, 0x04, {0x00, 0x00, 0x01, 0x00});
         writen2(fd, msg.c_str(), msg.size());
         usleep(100000);
-        close(fd);
+        delete tty_device;
         for(int n=0 ; n< 20; ++n) {
           if (doDEBUG) { cerr<<humanTimeNow()<<" Waiting for device to come back"<<endl; }
           try {
-            fd = initFD(portName.c_str(), doRTSCTS);
+            tty_device = new ::openDevice(portName.c_str(), doRTSCTS);
+            fd = tty_device->fd();
+            g_fromFile = tty_device->isPlainFile();
             readSome(fd);          
           }
           catch(...)
@@ -1130,7 +1040,7 @@ int main(int argc, char** argv)
         for(unsigned int n = 0 ; n < payload[34] ; ++n) {
           uint16_t wholeChips;
           uint16_t fracChips;
-          uint8_t intCodePhase = payload[64+24*n];
+          // uint8_t intCodePhase = payload[64+24*n];
           uint32_t codePhase;
 
           memcpy(&wholeChips, &payload[56+24*n], 2);
@@ -1189,7 +1099,6 @@ int main(int argc, char** argv)
       if (doDEBUG) { cerr<<humanTimeNow()<<" Bad UBX checksum, skipping message"<<endl; }
     }
   }
-  if(!g_fromFile)
-    tcsetattr(fd, TCSANOW, &g_oldtio);                                          
+  delete tty_device;
 }                                                                         
 
