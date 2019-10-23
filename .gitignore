@@ -1,5 +1,22 @@
+# - created by protoc
 navmon.pb.cc
 navmon.pb.h
+# - created by Makefile
+navcat  
+navdisplay
+navdump 
+navnexus
+navrecv 
+testrunner
+tlecatch
+ubxtool
+# - created by update-tles
+active.txt
+beidou.txt
+galileo.txt
+glo-ops.txt
+gps-ops.txt
+#
 *.csv
 # Prerequisites
 *.d
