@@ -1075,12 +1075,14 @@ try
             item["best-tle-int-desig"] = s.second.tleMatch.internat;
           }
           Point p;
-          getCoordinates(s.second.tow, s.second.oldBeidouMessage, &p);
-          auto beidoualma = g_beidoualmakeeper.get();
-          if(auto iter = beidoualma.find(s.first.sv); iter != beidoualma.end()) {
-            Point almapos;
-            getCoordinates(s.second.tow, iter->second.alma, &almapos);
-            item["alma-dist"] = Vector(almapos, p).length()/1000.0;
+          if(s.second.oldBeidouMessage.sqrtA != 0) {
+            getCoordinates(s.second.tow, s.second.oldBeidouMessage, &p);
+            auto beidoualma = g_beidoualmakeeper.get();
+            if(auto iter = beidoualma.find(s.first.sv); iter != beidoualma.end()) {
+              Point almapos;
+              getCoordinates(s.second.tow, iter->second.alma, &almapos);
+              item["alma-dist"] = Vector(almapos, p).length()/1000.0;
+            }
           }
         }
         else if(s.first.gnss == 6) { // glonass
@@ -1350,7 +1352,7 @@ try
       else if(g_svstats[id].completeIOD()) {
         getCoordinates(g_svstats[id].tow, g_svstats[id].liveIOD(), &sat);
       }
-      if(sat.x != 0) {
+      if(sat.x != 0 && g_srcpos[nmm.sourceid()].pos.x != 0) {
         idb.addValue(id, nmm.localutcseconds()*1000000000, "recdata",
                      {
                      {"db", nmm.rd().db()},
