@@ -28,6 +28,8 @@
 #include "navmon.hh" 
 #include <Tle.h>
 #include "navparse.hh"
+#include <fenv.h> 
+
 using namespace std;
 
 struct ObserverPosition
@@ -512,6 +514,9 @@ std::string humanBhs(int bhs)
 int main(int argc, char** argv)
 try
 {
+  feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW ); 
+
+  
   //  g_tles.parseFile("active.txt");
 
   g_tles.parseFile("galileo.txt");
@@ -1011,8 +1016,88 @@ try
     }
     );
 
-  h2s.addHandler("/galcov.json", [](auto handler, auto req) {
-      auto cov = emitCoverage();
+  h2s.addHandler("/cov.json", [](auto handler, auto req) {
+      vector<Point> sats;
+      auto galileoalma = g_galileoalmakeeper.get();
+      auto gpsalma = g_gpsalmakeeper.get();
+      auto beidoualma = g_beidoualmakeeper.get();
+      auto svstats = g_statskeeper.get();
+      //  cout<<"pseudoTow "<<pseudoTow<<endl;
+      string_view path = convert(req->path);
+
+      bool doGalileo{true}, doGPS{false}, doBeidou{false};
+      auto pos = path.find("gps=");
+      if(pos != string::npos) {
+        doGPS = (path[pos+4]=='1');
+      }
+      pos = path.find("galileo=");
+      if(pos != string::npos) {
+        doGalileo = (path[pos+8]=='1');
+      }
+      pos = path.find("beidou=");
+      if(pos != string::npos) {
+        doBeidou = (path[pos+7]=='1');
+      }
+      
+      if(doGalileo)
+      for(const auto &g : galileoalma) {
+        Point sat;
+        getCoordinates(latestTow(2, svstats), g.second, &sat);
+        
+        if(g.first < 0)
+          continue;
+        SatID id{2,(uint32_t)g.first,1};
+        if(svstats[id].completeIOD() && svstats[id].liveIOD().sisa == 255) {
+          continue;
+        }
+        if(svstats[id].e1bhs || svstats[id].e1bdvs)
+          continue;
+        sats.push_back(sat);
+      }
+
+      if(doGPS)
+      for(const auto &g : gpsalma) {
+        Point sat;
+        getCoordinates(latestTow(0, svstats), g.second, &sat);
+        
+        if(g.first < 0)
+          continue;
+        SatID id{0,(uint32_t)g.first,0};
+        if(svstats[id].completeIOD() && svstats[id].ura == 16) {
+          //          cout<<"Skipping G"<<id.sv<<" because of URA"<<endl;
+          continue;
+        }
+        if(svstats[id].gpshealth) {
+          //          cout<<"Skipping G"<<id.sv<<" because of health"<<endl;
+          continue;
+        }
+        sats.push_back(sat);
+      }
+
+      if(doBeidou)
+      for(const auto &g : beidoualma) {
+        Point sat;
+        getCoordinates(latestTow(3, svstats), g.second.alma, &sat);
+        
+        if(g.first < 0)
+          continue;
+        SatID id{3,(uint32_t)g.first,0};
+        /*
+        if(svstats[id].completeIOD() && svstats[id].ura == 16) {
+          cout<<"Skipping G"<<id.sv<<" because of URA"<<endl;
+          continue;
+        }
+        */
+        if(svstats[id].gpshealth) {
+          //          cout<<"Skipping C"<<id.sv<<" because of health"<<endl;
+          continue;
+        }
+        sats.push_back(sat);
+      }
+
+      
+      
+      auto cov = emitCoverage(sats);
       auto ret = nlohmann::json::array();
 
       // ret = 
@@ -1028,6 +1113,17 @@ try
           jsdatum.push_back(get<1>(longpair));
           jsdatum.push_back(get<2>(longpair));
           jsdatum.push_back(get<3>(longpair));
+          jsdatum.push_back((int)(10*get<4>(longpair)));
+          jsdatum.push_back((int)(10*get<5>(longpair)));
+          jsdatum.push_back((int)(10*get<6>(longpair)));
+
+          jsdatum.push_back((int)(10*get<7>(longpair)));
+          jsdatum.push_back((int)(10*get<8>(longpair)));
+          jsdatum.push_back((int)(10*get<9>(longpair)));
+
+          jsdatum.push_back((int)(10*get<10>(longpair)));
+          jsdatum.push_back((int)(10*get<11>(longpair)));
+          jsdatum.push_back((int)(10*get<12>(longpair)));
           jslongvect.push_back(jsdatum);
         }
         jslatvect.push_back(latvect.first);
@@ -1066,12 +1162,14 @@ try
             item["best-tle-int-desig"] = s.second.tleMatch.internat;
           }
           Point p;
-          getCoordinates(s.second.tow, s.second.oldBeidouMessage, &p);
-          auto beidoualma = g_beidoualmakeeper.get();
-          if(auto iter = beidoualma.find(s.first.sv); iter != beidoualma.end()) {
-            Point almapos;
-            getCoordinates(s.second.tow, iter->second.alma, &almapos);
-            item["alma-dist"] = Vector(almapos, p).length()/1000.0;
+          if(s.second.oldBeidouMessage.sqrtA != 0) {
+            getCoordinates(s.second.tow, s.second.oldBeidouMessage, &p);
+            auto beidoualma = g_beidoualmakeeper.get();
+            if(auto iter = beidoualma.find(s.first.sv); iter != beidoualma.end()) {
+              Point almapos;
+              getCoordinates(s.second.tow, iter->second.alma, &almapos);
+              item["alma-dist"] = Vector(almapos, p).length()/1000.0;
+            }
           }
         }
         else if(s.first.gnss == 6) { // glonass
@@ -1341,7 +1439,7 @@ try
       else if(g_svstats[id].completeIOD()) {
         getCoordinates(g_svstats[id].tow, g_svstats[id].liveIOD(), &sat);
       }
-      if(sat.x != 0) {
+      if(sat.x != 0 && g_srcpos[nmm.sourceid()].pos.x != 0) {
         idb.addValue(id, nmm.localutcseconds()*1000000000, "recdata",
                      {
                      {"db", nmm.rd().db()},

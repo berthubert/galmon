@@ -42,7 +42,10 @@ std::pair<double,double> getLongLat(double x, double y, double z)
     longitude *= -1;
   
   Vector toUs{core, pos};
-  double latitude =  acos( flat.inner(toUs) / (toUs.length() * flat.length()));
+  double inp = flat.inner(toUs) / (toUs.length() * flat.length());
+  if(inp > 1.0 && inp < 1.0000001) // this happens because of rounding errors
+    inp=1.0; 
+  double latitude =  acos( inp);
   if(z < 0)
     latitude *= -1;
 
