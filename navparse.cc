@@ -28,6 +28,8 @@
 #include "navmon.hh" 
 #include <Tle.h>
 #include "navparse.hh"
+#include <fenv.h> 
+
 using namespace std;
 
 struct ObserverPosition
@@ -512,6 +514,9 @@ std::string humanBhs(int bhs)
 int main(int argc, char** argv)
 try
 {
+  feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW ); 
+
+  
   //  g_tles.parseFile("active.txt");
 
   g_tles.parseFile("galileo.txt");

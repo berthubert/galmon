@@ -1,0 +1,47 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<title>galmon.eu geo</title>
+	<link rel="stylesheet" type="text/css" href="geo.css">
+
+	<script src="../d3.v4.min.js"></script>
+	<script src="../ext/topojson.v1.min.js"></script>
+	<script src="../ext/d3-geo-projection.v2.min.js"></script> 
+
+</head>
+<body>
+	<div id="galmongeo">
+		<h1>galmon.eu geo</h1>
+		<div id="galmoninfo">
+		  This is a live map from the <a href="/">galmon.eu</a> project. Red blocks indicate no Galileo fix is likely possible,
+                  because less than four satellites have an elevation of &gt; 5 degrees. Orange means less than four above 10 degrees, yellow less than four above 20 degrees.
+                  <b>These calculations are very provisional and might be wrong!</b>
+                  <center>
+                  <p>
+                    <input type="radio" name="kind" id="coverage" onclick="do_timer();" ><label for="coverage">Coverage</label>
+                      <input type="radio" name="kind" id="pdop" onclick="do_timer();" checked><label for="pdop">PDOP &gt; 10 or no fix</label>
+                        <input type="radio" name="kind" id="hdop" onclick="do_timer();" ><label for="hdop">HDOP &gt; 10 or no fix</label>
+                          <input type="radio" name="kind" id="vdop" onclick="do_timer();" ><label for="vdop">VDOP &gt; 10 or no fix</label>
+                                                  
+
+                            <hr/>
+                            <input type="checkbox"  id="GalE1" onclick="do_timer();" checked>  <label for="GalE1">Galileo E1</label> &nbsp;&nbsp;
+                              <input type="checkbox"  id="GPSL1CA" onclick="do_timer();">  <label for="GPSL1CA">GPS L1C/A</label> &nbsp;&nbsp;
+                                  <input type="checkbox"  id="Beidou" onclick="do_timer();">  <label for="Beidou">Beidou</label> &nbsp;&nbsp;
+</p>
+                      </center>
+		</div>
+
+		<div id="combined">
+			<svg id="svgworld"></svg>
+			<svg id="svggraticule"></svg>
+			<svg id="svgobservers"></svg>
+			<svg id="svgalmanac"></svg>
+		</div>
+	</div>
+
+	<script src="coverage.js"></script>
+</body>
+</html>
+
+
