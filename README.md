@@ -40,12 +40,11 @@ Build locally
 To get started, make sure you have a C++17 compiler, git, protobuf-compiler.
 Then run 'make ubxtool navdump' to build the receiver-only tools.
 
-To also run the webserver locally, intall libh2o-dev and run 'make'.
-
-To build everything, try:
+To build everything, including the webserver, try:
 
 ```
-apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev libh2o-evloop-dev libwslay-dev libncurses5-dev
+apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev \ 
+libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev
 git clone https://github.com/ahupowerdns/galmon.git --recursive
 cd galmon
 make
