@@ -183,6 +183,12 @@ Documents
  * [U-blox 8 interface specification](https://www.u-blox.com/sites/default/files/products/documents/u-blox8-M8_ReceiverDescrProtSpec_%28UBX-13003221%29_Public.pdf)
  * [U-blox 9 interface specification](https://www.u-blox.com/sites/default/files/u-blox_ZED-F9P_InterfaceDescription_%28UBX-18010854%29.pdf)
 
+Data sources
+------------
+The software can interpret SP3 files, good sources:
+
+ * http://navigation-office.esa.int/products/gnss-products/
+
 
 Big TODO
 --------
