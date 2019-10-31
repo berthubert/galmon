@@ -11,16 +11,15 @@
 </head>
 <body>
 	<div id="galmongeo">
-		<h1>galmon.eu geo</h1>
 		<div id="galmoninfo">
-		  This is a live map from the <a href="/">galmon.eu</a> project. Red blocks indicate no Galileo fix is likely possible,
-                  because less than four satellites have an elevation of &gt; 5 degrees. Orange means less than four above 10 degrees, yellow less than four above 20 degrees.
-                  <b>These calculations are very provisional and might be wrong!</b>
+		  This is a live map from the <a href="/">galmon.eu</a> project. This map can plot if a fix is possible ('Coverage') or if the positioning, horizontal or vertical precision will be bad (<a href="https://en.wikipedia.org/wiki/Dilution_of_precision_(navigation)">PDOP, HDOP, VDOP</a>). Red blocks indicate a problem even in perfect viewing conditions. Orange means a problem if there are obstructions below 10 degrees above of the horizon,
+                  yellow for less than 20 degrees ('urban canyon').
+                  <b>These <a href="https://github.com/ahupowerdns/galmon/blob/master/coverage.cc">calculations are very provisional</a> and might be wrong!</b>
                   <center>
                   <p>
                     <input type="radio" name="kind" id="coverage" onclick="do_timer();" ><label for="coverage">Coverage</label>
-                      <input type="radio" name="kind" id="pdop" onclick="do_timer();" checked><label for="pdop">PDOP &gt; 10 or no fix</label>
-                        <input type="radio" name="kind" id="hdop" onclick="do_timer();" ><label for="hdop">HDOP &gt; 10 or no fix</label>
+                      <input type="radio" name="kind" id="pdop" onclick="do_timer();" ><label for="pdop">PDOP &gt; 10 or no fix</label>
+                        <input type="radio" name="kind" id="hdop" onclick="do_timer();" checked><label for="hdop">HDOP &gt; 10 or no fix</label>
                           <input type="radio" name="kind" id="vdop" onclick="do_timer();" ><label for="vdop">VDOP &gt; 10 or no fix</label>
                                                   
 

@@ -231,6 +231,8 @@ function draw_almanac(data_almanac)
 		return "red";
             if (d.health != null && d.health != 0) // GPS
 		return "red";
+            if (d.e1bhs != null && d.e1bhs != 0) // Galileo
+		return "red";
 
 	    if (d.observed==true)
 		return "black";

@@ -49,7 +49,7 @@ input[type="checkbox"] {
 
 </style>
 <body>
-  Last update: <span id="freshness"></span>. More information about this Galileo/GPS/BeiDou/Glonass open source monitor can be found <a href="https://github.com/ahupowerdns/galmon/blob/master/README.md#galmon">here</a> and <a href="https://ds9a.nl/articles/posts/gps-gnss-how-do-they-work/">here</a>. Live map <a href="geo">here!</a>. Contact <a href="https://ds9a.nl/">me</a> if you want access to the Grafana dashboard.<br/>
+  Last update: <span id="freshness"></span>. More information about this Galileo/GPS/BeiDou/Glonass open source monitor can be found <a href="https://github.com/ahupowerdns/galmon/blob/master/README.md#galmon">here</a> and <a href="https://berthub.eu/articles/posts/gps-gnss-how-do-they-work/">here</a>. Live observer map <a href="geo">here!</a>, status (coverage, DOP) map <a href="geo/coverage.html">here</a>. Contact <a href="https://berthub.eu/">me</a> if you want access to the Grafana dashboard.<br/>
   <center>
     <hr/>
   <input type="checkbox"  id="GalE1" onclick="updateSats();">  <label for="GalE1">Galileo E1</label> &nbsp;&nbsp;
@@ -75,14 +75,14 @@ input[type="checkbox"] {
     <a href="https://github.com/ahuPowerDNS/galmon">GitHub</a>.
 
     <p>
-      Some technical detail behind this setup can be found in <a href="https://ds9a.nl/articles/posts/galileo-notes/">this post</a>.
+      Some technical detail behind this setup can be found in <a href="https://berthub.eu/articles/posts/galileo-notes/">this post</a>.
     </p>
     <p>
     For updates, follow <a href="https://twitter.com/GalileoSats">@GalileoSats</a> on Twitter, or join us on our IRC channel (chat) via the
     <a href="https://webchat.oftc.net/?channels=galileo">web gateway</a>.
     </p>
     <p>
-      The meaning of the fields is explained in <a href="https://ds9a.nl/articles/posts/gps-gnss-how-do-they-work/">this document</a> and can be summarised as follows:
+      The meaning of the fields is explained in <a href="https://berthub.eu/articles/posts/gps-gnss-how-do-they-work/">this document</a> and can be summarised as follows:
       </p>
     <table>
       <tr valign="top"><td>sv</td><td>Satellite Vehicle, an identifier for a Galileo satellite. Not the actual name of the satellite, other satellites could take over this number in case of failures</td></tr>
