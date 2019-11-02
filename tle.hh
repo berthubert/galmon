@@ -2,6 +2,7 @@
 #include <string>
 #include <map>
 #include <memory>
+#include <ctime>
 class SGP4;
 class Tle;
 
