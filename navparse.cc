@@ -511,6 +511,18 @@ std::string humanBhs(int bhs)
   }
   return options.at(bhs);
 }
+
+void addHeaders(h2o_req_t* req)
+{
+  h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_CACHE_CONTROL, 
+                     NULL, H2O_STRLIT("max-age=3"));
+  
+  // Access-Control-Allow-Origin
+  h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_ACCESS_CONTROL_ALLOW_ORIGIN, 
+                 NULL, H2O_STRLIT("*"));
+
+}
+
 int main(int argc, char** argv)
 try
 {
@@ -530,9 +542,10 @@ try
   MiniCurl::init();
   
   H2OWebserver h2s("galmon");
-
   
   h2s.addHandler("/global.json", [](auto handler, auto req) {
+      addHeaders(req);
+      
       nlohmann::json ret = nlohmann::json::object();
       auto svstats = g_statskeeper.get();
       ret["leap-seconds"] = g_dtLS;
@@ -605,6 +618,8 @@ try
     });
 
   h2s.addHandler("/almanac.json", [](auto handler, auto req) {
+      addHeaders(req);
+      
       auto beidoualma = g_beidoualmakeeper.get();
       auto svstats = g_statskeeper.get();
       nlohmann::json ret = nlohmann::json::object();
@@ -821,6 +836,8 @@ try
     });
 
   h2s.addHandler("/observers.json", [](auto handler, auto req) {
+      addHeaders(req);
+      
       nlohmann::json ret = nlohmann::json::array();
       for(const auto& src : g_srcpos) {
         nlohmann::json obj;
@@ -886,6 +903,7 @@ try
     });
 
   h2s.addHandler("/sv.json", [](auto handler, auto req) {
+      addHeaders(req);
       string_view path = convert(req->path);
       nlohmann::json ret = nlohmann::json::object();
 
@@ -1017,6 +1035,7 @@ try
     );
 
   h2s.addHandler("/cov.json", [](auto handler, auto req) {
+      addHeaders(req);
       vector<Point> sats;
       auto galileoalma = g_galileoalmakeeper.get();
       auto gpsalma = g_gpsalmakeeper.get();
@@ -1135,11 +1154,17 @@ try
     });
   
   h2s.addHandler("/svs.json", [](auto handler, auto req) {
+      addHeaders(req);
       auto svstats = g_statskeeper.get();
       nlohmann::json ret = nlohmann::json::object();
       h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_CACHE_CONTROL, 
                      NULL, H2O_STRLIT("max-age=3"));
 
+      // Access-Control-Allow-Origin
+      h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_ACCESS_CONTROL_ALLOW_ORIGIN, 
+                     NULL, H2O_STRLIT("*"));
+
+      
       for(const auto& s: svstats) {
         nlohmann::json item  = nlohmann::json::object();
         if(!s.second.tow) // I know, I know, will suck briefly
@@ -1464,7 +1489,7 @@ try
 
       auto& gm = svstat.galmsg;
       unsigned int wtype = gm.parse(inav);
-      svstat.galmsgTyped[wtype] = gm;
+
       
       if(wtype == 1 || wtype == 2 || wtype == 3) {
         idb.addValue(id, "iod-live", svstat.galmsg.iodnav);
@@ -1477,8 +1502,8 @@ try
         }
       }
       
-
-    g_svstats[id].tow = nmm.gi().gnsstow();
+      svstat.galmsgTyped[wtype] = gm;
+      g_svstats[id].tow = nmm.gi().gnsstow();
 
       //      g_svstats[id].perrecv[nmm.sourceid()].wn = nmm.gi().gnsswn();
       //      g_svstats[id].perrecv[nmm.sourceid()].tow = nmm.gi().gnsstow();
@@ -1740,7 +1765,7 @@ try
         //        cout<<"Got ura "<<svstat.ura<<" for sv "<<id.first<<","<<id.second<<endl;
         idb.addValue(id, "ura", svstat.ura);
 
-        if(oldsvstat.af0 && oldsvstat.ura != svstat.ura && svstat.ura > 1)  { // XX find better way to check
+        if(oldsvstat.af0 && oldsvstat.ura != svstat.ura)  { // XX find better way to check
           cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" wn "<<svstat.wn <<" GPS "<<id.sv <<"@"<<id.sigid<<" change in URA ["<< humanUra(oldsvstat.ura) <<"] -> [" << humanUra(svstat.ura)<<"] "<<(int)svstat.ura<<", lastseen "<<ephAge(oldsvstat.tow, svstat.tow)/3600.0 <<" hours"<<endl;
         }
 
@@ -1808,7 +1833,7 @@ try
         svstat.aodc = bm.aodc;
 
         if(oldbm.sath1 != bm.sath1) {
-          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" BeiDou C"<<id.sv<<"@"<<id.sigid<<" health changed from  "<<(int)oldbm.sath1 <<" to "<< (int)bm.sath1 <<", lastseen "<<ephAge(oldbm.sow, bm.sow)/3600.0<<endl;
+          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" wn "<<bm.wn<<" sow " <<bm.sow<<" BeiDou C"<<id.sv<<"@"<<id.sigid<<" health changed from  "<<(int)oldbm.sath1 <<" to "<< (int)bm.sath1 <<", lastseen "<<ephAge(oldbm.sow, bm.sow)/3600.0<<" hours"<<endl;
         }
         
         idb.addValue(id, "atomic_offset_ns", 1000000.0*bm.getAtomicOffset().first);
@@ -1928,7 +1953,7 @@ try
       }
       else if(strno == 2) {
         if(oldgm.Bn != gm.Bn) {
-          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" GLONASS R"<<id.sv<<"@"<<id.sigid<<" health changed from  "<<(int)oldgm.Bn <<" to "<< (int)gm.Bn <<endl;
+          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" n4 "<< (int)gm.n4<<" NT " << (int)gm.NT<<" GLONASS R"<<id.sv<<"@"<<id.sigid<<" health changed from  "<<(int)oldgm.Bn <<" to "<< (int)gm.Bn <<endl;
 
         }
         svstat.gpshealth = gm.Bn;
