@@ -159,7 +159,6 @@ try
   tles.parseFile("glo-ops.txt");
   tles.parseFile("gps-ops.txt");
   tles.parseFile("beidou.txt");
-
   /*
   readSP3s("all.sp3");
   if(!g_sp3s.empty()) {
@@ -167,12 +166,14 @@ try
     cout<<"Have "<<g_sp3s.size()<<" sp3 entries"<<endl; //, from "<<humanTime(g_sp3s.begin()->t) <<" to "<< humanTime(g_sp3s.rbegin()->t)<<endl;
   }
   */
-
   vector<string> svpairs;
   bool doReceptionData{false};
   bool doRFData{true};
   bool doObserverPosition{false};
   app.add_option("--svs", svpairs, "Listen to specified svs. '0' = gps, '2' = Galileo, '2,1' is E01");
+  app.add_option("--positions,-p", doObserverPosition, "Print out observer positions (or not)");
+  app.add_option("--rfdata,-r", doRFData, "Print out RF data (or not)");
+    
   try {
     app.parse(argc, argv);
   } catch(const CLI::Error &e) {
@@ -323,7 +324,7 @@ try
             auto oldAtomic = oldEph[sv].getAtomicOffset(gm.tow);
             auto newAtomic = gm.getAtomicOffset(gm.tow);
             cout<<" clock-jump "<<oldAtomic.first - newAtomic.first<<" ns ";
-            doOrbitDump(2, sv, gm.wn, oldEph[sv], gm, gm.tow - 3*3600, gm.tow + 3*3600);
+            //            doOrbitDump(2, sv, gm.wn, oldEph[sv], gm, gm.tow - 3*3600, gm.tow + 3*3600);
 
             
             oldEph[sv]=gm;
