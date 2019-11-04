@@ -9,4 +9,5 @@ std::basic_string<uint8_t> getInavFromSFRBXMsg(std::basic_string_view<uint8_t> m
 std::basic_string<uint8_t> getGPSFromSFRBXMsg(std::basic_string_view<uint8_t> msg);
 std::basic_string<uint8_t> getGlonassFromSFRBXMsg(std::basic_string_view<uint8_t> msg);
 std::basic_string<uint8_t> getBeidouFromSFRBXMsg(std::basic_string_view<uint8_t> msg);
+std::basic_string<uint8_t> getSBASFromSFRBXMsg(std::basic_string_view<uint8_t> msg);
 struct CRCMismatch{};
