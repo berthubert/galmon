@@ -1,6 +1,6 @@
 # galmon
 galileo/GPS/GLONASS/BeiDou open source monitoring. GPL3 licensed. 
-(C) AHU Holding BV - bert@hubertnet.nl - https://ds9a.nl/
+(C) AHU Holding BV - bert@hubertnet.nl - https://berthub.eu/
 
 Live website: https://galmon.eu/
 
@@ -8,9 +8,15 @@ Theoretically multi-vendor, although currently only the U-blox 8 chipset is
 supported.  Navilock NL-8012U receiver works really well, as does the U-blox
 evaluation kit for the 8MT.
 
-Highlights:
+Highlights
+----------
+
  * Processes raw frames/strings/words from GPS, GLONASS, BeiDou and Galileo
+ * All-band support (E1, E5b, B1I, B2I, Glonass L1, Glonass L2, GPS L1C/A)
+   so far, GPS L2C and Galileo E5a pending).
  * Calculate ephemeris positions
+ * Comparison of ephemerides to independent SP3 data to determine SISE
+   * Globally, locally, worst user location
  * Record discontinuities between subsequent ephemerides (in time and space)
  * Compare doppler shift as reported by receiver with that expected from ephemeris
  * Track atomic clock & report jumps
@@ -20,8 +26,7 @@ Highlights:
  * Tear out every bit that tells us how well an SV is doing
  * Full almanac processing to see what _should_ be transmitting
  * Distributed receivers, combined into a single source of all messages
- * Ready to detect spoofing/jamming
- * Comparison of ephemerides to independent SP3 data to determine SISE
+ * Ready to detect/report spoofing/jamming
 
 Data is made available as JSON, as a user-friendly website and as a
 time-series database. This time-series database is easily mated to the
