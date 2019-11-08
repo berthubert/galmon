@@ -117,6 +117,15 @@ function draw_almanac(data_almanac)
 {
 	var arr = get_almanac_valid(data_almanac);
 
+	display_gnssid = {
+		0: d3.select("#GPS").property("checked"),
+		2: d3.select("#Gal").property("checked"),
+		3: d3.select("#BeiDou").property("checked"),
+		6: d3.select("#Glonass").property("checked")
+	};
+
+	arr = arr.filter(sat => display_gnssid[sat.gnssid]);
+
 	console.log("draw_almanac() " + arr.length);
 
 	svgAlmanac.selectAll("circle")
@@ -202,7 +211,12 @@ function do_update_almanac(error, results)
 
 	// console.log("do_update_almanac() " + Object.keys(data_almanac).length + " " + data_observers.length);
 
-	if (display_observers_count == 0) {
+	// Zero out the observers if they're not meant to display
+	if (!d3.select("#Obs").property("checked")){
+		svgObservers.html("");
+	}
+
+	if (display_observers_count == 0 || d3.select("#Obs").property("checked")) {
 		// does not need that much updating!
 		svgObservers.html("");
 		draw_observers(data_observers);

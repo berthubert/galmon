@@ -1,29 +1,38 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-	<title>galmon.eu geo</title>
-	<link rel="stylesheet" type="text/css" href="geo.css">
+    <title>galmon.eu geo</title>
+    <link rel="stylesheet" type="text/css" href="geo.css">
 
-	<script src="../d3.v4.min.js"></script>
-	<script src="../ext/topojson.v1.min.js"></script>
-	<script src="../ext/d3-geo-projection.v2.min.js"></script> 
+    <script src="../d3.v4.min.js"></script>
+    <script src="../ext/topojson.v1.min.js"></script>
+    <script src="../ext/d3-geo-projection.v2.min.js"></script> 
 
 </head>
 <body>
-	<div id="galmongeo">
-		<h1>galmon.eu geo</h1>
-		<div id="galmoninfo">
-			This is a live map from the <a href="/">galmon.eu</a> project</p>
-		</div>
-		<div id="combined">
-			<svg id="svgworld"></svg>
-			<svg id="svggraticule"></svg>
-			<svg id="svgobservers"></svg>
-			<svg id="svgalmanac"></svg>
-		</div>
-	</div>
+    <div id="galmongeo">
+        <h1>galmon.eu geo</h1>
+        <div id="galmoninfo">
+            This is a live map from the <a href="/">galmon.eu</a> project
+        </div>
+        <center id="options_sats">
+            <input type="checkbox" id="Gal" onclick="do_timer();" checked>  <label for="Gal">Galileo</label> &nbsp;&nbsp;
+            <input type="checkbox" id="BeiDou" onclick="do_timer();" checked>  <label for="BeiDou">BeiDou</label> &nbsp;&nbsp;
+            <input type="checkbox" id="Glonass" onclick="do_timer();" checked>  <label for="Glonass">Glonass</label> &nbsp;&nbsp;
+            <input type="checkbox" id="GPS" onclick="do_timer();" checked>  <label for="GPS">GPS</label>
+        </center>
+        <center id="options_other">
+            <input type="checkbox" id="Obs" onclick="do_timer();" checked>  <label for="Obs">Observers</label> &nbsp;&nbsp;
+        </center>
+        <div id="combined">
+            <svg id="svgworld"></svg>
+            <svg id="svggraticule"></svg>
+            <svg id="svgobservers"></svg>
+            <svg id="svgalmanac"></svg>
+        </div>
+    </div>
 
-	<script src="geo.js"></script>
+    <script src="geo.js"></script>
 </body>
 </html>
 
