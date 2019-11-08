@@ -4,9 +4,14 @@ galileo/GPS/GLONASS/BeiDou open source monitoring. GPL3 licensed.
 
 Live website: https://galmon.eu/
 
-Theoretically multi-vendor, although currently only the U-blox 8 chipset is
-supported.  Navilock NL-8012U receiver works really well, as does the U-blox
-evaluation kit for the 8MT.
+Theoretically multi-vendor, although currently only the U-blox 8 and 9
+chipsets are supported.  Navilock NL-8012U receiver works really well, as
+does the U-blox evaluation kit for the 8MT.  In addition, many stations have
+reported success with this very cheap [AliExpress sourced
+device](https://www.aliexpress.com/item/32816656706.html).  The best and
+most high-end receiver, which does all bands, all the time, is the Ublox
+F9P, several of us use the
+[ArdusimpleRTK2B](https://www.ardusimple.com/simplertk2b/) board.
 
 Highlights
 ----------
