@@ -544,7 +544,7 @@ int main(int argc, char** argv)
   app.add_flag("--sbas,-s", doSBAS, "Enable SBAS (EGNOS/WAAS/etc) reception");
   app.add_option("--rtscts", doRTSCTS, "Set hardware handshaking");
   app.add_flag("--stdout", doSTDOUT, "Emit output to stdout");
-  app.add_option("--port,-p", portName, "Device or file to read serial from");
+  app.add_option("--port,-p", portName, "Device or file to read serial from")->required();
   app.add_option("--station", g_srcid, "Station id");
   app.add_option("--ubxport,-u", ubxport, "UBX port to enable messages on (usb=4)");
   app.add_option("--baud,-b", baudrate, "Baudrate for serial connection");
@@ -560,6 +560,11 @@ int main(int argc, char** argv)
 
   g_baudval = getBaudrate(baudrate);
 
+  if(!(doGPS || doGalileo || doGlonass || doBeidou)) {
+    cerr<<"Enable at least one of --gps, --galileo, --glonass, --beidou"<<endl;
+    return EXIT_FAILURE;
+  }
+  
   int fd = initFD(portName.c_str(), doRTSCTS);
   
   bool version9 = false;  
