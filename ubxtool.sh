@@ -3,10 +3,9 @@
 DEVICE="/dev/ttyACM0"
 DESTINATION="`cat /usr/local/ubxtool/destination`"
 
-DEV="/run/ubxtool"
+DIR="/run/ubxtool"
 
-STATION="`/usr/local/ubxtool/station`"
-CONSTELLATIONS="--galileo --gps --beidou --glonass"
+STATION="`cat /usr/local/ubxtool/station`"
 CONSTELLATIONS="--galileo --gps --beidou"
 
 (
