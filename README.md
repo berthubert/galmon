@@ -52,13 +52,14 @@ Goals:
 5) Populate an InfluxDB timeseries database with raw measurements and higher
    order calculations
 
-Works on Linux (including Raspbian on Pi Zero W), OSX and OpenBSD.
+Works on Linux (including Raspbian Buster on Pi Zero W), OSX and OpenBSD.
 
 Build locally
 -------------
 
-To get started, make sure you have a C++17 compiler, git, protobuf-compiler.
-Then run 'make ubxtool navdump' to build the receiver-only tools.
+To get started, make sure you have a C++17 compiler (like g++ 8 or higher),
+git, protobuf-compiler.  Then run 'make ubxtool navdump' to build the
+receiver-only tools.
 
 To build everything, including the webserver, try:
 
