@@ -242,7 +242,9 @@ In alphabetical order:
  * South Africa (Cape Town area)
  * Spain
  * Tonga 
- * USA California (Santa Cruz, Los Angeles area, etc)
+ * USA
+   * California (Santa Cruz, Los Angeles area, etc)
+   * Massachusetts (Boston area)
  * Uruguay
  
 Additional sites are welcome (and encouraged) as the more data receiving sites that exist, then more accurate data and absolute coverage of each constellation can be had.
