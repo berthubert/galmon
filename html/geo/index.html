@@ -13,8 +13,17 @@
 	<div id="galmongeo">
 		<h1>galmon.eu geo</h1>
 		<div id="galmoninfo">
-			This is a live map from the <a href="/">galmon.eu</a> project</p>
+			This is a live map from the <a href="/">galmon.eu</a> project
 		</div>
+		<center id="options_sats">
+			<input type="checkbox" id="Gal" onclick="do_timer();" checked>  <label for="Gal">Galileo</label> &nbsp;&nbsp;
+			<input type="checkbox" id="BeiDou" onclick="do_timer();" checked>  <label for="BeiDou">BeiDou</label> &nbsp;&nbsp;
+			<input type="checkbox" id="Glonass" onclick="do_timer();" checked>  <label for="Glonass">Glonass</label> &nbsp;&nbsp;
+			<input type="checkbox" id="GPS" onclick="do_timer();" checked>  <label for="GPS">GPS</label>
+		</center>
+		<center id="options_other">
+			<input type="checkbox" id="Obs" onclick="do_timer();" checked>  <label for="Obs">Observers</label> &nbsp;&nbsp;
+		</center>
 		<div id="combined">
 			<svg id="svgworld"></svg>
 			<svg id="svggraticule"></svg>

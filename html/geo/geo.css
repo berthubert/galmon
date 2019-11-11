@@ -19,7 +19,6 @@ body {
 
 #galmoninfo {
 	border-top: blue 1px solid;
-	margin-bottom: 10px;
 }
 
 #combined {
@@ -69,7 +68,7 @@ body {
 svg {
 	// border: red 1px solid;
 	// background-color: transparent;
-	padding: 20px;
+	padding: 0px 20px 20px 20px;
 	// margin-left: auto;
 	// margin-right: auto;
 }
@@ -126,3 +125,12 @@ path.merged {
 	stroke-width: 2px;
 }
 
+label {
+   cursor: pointer;
+}
+input[type="checkbox"] {
+    cursor: pointer;
+}
+#options_other {
+	padding-top:10px;
+}
