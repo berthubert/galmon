@@ -107,6 +107,16 @@ configuration of your u-blox receiver so it emits the required frames for
 GPS and Galileo. If you have a u-blox timing receiver it will also enable
 the doppler frames.
 
+By default the ublox receiver module will be configured to use the USB port,
+if you want to use a different interface port on the ublox module then add
+the `--ubxport <id>` option using one of the following numeric IDs:
+
+   0 : DDC (aka. I2C)  
+   1 : UART[1]  
+   2 : UART2  
+   3 : USB (default)  
+   4 : SPI  
+
 To see what is going on, try:
 
 ```

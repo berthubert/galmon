@@ -412,7 +412,7 @@ void enableUBXMessageOnPort(int fd, uint8_t ubxClass, uint8_t ubxType, uint8_t p
       basic_string<uint8_t> payload({ubxClass, ubxType, 0, 0, 0, 0, 0, 0});
       if(port > 6)
         throw std::runtime_error("Port number out of range (>6)");
-     payload[1+ port]=rate;
+     payload[2+ port]=rate;
 
      auto msg = buildUbxMessage(0x06, 0x01, payload);
       if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, 0x01))
@@ -531,7 +531,7 @@ int main(int argc, char** argv)
 
   vector<string> destinations;
   string portName;
-  int ubxport=4;
+  int ubxport=3;
   int baudrate=115200;
 
   app.add_option("--destination,-d", destinations, "Send output to this IPv4/v6 address");
@@ -546,7 +546,7 @@ int main(int argc, char** argv)
   app.add_flag("--stdout", doSTDOUT, "Emit output to stdout");
   app.add_option("--port,-p", portName, "Device or file to read serial from")->required();
   app.add_option("--station", g_srcid, "Station id");
-  app.add_option("--ubxport,-u", ubxport, "UBX port to enable messages on (usb=4)");
+  app.add_option("--ubxport,-u", ubxport, "UBX port to enable messages on (usb=3)");
   app.add_option("--baud,-b", baudrate, "Baudrate for serial connection");
   app.add_flag("--keep-nmea,-k", doKeepNMEA, "Don't disable NMEA");
   
