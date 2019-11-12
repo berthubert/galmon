@@ -682,7 +682,7 @@ int main(int argc, char** argv)
       if(!doKeepNMEA) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Disabling NMEA"<<endl; }
         
-        msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport-1),0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x01,0x00,0x00,0x00,0x00,0x00});
+        msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x01,0x00,0x00,0x00,0x00,0x00});
         if(sendAndWaitForUBXAckNack(fd, 10, msg, 0x06, 0x00)) { // disable NMEA
           if (doDEBUG) { cerr<<humanTimeNow()<<" NMEA disabled"<<endl; }
         }
@@ -691,7 +691,7 @@ int main(int argc, char** argv)
         }
       }
       if (doDEBUG) { cerr<<humanTimeNow()<<" Polling port settings"<<endl; } // UBX-CFG-PRT, 0x03 == USB
-      msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport-1)});
+      msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport)});
       
       UBXMessage um=sendAndWaitForUBX(fd, 4, msg, 0x06, 0x00); // UBX-CFG-PRT
       if (doDEBUG) {
