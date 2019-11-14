@@ -682,7 +682,23 @@ int main(int argc, char** argv)
       if(!doKeepNMEA) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Disabling NMEA"<<endl; }
         
-        msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,0xC0 /* 8 bit */,0x08 /* No parity */,0x00,0x00,(unsigned char)((baudrate) & 0xFF),(unsigned char)((baudrate>>8) & 0xFF),(unsigned char)((baudrate>>16) & 0xFF),(unsigned char)((baudrate >> 24) & 0xFF),0x03,0x00,0x01,0x00,0x00,0x00,0x00,0x00});
+        if(ubxport == 1 || ubxport == 2) {
+          /* Ublox UART[1] or UART2 port, so encode baudrate and serial settings */
+          msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,
+            0xC0 /* 8 bit */,
+            0x08 /* No parity */,
+            0x00,0x00,
+            (unsigned char)((baudrate) & 0xFF),
+            (unsigned char)((baudrate>>8) & 0xFF),
+            (unsigned char)((baudrate>>16) & 0xFF),
+            (unsigned char)((baudrate>>24) & 0xFF),
+            0x03,0x00,0x01,0x00,
+            0x00,0x00,0x00,0x00
+          });
+        }
+        else {
+          msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x01,0x00,0x00,0x00,0x00,0x00});
+        }
         if(sendAndWaitForUBXAckNack(fd, 10, msg, 0x06, 0x00)) { // disable NMEA
           if (doDEBUG) { cerr<<humanTimeNow()<<" NMEA disabled"<<endl; }
         }
