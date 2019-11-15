@@ -230,12 +230,12 @@ UBXMessage sendAndWaitForUBX(int fd, int seconds, basic_string_view<uint8_t> msg
       return waitForUBX(fd, seconds, ubxClass, ubxType);
     }
     catch(...) {
-      if(n==1)
-        throw;
-      cerr<<"Retransmit"<<endl;
-          
+      if(n > 1) {
+        cerr<<"Retransmit"<<endl;
+      }
     }
   }
+  throw;
 }
 
 
