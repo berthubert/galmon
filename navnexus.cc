@@ -109,7 +109,7 @@ try
       buf+=out;
       SWriten(clientfd, buf);
     }
-    if(3600 + start.first - (start.first%3600) < time(0))
+    if(3600 + start.first - (start.first%3600) < (uint64_t)time(0))
       start.first = 3600 + start.first - (start.first%3600);
     else {
       if(!nmms.empty())
