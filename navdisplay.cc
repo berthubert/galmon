@@ -160,7 +160,7 @@ int main()
     nmm.ParseFromString(string(buffer, len));
     int sv = nmm.gi().gnsssv();
     time_t now = time(0);
-    if(nmm.localutcseconds() < now - 300)
+    if(nmm.localutcseconds() < (uint64_t)(now - 300))
       continue;
     if(nmm.type() == NavMonMessage::GalileoInavType) {
       static map<int, GalileoMessage> gms;
