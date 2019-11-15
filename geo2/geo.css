@@ -1,0 +1,268 @@
+body {
+	height: 100%;
+	width: 100%;
+	margin: 0;
+	float: left;
+	background-color: #ccc;
+	font-family: verdana, helvetica, arial, sans-serif;
+}
+
+h1 {
+	margin-top: 0px;
+	margin-bottom: 5px;
+	padding: 0px;
+}
+
+#galmongeo {
+	border: blue 1px solid;
+	margin: 5px;
+	padding: 10px;
+	width: 98%;
+	background-color: white;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+#galmoninfo {
+	border-top: blue 1px solid;
+	margin-bottom: 0px;
+	display: block;
+}
+#galmontext {
+	margin-top: 5px;
+	margin-bottom: 5px;
+	float: left;
+	font-size: 20px;
+}
+#galmonchoice {
+	margin-top: 5px;
+	margin-bottom: 5px;
+	float: right;
+	font-size: 20px;
+}
+
+#combined {
+	display: inline-block;
+	position: relative;
+	background-color: transparent;
+	height: 620px;
+	width: 100%;
+	//margin-left: auto;
+	//margin-right: auto;
+	margin: 0px;
+	padding: 0px;
+	border: gray 1px solid;
+}
+
+#svgworld {
+	position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+	display: inline-block;
+	// border: green 1px solid;
+}
+
+#svggraticule {
+	position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+	display: inline-block;
+	// border: blue 1px solid;
+}
+
+#svgobservers {
+	position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+	display: inline-block;
+	// border: blue 1px solid;
+}
+
+#svgalmanac {
+	position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+	display: inline-block;
+	// border: blue 1px solid;
+}
+
+#controls {
+	position: absolute; bottom: 0; right: 0; 
+	display: inline-block;
+	margin: 5px;
+}
+#rotation {
+	position: absolute; bottom: 0; left: 0; 
+	display: inline-block;
+	margin: 5px;
+}
+
+svg {
+	//padding: 20px;
+}
+
+// #Coverage_95: { fill: #800; fill-opacity: 0.2; }
+// #Coverage_95: { fill: #800; fill-opacity: 0.2; }
+// #Coverage_95: { fill: #800; fill-opacity: 0.2; }
+// #Coverage_98: { fill: #800; fill-opacity: 0.2; }
+// #Coverage_99: { fill: #800; fill-opacity: 0.2; }
+
+path.countries {
+	background: yellow;
+	stroke-width: 1;
+	stroke: #75739F;
+	fill: #7ECFE6;
+}
+path.coverage {
+	stroke-width: 1;
+	stroke: #888;
+	fill: #888;
+	fill-opacity: 0.1;
+}
+path.coverage.down {
+	stroke-width: 0;
+	fill: transparent;
+	fill-opacity: 0;
+}
+path.observers {
+	stroke-width: 1;
+	stroke: black;
+	fill: black;
+	fill-opacity: .75;
+}
+path.observers.down {
+	stroke-width: 1;
+	stroke: red;
+	fill: red;
+	fill-opacity: .75;
+}
+text.observers {
+	font-family: courier new, courier;
+	font-style: italic;
+	font-size: 12px;
+	color: #888;
+}
+text.observers.down {
+	color: red;
+}
+circle.satellites {
+	stroke-width: 1;
+	stroke: #4F442B;
+}
+.radials {
+	stroke-width: 1;
+	stroke: red;
+	fill: none;
+}
+text.labels {
+	font-family: courier new, courier;
+	font-style: italic;
+}
+circle.centroid {
+	fill: #75739F;
+	pointer-events: none;
+}
+rect.bbox {
+	fill: none;
+	stroke-dasharray: 5 5;
+	stroke: #75739F;
+	stroke-width: 2;
+	pointer-events: none;
+}
+path.graticule {
+	fill: none;
+	stroke-width: 1;
+	stroke: #9A8B7A;
+}
+path.graticule.line {
+	stroke: #E5E1DE;
+}
+path.graticule.outline {
+	stroke: #9A8B7A;
+}
+
+path.merged {
+	fill: #9A8B7A;
+	stroke: #4F442B;
+	stroke-width: 2px;
+}
+.tooltip {
+	font-family: courier new, courier;
+	font-style: italic;
+	font-size: 12px;
+	width: 200px;
+	position: relative;
+	background-color: #ddd;
+	border: solid;
+	border-width: 1px;
+	border-radius: 2px;
+	padding: 2px;
+}
+
+.mybutton {
+  display: inline-block;
+  position: relative;
+  padding-left: 35px;
+  margin-top: 0px;
+  margin-bottom: 0px;
+  cursor: pointer;
+  font-size: 20px;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+.checkmark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 25px;
+  width: 25px;
+  background-color: #eee;
+}
+.mybutton:hover input ~ .checkmark {
+  background-color: #ccc;
+}
+.mybutton input {
+  display: none;
+}
+.mybutton input:checked ~ .checkmark {
+  background-color: #2196F3;
+}
+.mybutton input:checked ~ .checkmark:after {
+  display: block;
+}
+.checkmark:after {
+  content: "";
+  position: absolute;
+  display: none;
+}
+.mybutton .checkmark:after {
+  left: 9px;
+  top: 5px;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 3px 3px 0;
+  -webkit-transform: rotate(45deg);
+  -ms-transform: rotate(45deg);
+  transform: rotate(45deg);
+}
+.rotatetable {
+  display: table;
+  border-collapse: separate;
+  border-spacing: 0px;
+}
+.rotatetable td {
+  vertical-align: middle;
+  padding: 0px 3px 0px 3px;
+  margin: 0px;
+}
+.myrotate {
+  cursor: pointer;
+  font-size: 20px;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+#controls {
+  margin: 0px 5px 5px 0px;
+}
+#rotation {
+  margin: 0px 0px 5px 5px;
+  border: 1px gray solid;
+  background: #eee;
+}
