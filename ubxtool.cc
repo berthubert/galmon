@@ -661,7 +661,41 @@ int main(int argc, char** argv)
           if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on GNSS setting"<<endl; }
         }
         else {
-          if (doDEBUG) { cerr<<humanTimeNow()<<" Got nack on GNSS setting"<<endl; }
+          cerr<<humanTimeNow()<<" Got nack on GNSS setting"<<endl;
+          exit(-1);
+        }
+      }
+      else {
+
+        msg = buildUbxMessage(0x06, 0x8a, {0x00, 0x01, 0x00, 0x00,
+              0x1f,0x00,0x31,0x10, doGPS,
+              0x01,0x00,0x31,0x10, doGPS,
+              0x03,0x00,0x31,0x10, doGPS,
+
+              0x21,0x00,0x31,0x10, doGalileo,
+              0x07,0x00,0x31,0x10, doGalileo,
+              0x0a,0x00,0x31,0x10, doGalileo,
+
+              0x22,0x00,0x31,0x10, doBeidou,
+              0x0d,0x00,0x31,0x10, doBeidou,
+              0x0e,0x00,0x31,0x10, doBeidou,
+
+              0x25,0x00,0x31,0x10, doGlonass,
+              0x18,0x00,0x31,0x10, doGlonass,
+              0x1a,0x00,0x31,0x10, doGlonass
+              
+
+
+              });
+
+        
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Sending F9P GNSS setting, GPS: "<<doGPS<<", Galileo: "<<doGalileo<<", BeiDou: "<<doBeidou<<", GLONASS: "<<doGlonass<<", SBAS: "<<doSBAS<<endl; }
+        
+        if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, 0x8a)) { // GNSS setting, F9 stylee
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on F9P GNSS setting"<<endl; }
+        }
+        else {
+          cerr<<humanTimeNow()<<" Got nack on F9P GNSS setting"<<endl;
           exit(-1);
         }
       }
