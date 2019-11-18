@@ -1,137 +1,137 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>Galmon.eu - Galileo/GPS/GLONASS/BeiDou open source monitoring</title>
-    <style>
-    text {
-      font: 12px sans-serif;
-    }
+<head>
+  <meta charset="utf-8">
+  <title>galmon.eu</title>
+  <style>
+  text {
+    font: 12px sans-serif;
+  }
 
-    th, td {
-    padding-left: 8px;
-    padding-right: 8px;
-    padding-top: 1px;
-    padding-bottom: 1px;
-    font-family: monospace;
-    }
-    tr:nth-child(even) {background: #CCC}
-    tr:nth-child(odd) {background: #FFF}
+  th, td {
+  padding-left: 8px;
+  padding-right: 8px;
+  padding-top: 1px;
+  padding-bottom: 1px;
+  font-family: monospace;
+  }
+  tr:nth-child(even) {background: #CCC}
+  tr:nth-child(odd) {background: #FFF}
 
-    label {
-       cursor: pointer;
-    }
-    input[type="checkbox"] {
-       cursor: pointer;
-    }
+  label {
+     cursor: pointer;
+  }
+  input[type="checkbox"] {
+     cursor: pointer;
+  }
 
 
-    .CellWithComment{
-      position:relative;
-    }
+  .CellWithComment{
+    position:relative;
+  }
 
-    .CellComment{
-      display:none;
-      position:absolute; 
-      z-index:100;
-      border:1px;
-      background-color:white;
-      border-style:solid;
-      border-width:1px;
-      border-color:red;
-      padding:3px;
-      color:red; 
-      top:20px; 
-      left:20px;
-    }
+  .CellComment{
+    display:none;
+    position:absolute; 
+    z-index:100;
+    border:1px;
+    background-color:white;
+    border-style:solid;
+    border-width:1px;
+    border-color:red;
+    padding:3px;
+    color:red; 
+    top:20px; 
+    left:20px;
+  }
 
-    .CellWithComment:hover span.CellComment{
-      display:block;
-    }
+  .CellWithComment:hover span.CellComment{
+    display:block;
+  }
 
-    .centered {
-      margin: auto 0px;
-      text-align: center;
-    }
+  .centered {
+    margin: auto 0px;
+    text-align: center;
+  }
 
-    #fields tr {
-      vertical-align:top;
-    }
+  #fields tr {
+    vertical-align:top;
+  }
 
-    </style>
-  </head>
-  <body>
-    Last update: <span id="freshness"></span>. More information about this Galileo/GPS/BeiDou/Glonass open source monitor can be found <a href="https://github.com/ahupowerdns/galmon/blob/master/README.md#galmon">here</a> and <a href="https://berthub.eu/articles/posts/gps-gnss-how-do-they-work/">here</a>. Live observer map <a href="geo">here</a>, status (coverage, DOP) map <a href="geo/coverage.html">here</a>. Contact <a href="https://berthub.eu/">me</a> if you want access to the Grafana dashboard.<br/>
-    <div class="centered">
-      <hr/>
-      <input type="checkbox"  id="GalE1" onclick="updateSats();">  <label for="GalE1">Galileo E1</label> &nbsp;&nbsp;
-      <input type="checkbox"  id="GalE5b" onclick="updateSats();">  <label for="GalE5b">Galileo E5b</label> &nbsp;&nbsp;
-      <input type="checkbox"  id="BeiDouB1I" onclick="updateSats();">  <label for="BeiDouB1I">BeiDou B1I</label> &nbsp;&nbsp;
-      <input type="checkbox"  id="BeiDouB2I" onclick="updateSats();">  <label for="BeiDouB2I">BeiDou B2I</label> &nbsp;&nbsp;
-      <input type="checkbox"  id="GlonassL1" onclick="updateSats();">  <label for="GlonassL1">Glonass L1</label> &nbsp;&nbsp;
-      <input type="checkbox"  id="GlonassL2" onclick="updateSats();">  <label for="GlonassL2">Glonass L2</label> &nbsp;&nbsp;
-      <input type="checkbox"  id="GPSL1CA" onclick="updateSats();">  <label for="GPSL1CA">GPS L1C/A</label> &nbsp;&nbsp;
-      <input type="checkbox"  id="GPSL2C" onclick="updateSats();">  <label for="GPSL2C">GPS L2C</label>
-    </div>
+  </style>
+</head>
+<body>
+  Last update: <span id="freshness"></span>. More information about this Galileo/GPS/BeiDou/Glonass open source monitor can be found <a href="https://github.com/ahupowerdns/galmon/blob/master/README.md#galmon">here</a> and <a href="https://berthub.eu/articles/posts/gps-gnss-how-do-they-work/">here</a>. Live observer map <a href="geo">here</a>, status (coverage, DOP) map <a href="geo/coverage.html">here</a>. Contact <a href="https://berthub.eu/">me</a> if you want access to the Grafana dashboard.<br/>
+  <div class="centered">
     <hr/>
-    <table id="svs"></table>
-    <hr>
-    <p>
-      <span id="facts"></span>
+    <input type="checkbox"  id="GalE1" onclick="updateSats();">  <label for="GalE1">Galileo E1</label> &nbsp;&nbsp;
+    <input type="checkbox"  id="GalE5b" onclick="updateSats();">  <label for="GalE5b">Galileo E5b</label> &nbsp;&nbsp;
+    <input type="checkbox"  id="BeiDouB1I" onclick="updateSats();">  <label for="BeiDouB1I">BeiDou B1I</label> &nbsp;&nbsp;
+    <input type="checkbox"  id="BeiDouB2I" onclick="updateSats();">  <label for="BeiDouB2I">BeiDou B2I</label> &nbsp;&nbsp;
+    <input type="checkbox"  id="GlonassL1" onclick="updateSats();">  <label for="GlonassL1">Glonass L1</label> &nbsp;&nbsp;
+    <input type="checkbox"  id="GlonassL2" onclick="updateSats();">  <label for="GlonassL2">Glonass L2</label> &nbsp;&nbsp;
+    <input type="checkbox"  id="GPSL1CA" onclick="updateSats();">  <label for="GPSL1CA">GPS L1C/A</label> &nbsp;&nbsp;
+    <input type="checkbox"  id="GPSL2C" onclick="updateSats();">  <label for="GPSL2C">GPS L2C</label>
+  </div>
+  <hr/>
+  <table id="svs"></table>
+  <hr>
+  <p>
+    <span id="facts"></span>
+  </p>
+  Stale:<br/>
+  <table id="svsstale"></table>
+  <p>
+    This table shows live output from four Galileo/GPS/BeiDou/GLONASS receivers hosted in Nootdorp, The Netherlands and California, United States, Tonga, Brazil, Singapore, Austria, India and Uruguay.
+    It is very much a work in progress, and will not be available at all times. Extremely rough code is on
+    <a href="https://github.com/ahuPowerDNS/galmon">GitHub</a>.
+  </p>
+  <p>
+    Some technical detail behind this setup can be found in <a href="https://berthub.eu/articles/posts/galileo-notes/">this post</a>.
+  </p>
+  <p>
+  For updates, follow <a href="https://twitter.com/GalileoSats">@GalileoSats</a> on Twitter, or join us on our IRC channel (chat) via the
+  <a href="https://webchat.oftc.net/?channels=galileo">web gateway</a>.
+  </p>
+  <p>
+    The meaning of the fields is explained in <a href="https://berthub.eu/articles/posts/gps-gnss-how-do-they-work/">this document</a> and can be summarised as follows:
     </p>
-    Stale:<br/>
-    <table id="svsstale"></table>
-    <p>
-      This table shows live output from four Galileo/GPS/BeiDou/GLONASS receivers hosted in Nootdorp, The Netherlands and California, United States, Tonga, Brazil, Singapore, Austria, India and Uruguay.
-      It is very much a work in progress, and will not be available at all times. Extremely rough code is on
-      <a href="https://github.com/ahuPowerDNS/galmon">GitHub</a>.
-    </p>
-    <p>
-      Some technical detail behind this setup can be found in <a href="https://berthub.eu/articles/posts/galileo-notes/">this post</a>.
-    </p>
-    <p>
-    For updates, follow <a href="https://twitter.com/GalileoSats">@GalileoSats</a> on Twitter, or join us on our IRC channel (chat) via the
-    <a href="https://webchat.oftc.net/?channels=galileo">web gateway</a>.
-    </p>
-    <p>
-      The meaning of the fields is explained in <a href="https://berthub.eu/articles/posts/gps-gnss-how-do-they-work/">this document</a> and can be summarised as follows:
-      </p>
-    <table id="fields">
-      <tr><td>sv</td><td>Satellite Vehicle, an identifier for a Galileo satellite. Not the actual name of the satellite, other satellites could take over this number in case of failures</td></tr>
-      <tr><td>iod</td><td>Issue of Data. Satellites periodically get sent updates on their orbit &amp; other details, each update has a new IOD number. It is coincidence that all SVs currently receive the same IOD numbers, this is by no means guaranteed. Currently however, if an SV has a lower IOD, it has not received new updates recently.</td></tr>
-      <tr><td>eph‑age‑m</td><td>Age of ephemeris in minutes. Denotes how old the current set of orbit data is. Could be very old if SV is out of sight (see below). An acceptable limit is 4 hours (240 minutes).</td></tr>
-      <tr><td>latest-disco</td><td>"jump" of the orbit prediction at the latest ephemeris change. Centimeters are good.</td></tr>
-      <tr><td>time-disco</td><td>"jump" of the atomic clock at the latest ephemeris change.</td></tr>
-      <tr><td>sisa</td><td>Signal In Space Accuracy, how well the position of an SV is known.</td></tr>
-      <tr><td>health</td><td>If a satellite considers itself healthy.</td></tr>
-      <tr><td>delta-UTC</td><td>Offset of the GNSS Time to UTC, plus trend</td></tr>
-      <tr><td>delta-GPS</td><td>Offset of the GNSS Time to GPS, plus trend</td></tr>
-      <tr><td>alma-dist</td><td>Distance between precise satellite position and almanac summary position</td></tr>
-      <tr><td>tle-dist</td><td>Distance between precise satellite position and TLE position</td></tr>
-      <tr><td>best-tle</td><td>From TLE database, closest satellite to reported position</td></tr>
-      <tr><td>prres</td><td>Pseudorange residual: measure of how far away the satellite <b>appears</b> to be from where it should be, according to a receiver. Meters.</td></tr>
-      <tr><td>delta-Hz</td><td>Difference between calculated (expected) Doppler shift and measured Doppler shift. Measure of orbit correctness. Hz.</td></tr>   
-      <tr><td>elev</td><td>Elevation of an SV over or under my horizon (90 is straight up), calculated by this website</td></tr>
-      <tr><td>db</td><td>A measure of signal to noise ratio (40+ is good)</td></tr>
-      <tr><td>last‑seen‑s</td><td>Time since we've last received from this SV.</td></tr>
-    </table>
-    <p>
-      The official Galileo constellation status can be found on the <a href="https://www.gsc-europa.eu/system-status/Constellation-Information">European GNSS Service Centre page</a>, which also lists "NAGUs", <a href="https://www.gsc-europa.eu/system-status/user-notifications">notifications about outages or changes</a>.
-    </p>
-    <p>
-      Official GLONASS status can be found on <a href="https://www.glonass-iac.ru/en/GLONASS/">this page</a> from the Russian Information and Analysis Center for Positioning, Navigation and Timing.
-    </p>
-    <p>
-      Sadly reduced status updates on GPS can be found on <a href="https://www.navcen.uscg.gov/?Do=constellationStatus">this page</a> from the US Department of Homeland Security.
-    </p>
-    <p>
-      Information on the status of BeiDou can be found on <a href="http://www.csno-tarc.cn/system/constellation&amp;ce=english">this page</a> from the Chinese Test and Assessment Research Center of China Satellite Navigation Office.
-    </p>
-    <p>
-      Feedback is very welcome on bert@hubertnet.nl or <a href="https://twitter.com/PowerDNS_Bert">@PowerDNS_Bert</a>.
-    </p>
-      <script src="d3.v4.min.js"></script>
-      <script src="ext/moment-with-locales.js"></script>
-    <script src="doalles.js"></script>
-  </body>
+  <table id="fields">
+    <tr><td>sv</td><td>Satellite Vehicle, an identifier for a Galileo satellite. Not the actual name of the satellite, other satellites could take over this number in case of failures</td></tr>
+    <tr><td>iod</td><td>Issue of Data. Satellites periodically get sent updates on their orbit &amp; other details, each update has a new IOD number. It is coincidence that all SVs currently receive the same IOD numbers, this is by no means guaranteed. Currently however, if an SV has a lower IOD, it has not received new updates recently.</td></tr>
+    <tr><td>eph‑age‑m</td><td>Age of ephemeris in minutes. Denotes how old the current set of orbit data is. Could be very old if SV is out of sight (see below). An acceptable limit is 4 hours (240 minutes).</td></tr>
+    <tr><td>latest-disco</td><td>"jump" of the orbit prediction at the latest ephemeris change. Centimeters are good.</td></tr>
+    <tr><td>time-disco</td><td>"jump" of the atomic clock at the latest ephemeris change.</td></tr>
+    <tr><td>sisa</td><td>Signal In Space Accuracy, how well the position of an SV is known.</td></tr>
+    <tr><td>health</td><td>If a satellite considers itself healthy.</td></tr>
+    <tr><td>delta-UTC</td><td>Offset of the GNSS Time to UTC, plus trend</td></tr>
+    <tr><td>delta-GPS</td><td>Offset of the GNSS Time to GPS, plus trend</td></tr>
+    <tr><td>alma-dist</td><td>Distance between precise satellite position and almanac summary position</td></tr>
+    <tr><td>tle-dist</td><td>Distance between precise satellite position and TLE position</td></tr>
+    <tr><td>best-tle</td><td>From TLE database, closest satellite to reported position</td></tr>
+    <tr><td>prres</td><td>Pseudorange residual: measure of how far away the satellite <b>appears</b> to be from where it should be, according to a receiver. Meters.</td></tr>
+    <tr><td>delta-Hz</td><td>Difference between calculated (expected) Doppler shift and measured Doppler shift. Measure of orbit correctness. Hz.</td></tr>   
+    <tr><td>elev</td><td>Elevation of an SV over or under my horizon (90 is straight up), calculated by this website</td></tr>
+    <tr><td>db</td><td>A measure of signal to noise ratio (40+ is good)</td></tr>
+    <tr><td>last‑seen‑s</td><td>Time since we've last received from this SV.</td></tr>
+  </table>
+  <p>
+    The official Galileo constellation status can be found on the <a href="https://www.gsc-europa.eu/system-status/Constellation-Information">European GNSS Service Centre page</a>, which also lists "NAGUs", <a href="https://www.gsc-europa.eu/system-status/user-notifications">notifications about outages or changes</a>.
+  </p>
+  <p>
+    Official GLONASS status can be found on <a href="https://www.glonass-iac.ru/en/GLONASS/">this page</a> from the Russian Information and Analysis Center for Positioning, Navigation and Timing.
+  </p>
+  <p>
+    Sadly reduced status updates on GPS can be found on <a href="https://www.navcen.uscg.gov/?Do=constellationStatus">this page</a> from the US Department of Homeland Security.
+  </p>
+  <p>
+    Information on the status of BeiDou can be found on <a href="http://www.csno-tarc.cn/system/constellation&amp;ce=english">this page</a> from the Chinese Test and Assessment Research Center of China Satellite Navigation Office.
+  </p>
+  <p>
+    Feedback is very welcome on bert@hubertnet.nl or <a href="https://twitter.com/PowerDNS_Bert">@PowerDNS_Bert</a>.
+  </p>
+    <script src="d3.v4.min.js"></script>
+    <script src="ext/moment-with-locales.js"></script>
+  <script src="doalles.js"></script>
+</body>
 </html>
