@@ -73,37 +73,36 @@ input[type="checkbox"] {
     This table shows live output from four Galileo/GPS/BeiDou/GLONASS receivers hosted in Nootdorp, The Netherlands and California, United States, Tonga, Brazil, Singapore, Austria, India and Uruguay.
     It is very much a work in progress, and will not be available at all times. Extremely rough code is on
     <a href="https://github.com/ahuPowerDNS/galmon">GitHub</a>.
-
-    <p>
-      Some technical detail behind this setup can be found in <a href="https://berthub.eu/articles/posts/galileo-notes/">this post</a>.
-    </p>
-    <p>
-    For updates, follow <a href="https://twitter.com/GalileoSats">@GalileoSats</a> on Twitter, or join us on our IRC channel (chat) via the
-    <a href="https://webchat.oftc.net/?channels=galileo">web gateway</a>.
-    </p>
-    <p>
-      The meaning of the fields is explained in <a href="https://berthub.eu/articles/posts/gps-gnss-how-do-they-work/">this document</a> and can be summarised as follows:
-      </p>
-    <table>
-      <tr valign="top"><td>sv</td><td>Satellite Vehicle, an identifier for a Galileo satellite. Not the actual name of the satellite, other satellites could take over this number in case of failures</td></tr>
-      <tr valign="top"><td>iod</td><td>Issue of Data. Satellites periodically get sent updates on their orbit &amp; other details, each update has a new IOD number. It is coincidence that all SVs currently receive the same IOD numbers, this is by no means guaranteed. Currently however, if an SV has a lower IOD, it has not received new updates recently.</td></tr>
-      <tr valign="top"><td>eph‑age‑m</td><td>Age of ephemeris in minutes. Denotes how old the current set of orbit data is. Could be very old if SV is out of sight (see below). An acceptable limit is 4 hours (240 minutes).</td></tr>
-      <tr valign="top"><td>latest-disco</td><td>"jump" of the orbit prediction at the latest ephemeris change. Centimeters are good.</td></tr>
-      <tr valign="top"><td>time-disco</td><td>"jump" of the atomic clock at the latest ephemeris change.</td></tr>
-      <tr valign="top"><td>sisa</td><td>Signal In Space Accuracy, how well the position of an SV is known.</td></tr>
-      <tr valign="top"><td>health</td><td>If a satellite considers itself healthy.</td></tr>
-      <tr valign="top"><td>delta-UTC</td><td>Offset of the GNSS Time to UTC, plus trend</td></tr>
-      <tr valign="top"><td>delta-GPS</td><td>Offset of the GNSS Time to GPS, plus trend</td></tr>
-      <tr valign="top"><td>alma-dist</td><td>Distance between precise satellite position and almanac summary position</td></tr>
-      <tr valign="top"><td>tle-dist</td><td>Distance between precise satellite position and TLE position</td></tr>
-      <tr valign="top"><td>best-tle</td><td>From TLE database, closest satellite to reported position</td></tr>
-      <tr valign="top"><td>prres</td><td>Pseudorange residual: measure of how far away the satellite <b>appears</b> to be from where it should be, according to a receiver. Meters.</td></tr>
-      <tr valign="top"><td>delta-Hz</td><td>Difference between calculated (expected) Doppler shift and measured Doppler shift. Measure of orbit correctness. Hz.</td></tr>   
-      <tr valign="top"><td>elev</td><td>Elevation of an SV over or under my horizon (90 is straight up), calculated by this website</td></tr>
-      <tr valign="top"><td>db</td><td>A measure of signal to noise ratio (40+ is good)</td></tr>
-      <tr valign="top"><td>last‑seen‑s</td><td>Time since we've last received from this SV.</td></tr>
-    </table>
   </p>
+  <p>
+    Some technical detail behind this setup can be found in <a href="https://berthub.eu/articles/posts/galileo-notes/">this post</a>.
+  </p>
+  <p>
+  For updates, follow <a href="https://twitter.com/GalileoSats">@GalileoSats</a> on Twitter, or join us on our IRC channel (chat) via the
+  <a href="https://webchat.oftc.net/?channels=galileo">web gateway</a>.
+  </p>
+  <p>
+    The meaning of the fields is explained in <a href="https://berthub.eu/articles/posts/gps-gnss-how-do-they-work/">this document</a> and can be summarised as follows:
+    </p>
+  <table>
+    <tr valign="top"><td>sv</td><td>Satellite Vehicle, an identifier for a Galileo satellite. Not the actual name of the satellite, other satellites could take over this number in case of failures</td></tr>
+    <tr valign="top"><td>iod</td><td>Issue of Data. Satellites periodically get sent updates on their orbit &amp; other details, each update has a new IOD number. It is coincidence that all SVs currently receive the same IOD numbers, this is by no means guaranteed. Currently however, if an SV has a lower IOD, it has not received new updates recently.</td></tr>
+    <tr valign="top"><td>eph‑age‑m</td><td>Age of ephemeris in minutes. Denotes how old the current set of orbit data is. Could be very old if SV is out of sight (see below). An acceptable limit is 4 hours (240 minutes).</td></tr>
+    <tr valign="top"><td>latest-disco</td><td>"jump" of the orbit prediction at the latest ephemeris change. Centimeters are good.</td></tr>
+    <tr valign="top"><td>time-disco</td><td>"jump" of the atomic clock at the latest ephemeris change.</td></tr>
+    <tr valign="top"><td>sisa</td><td>Signal In Space Accuracy, how well the position of an SV is known.</td></tr>
+    <tr valign="top"><td>health</td><td>If a satellite considers itself healthy.</td></tr>
+    <tr valign="top"><td>delta-UTC</td><td>Offset of the GNSS Time to UTC, plus trend</td></tr>
+    <tr valign="top"><td>delta-GPS</td><td>Offset of the GNSS Time to GPS, plus trend</td></tr>
+    <tr valign="top"><td>alma-dist</td><td>Distance between precise satellite position and almanac summary position</td></tr>
+    <tr valign="top"><td>tle-dist</td><td>Distance between precise satellite position and TLE position</td></tr>
+    <tr valign="top"><td>best-tle</td><td>From TLE database, closest satellite to reported position</td></tr>
+    <tr valign="top"><td>prres</td><td>Pseudorange residual: measure of how far away the satellite <b>appears</b> to be from where it should be, according to a receiver. Meters.</td></tr>
+    <tr valign="top"><td>delta-Hz</td><td>Difference between calculated (expected) Doppler shift and measured Doppler shift. Measure of orbit correctness. Hz.</td></tr>   
+    <tr valign="top"><td>elev</td><td>Elevation of an SV over or under my horizon (90 is straight up), calculated by this website</td></tr>
+    <tr valign="top"><td>db</td><td>A measure of signal to noise ratio (40+ is good)</td></tr>
+    <tr valign="top"><td>last‑seen‑s</td><td>Time since we've last received from this SV.</td></tr>
+  </table>
   <p>
     The official Galileo constellation status can be found on the <a href="https://www.gsc-europa.eu/system-status/Constellation-Information">European GNSS Service Centre page</a>, which also lists "NAGUs", <a href="https://www.gsc-europa.eu/system-status/user-notifications">notifications about outages or changes</a>.
   </p>
