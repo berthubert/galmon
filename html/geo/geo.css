@@ -266,3 +266,7 @@ path.merged {
   border: 1px gray solid;
   background: #eee;
 }
+.centered {
+  margin: auto 0px;
+  text-align: center;
+}
