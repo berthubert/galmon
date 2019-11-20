@@ -182,3 +182,12 @@ void MiniCurl::setHeaders(const MiniCurlHeaders& headers)
     curl_easy_setopt(d_curl, CURLOPT_HTTPHEADER, d_header_list);
   }
 }
+
+string MiniCurl::urlEncode(string_view str)
+{
+  char *ptr= curl_easy_escape(d_curl , &str[0] , str.size() );
+  string ret(ptr);
+  curl_free(ptr);
+  return ret;
+}
+

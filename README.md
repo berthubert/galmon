@@ -213,6 +213,7 @@ Documents
  * [GPS](https://www.gps.gov/technical/icwg/IS-GPS-200K.pdf)
  * [U-blox 8 interface specification](https://www.u-blox.com/sites/default/files/products/documents/u-blox8-M8_ReceiverDescrProtSpec_%28UBX-13003221%29_Public.pdf)
  * [U-blox 9 interface specification](https://www.u-blox.com/sites/default/files/u-blox_ZED-F9P_InterfaceDescription_%28UBX-18010854%29.pdf)
+ * [U-blox 9 integration manual](https://www.u-blox.com/sites/default/files/ZED-F9P_IntegrationManual_%28UBX-18010802%29.pdf)
 
 Data sources
 ------------
