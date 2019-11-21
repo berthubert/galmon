@@ -1,22 +1,26 @@
 <!DOCTYPE html>
-<meta charset="utf-8">
-<style>
+<html lang="en">
+<head>
+  <title>galmon.eu almanac</title>
+  <meta charset="utf-8">
+  <style>
 
-text {
-  font: 12px sans-serif;
-}
+  text {
+    font: 12px sans-serif;
+  }
 
 
-th, td {
-padding-left: 8px;
-padding-right: 8px;
-padding-top: 1px;
-padding-bottom: 1px;
-font-family: monospace;
-}
-tr:nth-child(even) {background: #CCC}
-tr:nth-child(odd) {background: #FFF}
-</style>
+  th, td {
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-top: 1px;
+    padding-bottom: 1px;
+    font-family: monospace;
+  }
+  tr:nth-child(even) {background: #BFBFBF}
+  tr:nth-child(odd) {background: #E6E6E6}
+  </style>
+</head>
 <body>
   Last update: <span id="freshness"></span><br/>
   Note: all distances are in kilometers!
@@ -26,13 +30,13 @@ tr:nth-child(odd) {background: #FFF}
     <span id="facts"></span>
   </p>
   <p>
-    Information on the status of BeiDou can be found on <a href="http://www.csno-tarc.cn/system/constellation&ce=english">this page</a> from the Chinese Test and Assessment Research Center of China Satellite Navigation Office.
+    Information on the status of BeiDou can be found on <a href="http://www.csno-tarc.cn/system/constellation&amp;ce=english">this page</a> from the Chinese Test and Assessment Research Center of China Satellite Navigation Office.
   </p>
   <p>
     Feedback is very welcome on bert@hubertnet.nl or <a href="https://twitter.com/PowerDNS_Bert">@PowerDNS_Bert</a>.
   </p>
-    <script src="d3.v4.min.js"></script>
-    <script src="ext/moment-with-locales.js"></script>
-    <script src="almanac.js"></script>
+  <script src="d3.v4.min.js"></script>
+  <script src="ext/moment-with-locales.js"></script>
+  <script src="almanac.js"></script>
 </body>
 </html>
