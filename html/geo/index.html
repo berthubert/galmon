@@ -1,76 +1,76 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
 <head>
-	<meta charset="utf-8">
-	<title>galmon.eu geo</title>
-	<link rel="stylesheet" type="text/css" href="geo.css">
+  <meta charset="utf-8">
+  <title>galmon.eu geo</title>
+  <link rel="stylesheet" type="text/css" href="geo.css">
 
-	<script src='../ext/jquery.min.js'></script>
+  <script src='../ext/jquery.min.js'></script>
 
-	<script src="../d3.v4.min.js"></script>
-	<script src="../ext/topojson.v1.min.js"></script>
-	<script src="../ext/d3-geo-projection.v2.min.js"></script>
+  <script src="../d3.v4.min.js"></script>
+  <script src="../ext/topojson.v1.min.js"></script>
+  <script src="../ext/d3-geo-projection.v2.min.js"></script>
 </head>
 <body>
-	<div id="galmongeo">
-		<h1>galmon.eu geo</h1>
-		<div id="galmoninfo">
-		<span id="galmontext">
-			This is a live map from the <a href="/">galmon.eu</a> project
-		</span>
-		<span id="galmonchoice">
-			<label id="observer_map"  class="mybutton">Observer<input type="checkbox" checked="checked"                    ><span class="checkmark"></span></label>
-			&nbsp;|&nbsp;
-			<label id="coverage_map"  class="mybutton">Coverage<input type="checkbox" checked="checked"                    ><span class="checkmark"></span></label>
-			&nbsp;|&nbsp;
-			<label id="constilation1" class="mybutton">GPS     <input type="checkbox" checked="checked"                    ><span class="checkmark"></span></label>
-			<label id="constilation2" class="mybutton">Galileo <input type="checkbox" checked="checked"                    ><span class="checkmark"></span></label>
-			<label id="constilation3" class="mybutton">BeiDou  <input type="checkbox" checked="checked"                    ><span class="checkmark"></span></label>
-			<!--
-			<label id="constilation4" class="mybutton">IMES    <input type="checkbox"                   disabled="disabled"><span class="checkmark"></span></label>
-			<label id="constilation5" class="mybutton">QZSS    <input type="checkbox"                   disabled="disabled"><span class="checkmark"></span></label>
-			-->
-			<label id="constilation6" class="mybutton">GLONASS <input type="checkbox" checked="checked"                    ><span class="checkmark"></span></label>
-		</span>
-		</div>
-		<div id="combined">
-			<svg id="svgworld"></svg>
-			<svg id="svggraticule"></svg>
-			<svg id="svgobservers"></svg>
-			<svg id="svgalmanac"></svg>
-			<span id="controls">
-				<label id="display_all" class="mybutton">Display All<input type="checkbox"><span class="checkmark"></span></label>
-				<br />
-				<!--
-				<label id="show_history" class="mybutton">History<input type="checkbox"><span class="checkmark"></span></label>
-				</p>
-				<label id="show_animate" class="mybutton">Animate<input type="checkbox"><span class="checkmark"></span></label>
-				</p>
-				-->
-				<label id="update_projection" class="mybutton">Projection<span class="checkmark"></span></label>
-			</span>
-			<div id="rotation">
-				<table class="rotatetable">
-				<tr>
-				<td></td>
-				<td><span id="rotate_north"  class="myrotate">&#8679;</span></td>
-				<td></td>
-				</tr>
-				<tr>
-				<td><span id="rotate_west"   class="myrotate">&#8678;</span></td>
-				<td><span id="rotate_center" class="myrotate">&#9711;</span></td>
-				<td><span id="rotate_east"   class="myrotate">&#8680;</span></td>
-				</tr>
-				<tr>
-				<td></td>
-				<td><span id="rotate_south"  class="myrotate">&#8681;</span></td>
-				<td></td>
-				</tr>
-				</table>
-			</div>
-		</div>
-	</div>
+  <div id="galmongeo">
+    <h1>galmon.eu geo</h1>
+    <div id="galmoninfo">
+    <span id="galmontext">
+      This is a live map from the <a href="/">galmon.eu</a> project
+    </span>
+    <span id="galmonchoice">
+      <label id="observer_map"  class="mybutton">Observer<input type="checkbox" checked="checked"                    ><span class="checkmark"></span></label>
+      &nbsp;|&nbsp;
+      <label id="coverage_map"  class="mybutton">Coverage<input type="checkbox" checked="checked"                    ><span class="checkmark"></span></label>
+      &nbsp;|&nbsp;
+      <label id="constilation1" class="mybutton">GPS     <input type="checkbox" checked="checked"                    ><span class="checkmark"></span></label>
+      <label id="constilation2" class="mybutton">Galileo <input type="checkbox" checked="checked"                    ><span class="checkmark"></span></label>
+      <label id="constilation3" class="mybutton">BeiDou  <input type="checkbox" checked="checked"                    ><span class="checkmark"></span></label>
+      <!--
+      <label id="constilation4" class="mybutton">IMES    <input type="checkbox"                   disabled="disabled"><span class="checkmark"></span></label>
+      <label id="constilation5" class="mybutton">QZSS    <input type="checkbox"                   disabled="disabled"><span class="checkmark"></span></label>
+      -->
+      <label id="constilation6" class="mybutton">GLONASS <input type="checkbox" checked="checked"                    ><span class="checkmark"></span></label>
+    </span>
+    </div>
+    <div id="combined">
+      <svg id="svgworld"></svg>
+      <svg id="svggraticule"></svg>
+      <svg id="svgobservers"></svg>
+      <svg id="svgalmanac"></svg>
+      <span id="controls">
+        <label id="display_all" class="mybutton">Display All<input type="checkbox"><span class="checkmark"></span></label>
+        <br />
+        <!--
+        <label id="show_history" class="mybutton">History<input type="checkbox"><span class="checkmark"></span></label>
+        </p>
+        <label id="show_animate" class="mybutton">Animate<input type="checkbox"><span class="checkmark"></span></label>
+        </p>
+        -->
+        <label id="update_projection" class="mybutton">Projection<span class="checkmark"></span></label>
+      </span>
+      <div id="rotation">
+        <table class="rotatetable">
+          <tr>
+            <td></td>
+            <td><span id="rotate_north"  class="myrotate">&#8679;</span></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><span id="rotate_west"   class="myrotate">&#8678;</span></td>
+            <td><span id="rotate_center" class="myrotate">&#9711;</span></td>
+            <td><span id="rotate_east"   class="myrotate">&#8680;</span></td>
+          </tr>
+          <tr>
+            <td></td>
+            <td><span id="rotate_south"  class="myrotate">&#8681;</span></td>
+            <td></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
 
-	<script src="geo.js"></script>
+  <script src="geo.js"></script>
 </body>
 </html>
