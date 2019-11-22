@@ -347,6 +347,7 @@ public:
           }
           if(!msg.empty()) {
             sc.writen(msg);
+            std::lock_guard<std::mutex> mut(d->mut);
             d->queue.pop_front();
           }
           else usleep(100000);
