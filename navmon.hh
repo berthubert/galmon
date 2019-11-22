@@ -7,7 +7,10 @@
 #include <mutex>
 
 struct EofException{};
+struct TimeoutError{};
+
 size_t readn2(int fd, void* buffer, size_t len);
+size_t readn2Timeout(int fd, void* buffer, size_t len, double* timeout);
 std::string humanTimeNow();
 std::string humanTime(time_t t);
 std::string humanTime(time_t t, uint32_t nanoseconds);

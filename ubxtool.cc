@@ -161,7 +161,7 @@ bool g_fromFile{false};
 #define O_LARGEFILE	0
 #endif
 
-std::pair<UBXMessage, struct timeval> getUBXMessage(int fd)
+std::pair<UBXMessage, struct timeval> getUBXMessage(int fd, double* timeout)
 {
   static int logfile=0;
   if (doLOGFILE) {
@@ -174,7 +174,7 @@ std::pair<UBXMessage, struct timeval> getUBXMessage(int fd)
   uint8_t marker[2]={0};
   for(;;) {
     marker[0] = marker[1];
-    int res = readn2(fd, marker+1, 1);
+    int res = readn2Timeout(fd, marker+1, 1, timeout);
 
     if(res < 0)
       throw EofException();
@@ -186,13 +186,13 @@ std::pair<UBXMessage, struct timeval> getUBXMessage(int fd)
       basic_string<uint8_t> msg;
       msg.append(marker, 2);  // 0,1
       uint8_t b[4];
-      readn2(fd, b, 4);
+      readn2Timeout(fd, b, 4, timeout);
       msg.append(b, 4); // class, type, len1, len2
 
       uint16_t len = b[2] + 256*b[3];
       //      if (doDEBUG) { cerr<<humanTimeNow()<<" Got class "<<(int)msg[2]<<" type "<<(int)msg[3]<<", len = "<<len<<endl; }
       uint8_t buffer[len+2];
-      res=readn2(fd, buffer, len+2);
+      res=readn2Timeout(fd, buffer, len+2, timeout);
 
       msg.append(buffer, len+2); // checksum
       if (doLOGFILE) {
@@ -206,11 +206,9 @@ std::pair<UBXMessage, struct timeval> getUBXMessage(int fd)
 
 UBXMessage waitForUBX(int fd, int seconds, uint8_t ubxClass, uint8_t ubxType)
 {
-  time_t now =time(0);
-  for(int n=0; n < 20; ++n) {
-    if(time(0) - now > seconds)
-      break;
-    auto [msg, tv] = getUBXMessage(fd);
+  double timeout = seconds;
+  for(;;) {
+    auto [msg, tv] = getUBXMessage(fd, &timeout);
     (void) tv;
 
     if(msg.getClass() == ubxClass && msg.getType() == ubxType) {
@@ -239,18 +237,12 @@ UBXMessage sendAndWaitForUBX(int fd, int seconds, basic_string_view<uint8_t> msg
 }
 
 
-struct TimeoutError{};
-
-// perhaps do retransmit from here?
 bool waitForUBXAckNack(int fd, int seconds, int ubxClass, int ubxType)
 {
-  time_t start = time(0);
-  for(int n=0; n < 100; ++n) {
-    auto [msg, tv] = getUBXMessage(fd);
+  double timeout = seconds;
+  for(;;) {
+    auto [msg, tv] = getUBXMessage(fd, &timeout);
     (void)tv;
-    if(time(0) - start > seconds) {
-      throw TimeoutError();
-    }
 
     if(msg.getClass() != 5 || !(msg.getType() == 0 || msg.getType() == 1)) {
       if (doDEBUG) { cerr<<humanTimeNow()<<" Got: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<" while waiting for ack/nack of " << ubxClass<<" "<<ubxType<<endl; }
@@ -448,13 +440,21 @@ bool isCharDevice(string_view fname)
 
 void readSome(int fd)
 {
+
   for(int n=0; n < 5; ++n) {
-    auto [msg, timestamp] = getUBXMessage(fd);
-    (void)timestamp;
-    if (doDEBUG) { cerr<<humanTimeNow()<<" Read some init: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<endl; }
-    if(msg.getClass() == 0x4)
-      if (doDEBUG) { cerr<<humanTimeNow()<<" "<<string((char*)msg.getPayload().c_str(), msg.getPayload().size()) <<endl; }
+    double timeout=1;
+    try {
+      auto [msg, timestamp] = getUBXMessage(fd, &timeout);
+      (void)timestamp;
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Read some init: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<endl; }
+      if(msg.getClass() == 0x4)
+        if (doDEBUG) { cerr<<humanTimeNow()<<" "<<string((char*)msg.getPayload().c_str(), msg.getPayload().size()) <<endl; }
+    }
+    catch(TimeoutError& te) {
+      cerr<<"Timeout"<<endl;
+    }
   }
+  
 }
 
 struct termios g_oldtio;
@@ -494,7 +494,7 @@ int initFD(const char* fname, bool doRTSCTS)
     newtio.c_lflag = 0;                                                     
     
     newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */         
-    newtio.c_cc[VMIN]     = 5;   /* blocking read until 5 chars received */ 
+    newtio.c_cc[VMIN]     = 4;   /* blocking read until 5 chars received */ 
     
     cfsetspeed(&newtio, g_baudval);
     if(tcsetattr(fd, TCSANOW, &newtio)) {
@@ -799,7 +799,7 @@ int main(int argc, char** argv)
   cerr<<humanTimeNow()<<" Entering main loop"<<endl;
   for(;;) {
     try {
-      auto [msg, timestamp] = getUBXMessage(fd);
+      auto [msg, timestamp] = getUBXMessage(fd, nullptr);
       (void)timestamp;
       auto payload = msg.getPayload();
 
