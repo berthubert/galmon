@@ -1,6 +1,8 @@
 #pragma once
 #include "minivec.hh"
 #include <iostream>
+// lat, lon, height (rad, rad, meters)
+std::tuple<double, double, double> ecefToWGS84(double x, double y, double z);
 
 int ephAge(int tow, int t0e);
 

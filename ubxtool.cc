@@ -42,6 +42,7 @@ using namespace std;
 
 uint16_t g_srcid{0};
 int g_fixtype{-1};
+double g_speed{-1};
 
 static int getBaudrate(int baud)
 {
@@ -524,6 +525,7 @@ int main(int argc, char** argv)
     
 
   bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true}, doReset{false}, doWait{true}, doRTSCTS{true}, doSBAS{false};
+  bool doFakeFix{false};
   bool doKeepNMEA{false};
   bool doSTDOUT=false;
 #ifdef OpenBSD
@@ -550,6 +552,7 @@ int main(int argc, char** argv)
   app.add_option("--ubxport,-u", ubxport, "UBX port to enable messages on (usb=3)");
   app.add_option("--baud,-b", baudrate, "Baudrate for serial connection");
   app.add_flag("--keep-nmea,-k", doKeepNMEA, "Don't disable NMEA");
+  app.add_flag("--fake-fix", doFakeFix, "Inject locally generated fake fix data");
   
   app.add_flag("--debug", doDEBUG, "Display debug information");  
   app.add_flag("--logfile", doLOGFILE, "Create logfile");  
@@ -820,12 +823,21 @@ int main(int argc, char** argv)
           uint8_t flags;
           uint8_t flags2;
           uint8_t numsv;
+          //      1e-7       mm       mm
+          int32_t lon, lat, height, hMSL;
+          //        mm     mm
+          uint32_t hAcc, vAcc;
+          //      mm/s   mm/s  mm/s  mm/s
+          int32_t velN, velE, velD, gSpeed; // millimeters
+          
         } __attribute__((packed));
         PVT pvt;
         
         memcpy(&pvt, &payload[0], sizeof(pvt));
-
+        //        cerr << "Ground speed: "<<pvt.gSpeed<<", "<<pvt.velN<<" "<<pvt.velE<<" "<<pvt.velD << endl;
+        
         g_fixtype = pvt.fixtype;
+        g_speed = pvt.gSpeed / 1000.0;
         
         struct tm tm;
         memset(&tm, 0, sizeof(tm));
@@ -851,10 +863,31 @@ int main(int argc, char** argv)
         g_gnssutc.tv_nsec = pvt.nano;
         continue;
       }
-      if(!g_gnssutc.tv_sec) {
 
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Ignoring message with class "<<(int)msg.getClass()<< " and type "<< (int)msg.getType()<<": have not yet received a timestamp"<<endl; }
-        continue;
+      if(!doFakeFix) {
+        if(!g_gnssutc.tv_sec) {
+          
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Ignoring message with class "<<(int)msg.getClass()<< " and type "<< (int)msg.getType()<<": have not yet received a timestamp"<<endl; }
+          continue;
+        }
+      }
+      else {
+        auto oldtime = g_gnssutc;
+        clock_gettime(CLOCK_REALTIME, &g_gnssutc);
+        if(oldtime.tv_sec != g_gnssutc.tv_sec) {
+          NavMonMessage nmm;
+          nmm.set_type(NavMonMessage::ObserverPositionType);
+          nmm.set_localutcseconds(g_gnssutc.tv_sec);
+          nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
+          nmm.set_sourceid(g_srcid);
+          // ECEF 3919766.490000, 300647.060000, 5005731.330000 
+          nmm.mutable_op()->set_x(3919766);
+          nmm.mutable_op()->set_y(300647);
+          nmm.mutable_op()->set_z(5005731);
+          nmm.mutable_op()->set_acc(3.14);
+          ns.emitNMM( nmm);
+          
+        }
       }
       
       
@@ -888,10 +921,11 @@ int main(int argc, char** argv)
           
           uint16_t locktimems;
           memcpy(&locktimems, &payload[40+32*n], 2);
-          uint8_t prStddev = payload[43+23*n] & 0xf;
-          uint8_t cpStddev = payload[44+23*n] & 0xf;
-          uint8_t doStddev = payload[45+23*n] & 0xf;
-          //          uint8_t trkStat = payload[46+23*n] & 0xf;
+          uint8_t cno = payload[42+32*n];
+          uint8_t prStddev = payload[43+32*n] & 0xf;
+          uint8_t cpStddev = payload[44+32*n] & 0xf;
+          uint8_t doStddev = payload[45+32*n] & 0xf;
+          //          uint8_t trkStat = payload[46+32*n] & 0xf;
 
           NavMonMessage nmm;
           nmm.set_type(NavMonMessage::RFDataType);
@@ -912,6 +946,7 @@ int main(int argc, char** argv)
           nmm.mutable_rfd()->set_dostd(ldexp(0.002, doStddev));
           nmm.mutable_rfd()->set_cpstd(cpStddev*0.4);
           nmm.mutable_rfd()->set_locktimems(locktimems);
+          nmm.mutable_rfd()->set_cno(cno);
           ns.emitNMM( nmm);
         }
       }
@@ -945,6 +980,9 @@ int main(int argc, char** argv)
         nmm.mutable_op()->set_y(p.ecefY /100.0);
         nmm.mutable_op()->set_z(p.ecefZ /100.0);
         nmm.mutable_op()->set_acc(p.pAcc /100.0);
+        if(g_speed >= 0.0)
+          nmm.mutable_op()->set_groundspeed(g_speed);
+
         ns.emitNMM( nmm);
       }
       else if(msg.getClass() == 2 && msg.getType() == 0x13) {  // SFRBX

@@ -35,6 +35,7 @@ using namespace std;
 struct ObserverPosition
 {
   Point pos;
+  double groundSpeed{-1};
   time_t lastSeen{0};
 };
 std::map<int, ObserverPosition> g_srcpos;
@@ -342,6 +343,38 @@ struct InfluxPusher
     checkSend();
   }
 
+  void addValueObserver(int src, string_view name, const initializer_list<pair<const char*, double>>& values, time_t t)
+  {
+    if(d_mute)
+      return;
+
+    if(t > 2200000000) {
+      cerr<<"Unable to store item "<<name<<" for observer "<<src<<": time out of range "<<t<<endl;
+      return;
+    }
+    for(const auto& p : values) {
+      if(isnan(p.second))
+        return;
+    }
+
+    d_buffer+= string(name)+",src="+to_string(src);
+
+    
+    d_buffer+= " ";
+    bool lefirst=true;
+    for(const auto& v : values) {
+      if(!lefirst) {
+        d_buffer +=",";
+      }
+      lefirst=false;
+      d_buffer += string(v.first) + "="+to_string(v.second);
+    }
+    d_buffer += " " + to_string(t* 1000000000)+"\n";
+
+    checkSend();
+  }
+
+  
   
   template<typename T>
   void addValue(const SatID& id, string_view name, const T& value, std::optional<int> src = std::optional<int>())
@@ -526,7 +559,7 @@ void addHeaders(h2o_req_t* req)
 int main(int argc, char** argv)
 try
 {
-  feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW ); 
+  //  feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW ); 
 
   
   //  g_tles.parseFile("active.txt");
@@ -850,12 +883,13 @@ try
         obj["longitude"] = longlat.first;
         obj["latitude"] = longlat.second;
         obj["last-seen"] = src.second.lastSeen;
+        obj["ground-speed"] = src.second.groundSpeed;
         auto svstats = g_statskeeper.get();
         nlohmann::json svs = nlohmann::json::object();
 
         for(const auto& sv : svstats) {
           if(auto iter = sv.second.perrecv.find(src.first); iter != sv.second.perrecv.end()) {
-            if(iter->second.db > 0 && time(0) - iter->second.t < 120) {
+            if(iter->second.db > 0 &&  time(0) - iter->second.t < 120) {
               nlohmann::json svo = nlohmann::json::object();
               svo["db"] = iter->second.db;
 
@@ -1679,13 +1713,34 @@ try
       g_srcpos[nmm.sourceid()].pos.x = nmm.op().x();
       g_srcpos[nmm.sourceid()].pos.y = nmm.op().y();
       g_srcpos[nmm.sourceid()].pos.z = nmm.op().z();
-      idb.addValueObserver(nmm.sourceid(), "accfix", nmm.op().acc(), nmm.localutcseconds());
+      if(nmm.op().has_groundspeed()) {
+        g_srcpos[nmm.sourceid()].groundSpeed = nmm.op().groundspeed();
+      }
+      
+      //      idb.addValueObserver(nmm.sourceid(), "accfix", nmm.op().acc(), nmm.localutcseconds());
+
+      auto latlonh = ecefToWGS84(nmm.op().x(), nmm.op().y(), nmm.op().z());
+      idb.addValueObserver(nmm.sourceid(), "fix", {
+          {"x", nmm.op().x()},
+            {"y", nmm.op().y()},
+              {"z", nmm.op().z()},
+                {"lat", 180.0*std::get<0>(latlonh)/M_PI},
+                    {"lon", 180.0*std::get<1>(latlonh)/M_PI},
+                      {"h", std::get<2>(latlonh)},
+                        {"acc", nmm.op().acc()},
+                          {"groundspeed", nmm.op().has_groundspeed() ? nmm.op().groundspeed() : -1.0}
+        }, 
+        nmm.localutcseconds());
     }
     else if(nmm.type() == NavMonMessage::RFDataType) {
       SatID id{nmm.rfd().gnssid(), nmm.rfd().gnsssv(), nmm.rfd().sigid()};
 
+      
       if(id.gnss==2 && id.sigid == 0) // old ubxtool output gets this wrong
         id.sigid = 1;
+
+      // some sources ONLY have RFDatatype & not ReceptionDataType
+      g_svstats[id].perrecv[nmm.sourceid()].db = nmm.rfd().cno();
 
       
       idb.addValue(id, nanoTime(0, nmm.rfd().rcvwn(), nmm.rfd().rcvtow()), "rfdata",

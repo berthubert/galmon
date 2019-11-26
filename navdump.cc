@@ -642,6 +642,9 @@ try
       cout<<" dop-std " << nmm.rfd().dostd();
       cout<<" cp-std " << nmm.rfd().cpstd();
       cout<<" locktime-ms " <<nmm.rfd().locktimems();
+      if(nmm.rfd().has_cno()) {
+        cout<<" cno-db " <<nmm.rfd().cno();
+      }
       cout<<endl;
       
     }

@@ -1,5 +1,6 @@
 #include "ephemeris.hh"
 #include "minivec.hh"
+#include <tuple>
 /* |            t0e tow     |  - > tow - t0e, <3.5 days, so ok
 
    | t0e                tow |   -> tow - t0e > 3.5 days, so 
@@ -22,6 +23,8 @@ int ephAge(int tow, int t0e)
   return diff;
 }
 
+
+
 // all axes start at earth center of gravity
 // x-axis is on equator, 0 longitude
 // y-axis is on equator, 90 longitude
@@ -29,27 +32,8 @@ int ephAge(int tow, int t0e)
 // https://en.wikipedia.org/wiki/ECEF#/media/File:Ecef.png
 std::pair<double,double> getLongLat(double x, double y, double z)
 {
-  Point core{0,0,0};
-  Point LatLon0{1,0,0};
-
-  Point pos{x, y, z};
-  
-  Point proj{x, y, 0}; // in equatorial plane now
-  Vector flat(core, proj);
-  Vector toLatLon0{core, LatLon0};
-  double longitude = acos( toLatLon0.inner(flat) / (toLatLon0.length() * flat.length()));
-  if(y < 0)
-    longitude *= -1;
-  
-  Vector toUs{core, pos};
-  double inp = flat.inner(toUs) / (toUs.length() * flat.length());
-  if(inp > 1.0 && inp < 1.0000001) // this happens because of rounding errors
-    inp=1.0; 
-  double latitude =  acos( inp);
-  if(z < 0)
-    latitude *= -1;
-
-  return std::make_pair(longitude, latitude);
+  auto ret = ecefToWGS84(x, y, z);
+  return {std::get<1>(ret), std::get<0>(ret)};
 }
 
 

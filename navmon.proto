@@ -90,6 +90,7 @@ message NavMonMessage {
         required double cpStd = 10;
         required double prStd = 11;
         optional uint32 sigid = 12;
+        optional uint32 cno = 13;     
   }
 
   message ObserverPosition {
@@ -97,6 +98,7 @@ message NavMonMessage {
           required double y = 2;
           required double z = 3;
           required double acc = 4;
+          optional double groundSpeed = 5;
   }
 
   message SARResponse {
