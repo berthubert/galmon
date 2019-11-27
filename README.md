@@ -99,7 +99,7 @@ Running
 -------
 
 Once compiled, run for example `./ubxtool --wait --port /dev/ttyACM0
---station 1 --stdout | ./navparse 127.0.0.1:10000 html null`
+--station 1 --stdout --galileo | ./navparse 127.0.0.1:10000 html null`
 
 Next up, browse to http://[::1]:10000 (or try http://localhost:10000/ and
 you should be in business. ubxtool changes (non-permanently) the
@@ -120,13 +120,13 @@ the `--ubxport <id>` option using one of the following numeric IDs:
 To see what is going on, try:
 
 ```
-./ubxtool --wait --port /dev/ttyACM0 --station 1 --stdout | ./navdump
+./ubxtool --wait --port /dev/ttyACM0 --station 1 --stdout --galileo | ./navdump
 ```
 
 To distribute data to a remote `navrecv`, use:
 
 ```
-./ubxtool --wait --port /dev/ttyACM0 --station 255 --dest 127.0.0.1
+./ubxtool --wait --port /dev/ttyACM0 --galileo --station 255 --dest 127.0.0.1
 ```
 
 This will send protobuf to 127.0.0.1:29603. You can add as many destinations
