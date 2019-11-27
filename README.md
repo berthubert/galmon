@@ -88,10 +88,10 @@ git clone https://github.com/ahupowerdns/galmon.git --recursive
 docker build -t galmon --build-arg MAKE_FLAGS=-j2 .
 ```
 
-To run a container with a shell in there:
+To run a container with a shell in there (this will also expose a port so you can view the UI too and assumes a ublox GPS device too - you may need to tweak as necessary):
 
 ```
-docker run -it --rm galmon
+docker run -it --rm --device=/dev/ttyACM0 -p 10000:10000 galmon
 ```
 
 
