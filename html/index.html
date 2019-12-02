@@ -3,62 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>galmon.eu</title>
-  <style>
-  text {
-    font: 12px sans-serif;
-  }
-
-  th, td {
-  padding-left: 8px;
-  padding-right: 8px;
-  padding-top: 1px;
-  padding-bottom: 1px;
-  font-family: monospace;
-  }
-  tr:nth-child(even) {background: #BFBFBF}
-  tr:nth-child(odd) {background: #E6E6E6}
-
-  label {
-     cursor: pointer;
-  }
-  input[type="checkbox"] {
-     cursor: pointer;
-  }
-
-
-  .CellWithComment{
-    position:relative;
-  }
-
-  .CellComment{
-    display:none;
-    position:absolute; 
-    z-index:100;
-    border:1px;
-    background-color:white;
-    border-style:solid;
-    border-width:1px;
-    border-color:red;
-    padding:3px;
-    color:red; 
-    top:20px; 
-    left:20px;
-  }
-
-  .CellWithComment:hover span.CellComment{
-    display:block;
-  }
-
-  .centered {
-    margin: auto 0px;
-    text-align: center;
-  }
-
-  #fields tr {
-    vertical-align:top;
-  }
-
-  </style>
+  <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 <body>
   Last update: <span id="freshness"></span>. More information about this Galileo/GPS/BeiDou/Glonass open source monitor can be found <a href="https://github.com/ahupowerdns/galmon/blob/master/README.md#galmon">here</a> and <a href="https://berthub.eu/articles/posts/gps-gnss-how-do-they-work/">here</a>. Live observer map <a href="geo">here</a>, status (coverage, DOP) map <a href="geo/coverage.html">here</a>. Contact <a href="https://berthub.eu/">me</a> if you want access to the Grafana dashboard.<br/>

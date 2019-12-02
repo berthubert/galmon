@@ -3,46 +3,7 @@
 <head>
   <title>galmon.eu observers</title>
   <meta charset="utf-8">
-  <style>
-
-  text {
-    font: 12px sans-serif;
-  }
-
-  th, td {
-  padding-left: 8px;
-  padding-right: 8px;
-  padding-top: 1px;
-  padding-bottom: 1px;
-  font-family: monospace;
-  }
-  tr:nth-child(even) {background: #BFBFBF}
-  tr:nth-child(odd) {background: #E6E6E6}
-
-  .CellWithComment{
-    position:relative;
-  }
-
-  .CellComment{
-    display:none;
-    position:absolute; 
-    z-index:100;
-    border:1px;
-    background-color:white;
-    border-style:solid;
-    border-width:1px;
-    border-color:red;
-    padding:3px;
-    color:red; 
-    top:20px; 
-    left:20px;
-  }
-
-  .CellWithComment:hover span.CellComment{
-    display:block;
-  }
-
-  </style>
+  <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 <body>
   Last update: <span id="freshness"></span>. More information about this Galileo/GPS/BeiDou/Glonass open source monitor can be found <a href="https://github.com/ahupowerdns/galmon/blob/master/README.md#galmon">here</a>. Live map <a href="geo">here!</a>. Contact <a href="https://ds9a.nl/">me</a> if you want access to the Grafana dashboard.<br/>
