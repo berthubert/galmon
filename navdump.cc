@@ -625,9 +625,11 @@ try
         continue;
       etstamp();
       
-      auto lonlat = getLongLat(nmm.op().x(), nmm.op().y(), nmm.op().z());
-      cout<<std::fixed<<"ECEF "<<nmm.op().x()<<", "<<nmm.op().y()<<", "<<nmm.op().z()<< " lon "<< 180*lonlat.first/M_PI << " lat "<<
-        180*lonlat.second/M_PI<< " acc "<<nmm.op().acc()<<" m "<<endl;
+      auto latlonh = ecefToWGS84(nmm.op().x(), nmm.op().y(), nmm.op().z());
+      cout<<std::fixed<<"ECEF "<<nmm.op().x()<<", "<<nmm.op().y()<<", "<<nmm.op().z();
+      cout<<", WGS84 lon "<< 180*std::get<1>(latlonh)/M_PI
+	  <<" lat "<< 180*std::get<0>(latlonh)/M_PI
+	  <<" elev "<< std::get<2>(latlonh) << " acc "<<nmm.op().acc()<<" m "<<endl;
       g_ourpos = Point(nmm.op().x(), nmm.op().y(), nmm.op().z());
     }
     else if(nmm.type() == NavMonMessage::RFDataType) {
