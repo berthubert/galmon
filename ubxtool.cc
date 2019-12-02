@@ -1349,6 +1349,10 @@ int main(int argc, char** argv)
     catch(UBXMessage::BadChecksum &e) {
       if (doDEBUG) { cerr<<humanTimeNow()<<" Bad UBX checksum, skipping message"<<endl; }
     }
+    catch(EofException& em) {
+      cerr<<"EOF, break"<<endl;
+      break;
+    }
   }
   if(!g_fromFile)
     tcsetattr(fd, TCSANOW, &g_oldtio);                                          
