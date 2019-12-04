@@ -536,6 +536,7 @@ int main(int argc, char** argv)
   string portName;
   int ubxport=3;
   int baudrate=115200;
+  unsigned int fuzzPositionMeters=0;
 
   app.add_option("--destination,-d", destinations, "Send output to this IPv4/v6 address");
   app.add_flag("--wait", doWait, "Wait a bit, do not try to read init messages");
@@ -553,6 +554,7 @@ int main(int argc, char** argv)
   app.add_option("--baud,-b", baudrate, "Baudrate for serial connection");
   app.add_flag("--keep-nmea,-k", doKeepNMEA, "Don't disable NMEA");
   app.add_flag("--fake-fix", doFakeFix, "Inject locally generated fake fix data");
+  app.add_option("--fuzz-position,-f", fuzzPositionMeters, "Fuzz position by this many meters");
   
   app.add_flag("--debug", doDEBUG, "Display debug information");  
   app.add_flag("--logfile", doLOGFILE, "Create logfile");  
@@ -961,6 +963,12 @@ int main(int argc, char** argv)
         };
         pos p;
         memcpy(&p, payload.c_str(), sizeof(pos));
+        if(fuzzPositionMeters) {
+          p.ecefX -= (p.ecefX % (fuzzPositionMeters*100));
+          p.ecefY -= (p.ecefY % (fuzzPositionMeters*100));
+          p.ecefZ -= (p.ecefZ % (fuzzPositionMeters*100));
+        }
+
         /*
         if (doDEBUG) {
           cerr<<humanTimeNow()<<" Position: ("<< p.ecefX / 100000.0<<", "
@@ -975,7 +983,8 @@ int main(int argc, char** argv)
         nmm.set_type(NavMonMessage::ObserverPositionType);
         nmm.set_localutcseconds(g_gnssutc.tv_sec);
         nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
-        nmm.set_sourceid(g_srcid); 
+        nmm.set_sourceid(g_srcid);
+        
         nmm.mutable_op()->set_x(p.ecefX /100.0);
         nmm.mutable_op()->set_y(p.ecefY /100.0);
         nmm.mutable_op()->set_z(p.ecefZ /100.0);
@@ -1200,6 +1209,7 @@ int main(int argc, char** argv)
         catch(CRCMismatch& cm) {
           if (doDEBUG) { cerr<<humanTimeNow()<<" Had CRC mismatch!"<<endl; }
         }
+
       }
       else if(msg.getClass() == 1 && msg.getType() == 0x35) { // UBX-NAV-SAT
         //        if(version9) // we have UBX-NAV-SIG
