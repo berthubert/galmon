@@ -1199,7 +1199,7 @@ int main(int argc, char** argv)
             if (doDEBUG) { cerr<<humanTimeNow()<<" SBAS "<<id.second<<" frame, numwords: "<<(int)payload[4]<<", version: "<<(int)payload[6]<<", totsize "<<payload.size()<<endl; }
 
             auto sbas = getSBASFromSFRBXMsg(payload);
-            cerr<<"Preamble: "<<(int)sbas[0]<<", type "<<getbitu(&sbas[0], 8, 6)<<endl;
+            if (doDEBUG) { cerr<<"SBAS Preamble: "<<(int)sbas[0]<<", type "<<getbitu(&sbas[0], 8, 6)<<endl; }
 
           }
           else
