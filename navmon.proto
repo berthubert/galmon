@@ -90,7 +90,13 @@ message NavMonMessage {
         required double cpStd = 10;
         required double prStd = 11;
         optional uint32 sigid = 12;
-        optional uint32 cno = 13;     
+        optional uint32 cno = 13;
+        optional bool prvalid = 14;
+        optional bool cpvalid = 15;
+        optional bool halfcycvalid =16;
+        optional bool subhalfcyc = 17;
+        optional bool clkReset = 18;
+        
   }
 
   message ObserverPosition {

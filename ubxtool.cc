@@ -671,7 +671,7 @@ int main(int argc, char** argv)
           exit(-1);
         }
       }
-      else {
+      else { // UBX-CFG-VALSET
 
         msg = buildUbxMessage(0x06, 0x8a, {0x00, 0x01, 0x00, 0x00,
               0x1f,0x00,0x31,0x10, doGPS,
@@ -898,6 +898,8 @@ int main(int argc, char** argv)
         double rcvTow;
         memcpy(&rcvTow, &payload[0], 8);
         uint16_t rcvWn = payload[8] + 256*payload[9];
+        bool clkReset = payload[12] & 0x02;
+        
         for(int n=0 ; n < payload[11]; ++n) {
           double prMes;
           double cpMes;
@@ -927,7 +929,7 @@ int main(int argc, char** argv)
           uint8_t prStddev = payload[43+32*n] & 0xf;
           uint8_t cpStddev = payload[44+32*n] & 0xf;
           uint8_t doStddev = payload[45+32*n] & 0xf;
-          //          uint8_t trkStat = payload[46+32*n] & 0xf;
+          uint8_t trkStat = payload[46+32*n] & 0xf;
 
           NavMonMessage nmm;
           nmm.set_type(NavMonMessage::RFDataType);
@@ -949,6 +951,13 @@ int main(int argc, char** argv)
           nmm.mutable_rfd()->set_cpstd(cpStddev*0.4);
           nmm.mutable_rfd()->set_locktimems(locktimems);
           nmm.mutable_rfd()->set_cno(cno);
+
+          nmm.mutable_rfd()->set_prvalid(trkStat & 1);
+          nmm.mutable_rfd()->set_cpvalid(trkStat & 2);
+          nmm.mutable_rfd()->set_halfcycvalid(trkStat & 4);
+          nmm.mutable_rfd()->set_subhalfcyc(trkStat & 8);
+
+          nmm.mutable_rfd()->set_clkreset(clkReset);
           ns.emitNMM( nmm);
         }
       }
