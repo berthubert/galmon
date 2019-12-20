@@ -298,6 +298,7 @@ int parseGPSMessage(std::basic_string_view<uint8_t> cond, T& out, uint8_t* pagep
       
       //      cerr<<": a0: "<<out.a0<<", a1: "<<out.a1<<", t0t: "<< out.t0t * (1<<12) <<", wn0t: "<< out.wn0t<<", rough offset: "<<ldexp(out.a0, -30)<<endl;
       //      cerr<<"deltaTLS: "<< (int)out.dtLS<<", post "<< (int)out.dtLSF<<endl;
+      return frame; // otherwise pageptr gets overwritten below
     }
     //else cerr<<endl;
     // page 18 contains UTC -> 56
