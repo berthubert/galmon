@@ -13,9 +13,9 @@
 */
 
 // positive age = t0e in the past
-int ephAge(int tow, int t0e)
+double ephAge(double tow, int t0e)
 {
-  int diff = tow - t0e;
+  double diff = tow - t0e;
   if(diff > 3.5*86400)
     diff -= 604800;
   if(diff < -3.5*86400)

@@ -4,10 +4,10 @@
 // lat, lon, height (rad, rad, meters)
 std::tuple<double, double, double> ecefToWGS84(double x, double y, double z);
 
-int ephAge(int tow, int t0e);
+double ephAge(double tow, int t0e);
 
 template<typename T>
-void getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
+double getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
 {
   using namespace std;
   // here goes
@@ -71,7 +71,7 @@ void getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
   double A3 = pow(sqrtA, 6.0);
 
   double n0 = sqrt(mu/A3);
-  double tk = ephAge(tow, t0e); // in seconds, should do ephAge
+  double tk = ephAge(tow, t0e); 
 
   double n = n0 + deltan;
   if(!quiet)
@@ -153,7 +153,7 @@ void getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
     Vector radius(core, *p);
     cerr << radius.length() << " calculated r "<<endl;
   }
-  
+  return E;
 }
 
 struct DopplerData
