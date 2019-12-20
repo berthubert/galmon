@@ -232,9 +232,11 @@ UBXMessage sendAndWaitForUBX(int fd, int seconds, basic_string_view<uint8_t> msg
       if(n==1)
         throw;
       cerr<<"Retransmit"<<endl;
-          
     }
   }
+  // we actually never get here, but if you remove this line, we get a warning
+  // and people can't stop nagging us about the warning..
+  return waitForUBX(fd, seconds, ubxClass, ubxType);
 }
 
 
