@@ -203,10 +203,11 @@ try
       cerr<<"EOF, res = "<<res<<endl;
       break;
     }
+    
+    // I am so sorry
     if(bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
       cerr<<"Bad magic"<<endl;
     }
-  
     
     uint16_t len;
     if(readn2(0, &len, 2) != 2)
@@ -469,7 +470,8 @@ try
           cout<<" norad " <<match.norad <<" int-desig " << match.internat;
           cout<<" 2nd-match "<<second.name << " dist "<<second.distance/1000<<" km t0e "<<gs.gpsalma.getT0e() << " t " <<nmm.localutcseconds();
         }
-
+        if(page == 18)
+          cout << " dtLS " << (int)gs.dtLS <<" dtLSF "<< (int)gs.dtLSF;
       }
       else if(frame == 5) {
         if(gs.gpsalma.sv <= 24) {
@@ -554,6 +556,9 @@ try
         for(int n=0; n<10; ++n)
           cout<<" hea"<<(20+n)<<" " << getbitu(&cond[0], beidouBitconv(51+n*9), 9) << " ("<<beidouHealth(getbitu(&cond[0], beidouBitconv(51+n*9), 9))<<")";
         cout<<" WNa "<<getbitu(&cond[0], beidouBitconv(190), 8)<<" t0a "<<getbitu(&cond[0], beidouBitconv(198), 8);
+      }
+      else if(bm.fraid == 5 && pageno==10) {
+        cout <<" dTLS "<< (int)bm.deltaTLS;
       }
       else if(bm.fraid == 5 && pageno==24) {
         int AmID= getbitu(&cond[0], beidouBitconv(216), 2);
