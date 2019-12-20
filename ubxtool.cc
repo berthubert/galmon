@@ -573,7 +573,11 @@ int main(int argc, char** argv)
   
   int fd = initFD(portName.c_str(), doRTSCTS);
   
-  bool version9 = false;  
+  bool version9 = false;
+  if(doFakeFix) // hack
+    version9 = true;
+  bool m8t = false;
+  
   if(!g_fromFile) {
     bool doInit = true;
     if(doInit) {
@@ -617,6 +621,12 @@ int main(int argc, char** argv)
         cerr<<humanTimeNow()<<" Extended info: "<<um1.getPayload().c_str() + 40 +30*n<<endl;
         if(um1.getPayload().find((const uint8_t*)"F9") != string::npos)
           version9=true;
+
+        if(um1.getPayload().find((const uint8_t*)"M8T") != string::npos)
+          m8t=true;
+
+        // timing: MOD=NEO-M8T-0
+        
       }
 
 
@@ -753,7 +763,12 @@ int main(int argc, char** argv)
       enableUBXMessageOnPort(fd, 0x02, 0x59, ubxport); // UBX-RXM-RLM
       
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RAWX"<<endl; } // RF doppler
-      enableUBXMessageOnPort(fd, 0x02, 0x15, ubxport, 16); // RXM-RAWX
+      enableUBXMessageOnPort(fd, 0x02, 0x15, ubxport, 8); // RXM-RAWX
+
+      if(!version9 && !m8t) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling debugging data"<<endl; } // RF doppler
+        enableUBXMessageOnPort(fd, 0x03, 0x10, ubxport, 1);
+      }
       
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-SFRBX"<<endl; } // raw navigation frames
       enableUBXMessageOnPort(fd, 0x02, 0x13, ubxport); // SFRBX
@@ -882,10 +897,10 @@ int main(int argc, char** argv)
           nmm.set_localutcseconds(g_gnssutc.tv_sec);
           nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
           nmm.set_sourceid(g_srcid);
-          // ECEF 3919766.490000, 300647.060000, 5005731.330000 
-          nmm.mutable_op()->set_x(3919766);
-          nmm.mutable_op()->set_y(300647);
-          nmm.mutable_op()->set_z(5005731);
+          //      3924698.1158 301124.8036 5001904.9952
+          nmm.mutable_op()->set_x(3924698.1158);
+          nmm.mutable_op()->set_y(301124.8036);
+          nmm.mutable_op()->set_z(5001904.9952);
           nmm.mutable_op()->set_acc(3.14);
           ns.emitNMM( nmm);
           
@@ -1359,9 +1374,19 @@ int main(int argc, char** argv)
       //      cout<<"\n";
 
       }
-
+      else if(msg.getClass()==39 && msg.getType()==0) {
+        NavMonMessage nmm;
+        nmm.set_sourceid(g_srcid);
+        nmm.set_localutcseconds(g_gnssutc.tv_sec);
+        nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
+        
+        nmm.set_type(NavMonMessage::DebuggingType);
+        nmm.mutable_dm()->set_type(0); 
+        nmm.mutable_dm()->set_payload(string((char*)&payload[0], payload.size())); 
+        ns.emitNMM( nmm);
+      }
       else 
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Uknown UBX message of class "<<(int) msg.getClass() <<" and type "<< (int) msg.getType()<<endl; }
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Unknown UBX message of class "<<(int) msg.getClass() <<" and type "<< (int) msg.getType()<< " of "<<payload.size()<<" bytes"<<endl; }
 
       //      writen2(1, payload.d_raw.c_str(),msg.d_raw.size());
     }
