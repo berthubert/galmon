@@ -11,6 +11,7 @@ message NavMonMessage {
     GlonassInavType = 7;
     BeidouInavTypeD2 = 8;
     SARResponseType = 9;
+    DebuggingType = 10;
   }
 
   required uint64 sourceID = 1;
@@ -117,6 +118,10 @@ message NavMonMessage {
         required bytes params =7;
   }
 
+  message DebuggingMessage {
+          required uint32 type = 1;
+          required bytes payload = 2;
+  }
 
   optional GalileoInav gi=5;
   optional ReceptionData rd=6;  
@@ -127,4 +132,5 @@ message NavMonMessage {
   optional BeidouInavD2 bid2=11;
   optional GlonassInav  gloi=12;
   optional SARResponse sr=13;
+  optional DebuggingMessage dm = 14;
 }
