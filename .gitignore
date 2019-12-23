@@ -10,6 +10,8 @@ navrecv
 testrunner
 tlecatch
 ubxtool
+ubxtool.nodeps
+ubxtool.nodeps.*
 # - created by update-tles
 active.txt
 beidou.txt

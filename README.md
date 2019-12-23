@@ -94,6 +94,23 @@ To run a container with a shell in there:
 docker run -it --rm galmon
 ```
 
+Build `ubxtool` in Docker
+-------------------------
+
+To build a minimal `ubxtool` docker image:
+
+```
+git clone https://github.com/ahupowerdns/galmon.git --recursive
+./build-ubxtool native
+```
+
+It may also cross-compile a binary and an image for a Raspberry Pi:
+
+```
+git clone https://github.com/ahupowerdns/galmon.git --recursive
+docker run -it --rm --privileged multiarch/qemu-user-static:register --reset
+./build-ubxtool armhf
+```
 
 Running
 -------

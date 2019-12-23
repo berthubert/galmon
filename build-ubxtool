@@ -1,0 +1,33 @@
+#!/bin/bash
+#
+# The script relies on the following project:
+# - https://github.com/multiarch/qemu-user-static
+# - https://github.com/multiarch/ubuntu-core
+#
+# Another easy cross-compilation option is to use https://github.com/docker/binfmt
+#
+# Register qemu-user-static before building
+# $ docker run --rm --privileged multiarch/qemu-user-static:register --reset
+
+set -e
+
+arch=${1:-native}
+
+case "$arch" in
+    native)
+        tag=latest
+        from=ubuntu:bionic
+    ;;
+    x86|x86_64|arm64|armhf)
+        tag=${arch}
+        from=multiarch/ubuntu-core:${arch}-bionic
+    ;;
+    *)
+    echo "$0: unknown arch <$arch>, known are: (native|x86|x86_64|arm64|armhf)" 1>&2
+    exit 1
+esac
+
+sed "s,^FROM ubuntu:bionic AS,FROM ${from} AS," Dockerfile.ubxtool | docker build -f - --tag ubxtool:${tag} .
+cntr=$(docker create ubxtool:${tag})
+docker cp ${cntr}:/opt/ubxtool ./ubxtool.nodeps.${tag}
+docker rm ${cntr}

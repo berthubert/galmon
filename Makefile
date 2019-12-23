@@ -18,7 +18,7 @@ H2OPP=ext/powerblog/h2o-pp.o
 SIMPLESOCKETS=ext/powerblog/ext/simplesocket/swrappers.o ext/powerblog/ext/simplesocket/sclasses.o  ext/powerblog/ext/simplesocket/comboaddress.o 
 
 clean:
-	rm -f *~ *.o *.d ext/*/*.o $(PROGRAMS) navmon.pb.h navmon.pb.cc $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) $(H2OPP) $(SIMPLESOCKETS)
+	rm -f *~ *.o *.d ext/*/*.o $(PROGRAMS) ubxtool.nodeps* navmon.pb.h navmon.pb.cc $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) $(H2OPP) $(SIMPLESOCKETS)
 	rm -f ext/fmt-5.2.1/src/format.o
 
 
@@ -52,8 +52,13 @@ tlecatch: tlecatch.o $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc))
 navmon.pb.cc: navmon.proto
 	protoc --cpp_out=./ navmon.proto
 
-ubxtool: navmon.pb.o ubxtool.o ubx.o bits.o ext/fmt-5.2.1/src/format.o galileo.o  gps.o beidou.o navmon.o ephemeris.o $(SIMPLESOCKETS) osen.o
+UBXTOOL_DEPS = navmon.pb.o ubxtool.o ubx.o bits.o ext/fmt-5.2.1/src/format.o galileo.o  gps.o beidou.o navmon.o ephemeris.o $(SIMPLESOCKETS) osen.o
+
+ubxtool: $(UBXTOOL_DEPS)
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -lprotobuf -pthread
+# Static linking of `glibc` is non-trivial, so glibc is kept dynamically linked
+ubxtool.nodeps: $(UBXTOOL_DEPS)
+	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib /usr/lib/*-linux-*/libprotobuf.a -pthread -static-libgcc -static-libstdc++
 
 testrunner: navmon.pb.o testrunner.o ubx.o bits.o ext/fmt-5.2.1/src/format.o galileo.o  gps.o beidou.o ephemeris.o sp3.o osen.o
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -lprotobuf
