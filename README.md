@@ -219,8 +219,21 @@ Data sources
 ------------
 The software can interpret SP3 files, good sources:
 
- * http://navigation-office.esa.int/products/gnss-products/
+ * ESA/ESOC: http://navigation-office.esa.int/products/gnss-products/ - pick the
+   relevant GPS week number, and then a series (.sp3 extension):
+   * ESU = ultra rapid, 2-8h delay, only GPS and GLONASS
+   * ESR = rapid, 2-26h delay, only GPS and GLONASS
+   * ESM = finals, 6-13d delay, GPS, GLONASS, Galileo, BeiDou, QZSS
+   * File format is esXWWWWD.sp3 - where X is U, R or M, WWWW is the
+   (non-wrapping) GPS week number and D is day of week, Sunday is 0.
+   * Further description: http://navigation-office.esa.int/GNSS_based_products.html
+ * GFZ Potsdam: ftp://ftp.gfz-potsdam.de/GNSS/products/mgnss
+   * The GBM series covers GPS, GLONASS, Galileo, BeiDou, QZSS and appears
+     to have less of a delay than the ESA ESM series.
+   * GBU = ultra rapid, still a few days delay, but much more recent.
 
+Uncompress and concatenate all downloaded files into 'all.sp3' and run
+'navdump' on collected protobuf, and it will output 'sp3.csv' with fit data.
 
 Big TODO
 --------
