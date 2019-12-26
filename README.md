@@ -273,7 +273,7 @@ In alphabetical order:
  
 Additional sites are welcome (and encouraged) as the more data receiving sites that exist, then more accurate data and absolute coverage of each constellation can be had.
 
-The galmon project is very grateful to all it's volunteering receiving stations.
+The galmon project is very grateful to all its volunteering receiving stations.
 
 ubxtool
 -------
