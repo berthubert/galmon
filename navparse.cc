@@ -506,7 +506,7 @@ std::string makeSatPartialName(const SatID& satid)
   return fmt::sprintf("%c%02d", getGNSSChar(satid.gnss), satid.sv);
 }
 
-std::optional<double> getHzCorrection(time_t now, int src, unsigned int gnssid, unsigned int sigid, const svstats_t svstats)
+std::optional<double> getHzCorrection(time_t now, int src, unsigned int gnssid, unsigned int sigid, const svstats_t& svstats)
 {
   
   std::optional<double> allHzCorr;
