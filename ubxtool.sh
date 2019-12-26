@@ -1,21 +1,46 @@
 #!/bin/bash
+runDir="/run/ubxtool"
 
-DEVICE="/dev/ttyACM0"
-DESTINATION="`cat /usr/local/ubxtool/destination`"
+CONSTELLATIONS="--galileo --gps --glonass"
+# CONSTELLATIONS="--galileo --gps --beidou"
+# CONSTELLATIONS="--galileo --gps --glonass --beidou"  # only on the F9P
 
-DIR="/run/ubxtool"
+# DEVICE="/dev/ttyACM0"		# comment out or leave blank to auto-search
 
-STATION="`cat /usr/local/ubxtool/station`"
-CONSTELLATIONS="--galileo --gps --beidou"
+#########################################################################
+rotate() {
+	logt=$1
+	cd ${runDir}
+	if [ -r ${logt}.log ];	# only rotate if there's a current logfile
+	then
+		if [ -r ${logt}.log.4 ]; then mv ${logt}.log.4 ${logt}.log.5 ; fi;
+		if [ -r ${logt}.log.3 ]; then mv ${logt}.log.3 ${logt}.log.4 ; fi;
+		if [ -r ${logt}.log.2 ]; then mv ${logt}.log.2 ${logt}.log.3 ; fi;
+		if [ -r ${logt}.log.1 ]; then mv ${logt}.log.1 ${logt}.log.2 ; fi;
+		if [ -r ${logt}.log   ]; then mv ${logt}.log   ${logt}.log.1 ; fi;
+	fi
+}
 
-(
-mkdir ${DIR}
-cd ${DIR}
-mv stdout.log.4 stdout.log.5 ; mv stderr.log.4 stderr.log.5 ; mv logfile.4 logfile.5
-mv stdout.log.3 stdout.log.4 ; mv stderr.log.3 stderr.log.4 ; mv logfile.3 logfile.4
-mv stdout.log.2 stdout.log.3 ; mv stderr.log.2 stderr.log.3 ; mv logfile.2 logfile.3
-mv stdout.log.1 stdout.log.2 ; mv stderr.log.1 stderr.log.2 ; mv logfile.1 logfile.2
-mv stdout.log   stdout.log.1 ; mv stderr.log   stderr.log.1 ; mv logfile   logfile.1
-) 2> /dev/null
+if [ -z "${DEVICE}" ];
+then
+	# programmatically find the interface
+	SYSD=$(grep -il u-blox /sys/bus/usb/devices/*/manufacturer)
+	SYSD=${SYSD//manufacturer/}
+	DEVD=$(find ${SYSD} -type d -iname 'ttyACM*')
+	DEVICE="/dev/${DEVD##*/}"
+fi
 
-exec /usr/local/ubxtool/ubxtool --wait ${CONSTELLATIONS} --port ${DEVICE} --station ${STATION} --destination ${DESTINATION} >> stdout.log 2>> stderr.log < /dev/null
+DESTINATION=$(cat /usr/local/ubxtool/destination)
+STATION=$(cat /usr/local/ubxtool/station)
+
+# systemctl script will do this, but if you don't use systemctl, we need to take care of it
+[[ -d ${runDir} ]] || mkdir -p ${runDir}
+[[ -e ${runDir}/gps.sock ]] || mkfifo ${runDir}/gps.sock
+
+for logFile in stdout stderr logfile
+do
+	rotate ${logFile}
+done
+
+
+exec /usr/local/ubxtool/ubxtool --wait ${CONSTELLATIONS} --port ${DEVICE} --station ${STATION} --destination ${DESTINATION} >> ${runDir}/stdout.log 2>> ${runDir}/stderr.log < /dev/null 

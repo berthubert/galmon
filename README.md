@@ -182,7 +182,7 @@ This allows anyone to send you frames, so be aware.
 Next up, run `navnexus ./storage ::`, which will serve your recorded data from port 29601. It will merge messages
 coming in from all sources and serve them in time order.
 
-Finally, you can do `nv 127.0.0.1 29601 | ./navdump`, which will give you all messages over the past 24 hours, and stream you more.
+Finally, you can do `nc 127.0.0.1 29601 | ./navdump`, which will give you all messages over the past 24 hours, and stream you more.
 This also works for `navparse` for the pretty website and influx storage, `nc 127.0.0.1 29601 | ./navparse 127.0.0.0:10000 html galileo`,
 if you have an influxdb running on localhost with a galileo database in there.
 
@@ -267,6 +267,7 @@ In alphabetical order:
  * Spain
  * Tonga 
  * USA
+   * Alaska (Anchorage)
    * California (Santa Cruz, Los Angeles area, etc)
    * Massachusetts (Boston area)
  * Uruguay
