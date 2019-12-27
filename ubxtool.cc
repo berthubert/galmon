@@ -631,6 +631,24 @@ int main(int argc, char** argv)
       cerr<<humanTimeNow()<<" swVersion: "<<swversion<<endl;
       cerr<<humanTimeNow()<<" hwVersion: "<<hwversion<<endl;
 
+      for(unsigned int n=0; 40+30*n < um1.getPayload().size(); ++n) {
+        string line = (const char*)um1.getPayload().c_str() + 40 +30*n;
+        cerr<<humanTimeNow()<<" Extended info: "<<line <<endl;
+        
+        if(line.find("F9") != string::npos)
+          version9=true;
+
+        if(line.find("M8T") != string::npos) {
+          m8t=true;
+        }
+
+        if(line.find("MOD=") != string::npos)
+          mods += line.substr(4);
+        
+        // timing: MOD=NEO-M8T-0
+        
+      }
+      if (doDEBUG && m8t) { cerr<<humanTimeNow()<<" Detected timing module"<<endl; }
       if (doDEBUG) { cerr<<humanTimeNow()<<" Sending serial number query"<<endl; }
       msg = buildUbxMessage(0x27, 0x03, {});
       um1=sendAndWaitForUBX(fd, 1, msg, 0x27, 0x03); // ask for serial
@@ -642,24 +660,6 @@ int main(int argc, char** argv)
                               um1.getPayload()[8]);
       
       cerr<<humanTimeNow()<<" Serial number "<< serialno <<endl;
-
-      
-      
-      for(unsigned int n=0; 40+30*n < um1.getPayload().size(); ++n) {
-        cerr<<humanTimeNow()<<" Extended info: "<<um1.getPayload().c_str() + 40 +30*n<<endl;
-        if(um1.getPayload().find((const uint8_t*)"F9") != string::npos)
-          version9=true;
-
-        if(um1.getPayload().find((const uint8_t*)"M8T") != string::npos)
-          m8t=true;
-
-        if(um1.getPayload().find((const uint8_t*)"MOD=") != string::npos)
-          mods += (const char*)um1.getPayload().c_str() +40 + 30*n +4;
-        
-        // timing: MOD=NEO-M8T-0
-        
-      }
-
 
       if(version9)
         cerr<<humanTimeNow()<<" Detected version U-Blox 9"<<endl;
@@ -1364,8 +1364,8 @@ int main(int argc, char** argv)
           uint32_t fAcc;
         } nc;
         memcpy(&nc, &payload[0], sizeof(nc));
-        cerr<<"Clock offset "<< nc.clkBNS<<" nanoseconds, drift "<< nc.clkDNS<<" nanoseconds/second, accuracy " << nc.tAcc<<" ns, frequency accuracy "<<nc.fAcc << " ps/s"<<endl;
-        cerr<<"hwversion "<<hwversion<<" swversion "<< swversion <<" mods "<< mods <<" serialno "<<serialno<<endl;
+//        cerr<<"Clock offset "<< nc.clkBNS<<" nanoseconds, drift "<< nc.clkDNS<<" nanoseconds/second, accuracy " << nc.tAcc<<" ns, frequency accuracy "<<nc.fAcc << " ps/s"<<endl;
+  //      cerr<<"hwversion "<<hwversion<<" swversion "<< swversion <<" mods "<< mods <<" serialno "<<serialno<<endl;
 
         NavMonMessage nmm;
         
