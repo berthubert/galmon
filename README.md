@@ -88,10 +88,10 @@ git clone https://github.com/ahupowerdns/galmon.git --recursive
 docker build -t galmon --build-arg MAKE_FLAGS=-j2 .
 ```
 
-To run a container with a shell in there:
+To run a container with a shell in there (this will also expose a port so you can view the UI too and assumes a ublox GPS device too - you may need to tweak as necessary):
 
 ```
-docker run -it --rm galmon
+docker run -it --rm --device=/dev/ttyACM0 -p 10000:10000 galmon
 ```
 
 
@@ -99,7 +99,7 @@ Running
 -------
 
 Once compiled, run for example `./ubxtool --wait --port /dev/ttyACM0
---station 1 --stdout | ./navparse 127.0.0.1:10000 html null`
+--station 1 --stdout --galileo | ./navparse 127.0.0.1:10000 html null`
 
 Next up, browse to http://[::1]:10000 (or try http://localhost:10000/ and
 you should be in business. ubxtool changes (non-permanently) the
@@ -120,13 +120,13 @@ the `--ubxport <id>` option using one of the following numeric IDs:
 To see what is going on, try:
 
 ```
-./ubxtool --wait --port /dev/ttyACM0 --station 1 --stdout | ./navdump
+./ubxtool --wait --port /dev/ttyACM0 --station 1 --stdout --galileo | ./navdump
 ```
 
 To distribute data to a remote `navrecv`, use:
 
 ```
-./ubxtool --wait --port /dev/ttyACM0 --station 255 --dest 127.0.0.1
+./ubxtool --wait --port /dev/ttyACM0 --galileo --station 255 --dest 127.0.0.1
 ```
 
 This will send protobuf to 127.0.0.1:29603. You can add as many destinations
@@ -182,7 +182,7 @@ This allows anyone to send you frames, so be aware.
 Next up, run `navnexus ./storage ::`, which will serve your recorded data from port 29601. It will merge messages
 coming in from all sources and serve them in time order.
 
-Finally, you can do `nv 127.0.0.1 29601 | ./navdump`, which will give you all messages over the past 24 hours, and stream you more.
+Finally, you can do `nc 127.0.0.1 29601 | ./navdump`, which will give you all messages over the past 24 hours, and stream you more.
 This also works for `navparse` for the pretty website and influx storage, `nc 127.0.0.1 29601 | ./navparse 127.0.0.0:10000 html galileo`,
 if you have an influxdb running on localhost with a galileo database in there.
 
@@ -267,13 +267,14 @@ In alphabetical order:
  * Spain
  * Tonga 
  * USA
+   * Alaska (Anchorage)
    * California (Santa Cruz, Los Angeles area, etc)
    * Massachusetts (Boston area)
  * Uruguay
  
 Additional sites are welcome (and encouraged) as the more data receiving sites that exist, then more accurate data and absolute coverage of each constellation can be had.
 
-The galmon project is very grateful to all it's volunteering receiving stations.
+The galmon project is very grateful to all its volunteering receiving stations.
 
 ubxtool
 -------
