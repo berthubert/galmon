@@ -539,6 +539,8 @@ int main(int argc, char** argv)
   int ubxport=3;
   int baudrate=115200;
   unsigned int fuzzPositionMeters=0;
+  string owner;
+  string remark;
 
   app.add_option("--destination,-d", destinations, "Send output to this IPv4/v6 address");
   app.add_flag("--wait", doWait, "Wait a bit, do not try to read init messages");
@@ -557,6 +559,8 @@ int main(int argc, char** argv)
   app.add_flag("--keep-nmea,-k", doKeepNMEA, "Don't disable NMEA");
   app.add_flag("--fake-fix", doFakeFix, "Inject locally generated fake fix data");
   app.add_option("--fuzz-position,-f", fuzzPositionMeters, "Fuzz position by this many meters");
+  app.add_option("--owner,-o", owner, "Name/handle/nick of owner/operator");
+  app.add_option("--remark", remark, "Remark for this station");
   
   app.add_flag("--debug", doDEBUG, "Display debug information");  
   app.add_flag("--logfile", doLOGFILE, "Create logfile");  
@@ -565,6 +569,7 @@ int main(int argc, char** argv)
   } catch(const CLI::Error &e) {
     return app.exit(e);
   }
+
 
   g_baudval = getBaudrate(baudrate);
 
@@ -579,6 +584,11 @@ int main(int argc, char** argv)
   if(doFakeFix) // hack
     version9 = true;
   bool m8t = false;
+
+  string hwversion;
+  string swversion;
+  string mods;
+  string serialno;
   
   if(!g_fromFile) {
     bool doInit = true;
@@ -616,8 +626,24 @@ int main(int argc, char** argv)
 
       if (doDEBUG) { cerr<<humanTimeNow()<<" Sending version query"<<endl; }
       UBXMessage um1=sendAndWaitForUBX(fd, 1, msg, 0x0a, 0x04); // ask for version
-      cerr<<humanTimeNow()<<" swVersion: "<<um1.getPayload().c_str()<<endl;
-      cerr<<humanTimeNow()<<" hwVersion: "<<um1.getPayload().c_str()+30<<endl;
+      swversion = (const char*)um1.getPayload().c_str();
+      hwversion = (const char*)um1.getPayload().c_str()+30;
+      cerr<<humanTimeNow()<<" swVersion: "<<swversion<<endl;
+      cerr<<humanTimeNow()<<" hwVersion: "<<hwversion<<endl;
+
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Sending serial number query"<<endl; }
+      msg = buildUbxMessage(0x27, 0x03, {});
+      um1=sendAndWaitForUBX(fd, 1, msg, 0x27, 0x03); // ask for serial
+      serialno = fmt::sprintf("%02x%02x%02x%02x%02x",
+                              um1.getPayload()[4],
+                              um1.getPayload()[5],
+                              um1.getPayload()[6],
+                              um1.getPayload()[7],
+                              um1.getPayload()[8]);
+      
+      cerr<<humanTimeNow()<<" Serial number "<< serialno <<endl;
+
+      
       
       for(unsigned int n=0; 40+30*n < um1.getPayload().size(); ++n) {
         cerr<<humanTimeNow()<<" Extended info: "<<um1.getPayload().c_str() + 40 +30*n<<endl;
@@ -627,6 +653,9 @@ int main(int argc, char** argv)
         if(um1.getPayload().find((const uint8_t*)"M8T") != string::npos)
           m8t=true;
 
+        if(um1.getPayload().find((const uint8_t*)"MOD=") != string::npos)
+          mods += (const char*)um1.getPayload().c_str() +40 + 30*n +4;
+        
         // timing: MOD=NEO-M8T-0
         
       }
@@ -767,6 +796,10 @@ int main(int argc, char** argv)
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RAWX"<<endl; } // RF doppler
       enableUBXMessageOnPort(fd, 0x02, 0x15, ubxport, 8); // RXM-RAWX
 
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-CLOCK"<<endl; } // clock details
+      enableUBXMessageOnPort(fd, 0x01, 0x22, ubxport, 16); // UBX-NAV-CLOCK
+
+      
       if(!version9 && !m8t) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling debugging data"<<endl; } // RF doppler
         enableUBXMessageOnPort(fd, 0x03, 0x10, ubxport, 1);
@@ -1320,6 +1353,40 @@ int main(int argc, char** argv)
       }
       else if(msg.getClass() == 1 && msg.getType() == 0x30) { // UBX-NAV-SVINFO
         
+      }
+      else if(msg.getClass() == 1 && msg.getType() == 0x22) { // UBX-NAV-CLOCK
+        struct NavClock
+        {
+          uint32_t iTowMS;
+          int32_t clkBNS;
+          int32_t clkDNS;
+          uint32_t tAcc;
+          uint32_t fAcc;
+        } nc;
+        memcpy(&nc, &payload[0], sizeof(nc));
+        cerr<<"Clock offset "<< nc.clkBNS<<" nanoseconds, drift "<< nc.clkDNS<<" nanoseconds/second, accuracy " << nc.tAcc<<" ns, frequency accuracy "<<nc.fAcc << " ps/s"<<endl;
+        cerr<<"hwversion "<<hwversion<<" swversion "<< swversion <<" mods "<< mods <<" serialno "<<serialno<<endl;
+
+        NavMonMessage nmm;
+        
+        nmm.set_sourceid(g_srcid);
+        nmm.set_localutcseconds(g_gnssutc.tv_sec);
+        nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
+        
+        nmm.set_type(NavMonMessage::ObserverDetailsType);
+        nmm.mutable_od()->set_vendor("Ublox");
+        nmm.mutable_od()->set_hwversion(hwversion);
+        nmm.mutable_od()->set_swversion(swversion);
+        nmm.mutable_od()->set_serialno(serialno);
+        nmm.mutable_od()->set_modules(mods);
+        nmm.mutable_od()->set_clockoffsetns(nc.clkBNS);
+        nmm.mutable_od()->set_clockoffsetdriftns(nc.clkDNS);
+        nmm.mutable_od()->set_clockaccuracyns(nc.tAcc);
+        nmm.mutable_od()->set_freqaccuracyps(nc.fAcc);
+
+        nmm.mutable_od()->set_owner(owner);
+        nmm.mutable_od()->set_remark(remark);
+        ns.emitNMM( nmm);
       }
       else if(msg.getClass() == 0x02 && msg.getType() == 0x14) { // UBX-RXM-MEASX
 

@@ -12,6 +12,7 @@ message NavMonMessage {
     BeidouInavTypeD2 = 8;
     SARResponseType = 9;
     DebuggingType = 10;
+    ObserverDetailsType = 11;
   }
 
   required uint64 sourceID = 1;
@@ -123,6 +124,21 @@ message NavMonMessage {
           required bytes payload = 2;
   }
 
+  message ObserverDetails {
+          required string vendor = 1;
+          required string hwversion = 2;
+          required string modules = 3;
+          required string swversion = 4;
+          required string serialno = 5;
+          optional double clockOffsetNS = 6;
+          optional double clockOffsetDriftNS = 7;
+          optional double clockAccuracyNS = 8;
+          optional double freqAccuracyPS = 9;
+          optional string owner = 10;
+          optional string remark = 11;
+  }
+
+
   optional GalileoInav gi=5;
   optional ReceptionData rd=6;  
   optional RFData rfd=7;
@@ -133,4 +149,5 @@ message NavMonMessage {
   optional GlonassInav  gloi=12;
   optional SARResponse sr=13;
   optional DebuggingMessage dm = 14;
+  optional ObserverDetails od = 15;  
 }
