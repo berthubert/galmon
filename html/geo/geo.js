@@ -162,7 +162,7 @@ function draw_radials(satellite, observer)
 function draw_satellite_to_operator(d)
 {
 	// get list of observers for this satellite
-	satellite = d3.select("#Satellite_" + d.name);
+	satellite = d3.select("#Satellite_" + d.name + "_bird");
 	a = observers_list_almanac_raw(d);
 	for (aa=0;aa<a.length;aa++) {
 		observer_id = a[aa];
@@ -193,11 +193,11 @@ function draw_operator_to_satellite(d)
 			// no line needed
 			continue;
 		}
-		var s = $("[id^='Satellite_" + satellite_id + "']");
+		var s = $("[id^='Satellite_" + satellite_id + "_']");
 		if (!s.is(":visible")) {
 			continue;
 		}
-		satellite = d3.select("#Satellite_" + satellite_id);
+		satellite = d3.select("#Satellite_" + satellite_id + "_bird");
 		draw_radials(satellite, observer);
 	}
 }
@@ -271,7 +271,7 @@ function draw_almanac(data_almanac)
 		.enter()
 		.append("circle")
 			.attr("class", "satellites")
-			.attr("id", r => "Satellite_" + r.name)
+			.attr("id", r => "Satellite_" + r.name + "_bird")
 			.attr("r", 3)
 			.attr("cx", r => aProjection([r.eph_longitude, r.eph_latitude])[0])
 			.attr("cy", r => aProjection([r.eph_longitude, r.eph_latitude])[1])
@@ -375,7 +375,7 @@ function draw_observers(data_observers)
 		// redraw only the one coverage circle
 		coverages = $("[id^='Coverage_']");
 		coverages.hide();
-		coverages = $("[id^='Coverage_" + d.id +  "']");
+		coverages = $("[id^='Coverage_" + d.id +  "_area']");
 		coverages.show();
 	}
 	var mousemove = function(d) {
@@ -417,7 +417,7 @@ function draw_observers(data_observers)
 		.enter()
 			.append("path")
 			.attr("class", r => (observer_up(r) ? "observers" : "observers down"))
-			.attr("id", r => ("Observer_" + r.id))
+			.attr("id", r => ("Observer_" + r.id + "_location"))
 			.attr("d", function(r) {
 				var path = {
 					type: "LineString",
@@ -475,7 +475,7 @@ function draw_observers_coverage(data_observers)
 		.enter()
 			.append("path")
 			.attr("class", r => (observer_up(r) ? "coverage" : "coverage down"))
-			.attr("id", r => ("Coverage_" + r.id))
+			.attr("id", r => ("Coverage_" + r.id + "_area"))
 			.attr("d", function(r) { return geoPath(geoCircle.center([r.longitude, r.latitude]).radius(radius)());
 			});
 }
@@ -769,7 +769,7 @@ function constellation_click(node)
 	else if (c == "QZSS") { c = "J"; }	// J = Japan
 	else if (c == "GLONASS") { c = "R"; }	// R = Russia
 
-	satellites = $("[id^='Satellite_" + c + "']");
+	satellites = $("[id^='Satellite_" + c);
 
 	if (node.childNodes[1].checked) {
 		satellites.show();
