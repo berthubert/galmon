@@ -769,7 +769,7 @@ function constellation_click(node)
 	else if (c == "QZSS") { c = "J"; }	// J = Japan
 	else if (c == "GLONASS") { c = "R"; }	// R = Russia
 
-	satellites = $("[id^='Satellite_" + c);
+	satellites = $("[id^='Satellite_" + c + "']");
 
 	if (node.childNodes[1].checked) {
 		satellites.show();
