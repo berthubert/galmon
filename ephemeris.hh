@@ -83,10 +83,11 @@ double getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
   double E = M;
   double newE;
   for(int k =0 ; k < 10; ++k) {
-    if(!quiet)
-      cerr<<"k "<<k<<" M = "<<M<<", E = "<< E << endl;
     newE = M + e * sin(E);
-    if(fabs(E-newE) < 0.00001) {
+    if(!quiet)
+      cerr<<"k "<<k<<" M = "<<M<<", E = "<< E << ", delta: "<< (E-newE) << endl;
+
+    if(fabs(E-newE) < 0.0000001) {
       E = newE;
       break;
     }
@@ -106,19 +107,28 @@ double getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
                         ((cos(E) - e)/ (1-e*cos(E)))
                         );
     
-    double nu2 = atan(   (sqrt(1-e*e) * sin(E)) /
+    double nu2A = atan(   (sqrt(1-e*e) * sin(E)) /
                        (cos(E) - e)
                      );
 
+
+    double nu2B = atan2(   (sqrt(1-e*e) * sin(E)) ,
+                       (cos(E) - e)
+                     );
+
+    
     double nu3 = 2* atan( sqrt((1+e)/(1-e)) * tan(E/2));
-    cerr << "e: "<<e<<", M: "<< M<<endl;
+    cerr << "e: "<<e<<", M: "<< M<<", E: "<< E<<endl;
     cerr <<"         nu sis: "<<nu1<< " / +pi = " << nu1 +M_PI << endl;
-    cerr <<"         nu ?: "<<nu2<< " / +pi = "  << nu2 +M_PI << endl;
-    cerr <<"         nu fourier/esa: "<<nu2<< " + " << corr <<" = " << nu2 + corr<<endl;
+    cerr <<"         nu ?: "<<nu2A<< " / +pi = "  << nu2A +M_PI << endl;
+    cerr <<"         nu ?: "<<nu2B<< " / +pi = "  << nu2B +M_PI << endl;
+    cerr <<"*        nu fourier/esa: "<<nu2<< " + " << corr <<" = " << nu2 + corr<<" | "<< std::fixed<<nu2+corr-nu1<<endl;
     cerr <<"         nu wikipedia: "<<nu3<< " / +pi = " <<nu3 +M_PI << endl;
   }
-  
-  double nu = nu2 + corr;
+  double nu = atan2(   (sqrt(1-e*e) * sin(E)) ,
+                         (cos(E) - e)
+                     );
+
 
   // https://en.wikipedia.org/wiki/True_anomaly is good
   
@@ -134,7 +144,7 @@ double getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
 
   double u = psi + deltau;
 
-  double r = A * (1- e * cos(E)) + deltar;
+  double r = A * (1 - e * cos(E)) + deltar;
 
   double xprime = r*cos(u), yprime = r*sin(u);
   if(!quiet) {
