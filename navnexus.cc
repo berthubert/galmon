@@ -102,7 +102,13 @@ try
 
     for(const auto& nmm: nmms) {
       std::string out;
-      nmm.SerializeToString(&out);
+      try {
+        nmm.SerializeToString(&out);
+      }
+      catch(std::exception& e) {
+        cerr<<"Something went wrong during serialization, skipping: "<<e.what()<<endl;
+        continue;
+      }
       std::string buf="bert";
       uint16_t len = htons(out.size());
       buf.append((char*)(&len), 2);
