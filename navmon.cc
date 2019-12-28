@@ -147,7 +147,7 @@ std::string humanTime(time_t t, uint32_t nanoseconds)
   gmtime_r(&t, &tm);
 
   char buffer[80];
-  std::string fmt = "%a, %d %b %Y %H:%M:"+fmt::sprintf("%06.04f", tm.tm_sec + nanoseconds/1000000000.0) +" %z";
+  std::string fmt = "%a, %d %b %Y %H:%M:"+fmt::sprintf("%07.04f", tm.tm_sec + nanoseconds/1000000000.0) +" %z";
   
   strftime(buffer, sizeof(buffer), fmt.c_str(), &tm);
   return buffer;
