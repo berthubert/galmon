@@ -804,7 +804,9 @@ int main(int argc, char** argv)
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling debugging data"<<endl; } // RF doppler
         enableUBXMessageOnPort(fd, 0x03, 0x10, ubxport, 1);
       }
-      
+      else
+        enableUBXMessageOnPort(fd, 0x03, 0x10, ubxport, 0);
+        
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-SFRBX"<<endl; } // raw navigation frames
       enableUBXMessageOnPort(fd, 0x02, 0x13, ubxport); // SFRBX
       
