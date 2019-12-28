@@ -13,6 +13,8 @@ struct SVPerRecv
   time_t deltaHzTime{-1};
   double deltaHz{-1};
   double prres{-1};
+  int used{-1}; // -1 = unknown
+  int qi{-1}; // quality indicator, -1 = unknown
   time_t t; // last seen
 };
   
