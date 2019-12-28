@@ -814,10 +814,10 @@ int main(int argc, char** argv)
       if(version9)  {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-SIG"<<endl; }  // satellite reception details
         enableUBXMessageOnPort(fd, 0x01, 0x43, ubxport, 8); // NAV-SIG
-
+        /*
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-MEASX"<<endl; }  // satellite reception details
         enableUBXMessageOnPort(fd, 0x02, 0x14, ubxport, 1); // RXM-MEASX
-
+        */
       }
       else {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-SAT"<<endl; }  // satellite reception details
@@ -1294,13 +1294,16 @@ int main(int argc, char** argv)
           nmm.mutable_rd()->set_el(el);
           nmm.mutable_rd()->set_azi(azi);
           nmm.mutable_rd()->set_prres(*((int16_t*)(payload.c_str()+ 14 +12*n)) *0.1);
-          /*
+
           uint32_t status;
           memcpy(&status, &payload[16+12*n], 4);
+          nmm.mutable_rd()->set_qi(status & 7);
+          nmm.mutable_rd()->set_used(status & 8);
+
+          /*
           if (doDEBUG) {
             cerr<<humanTimeNow()<<" "<<gnssid<<","<<sv<<":";
-            if(status & (1<<3))
-              cerr<<" used";
+            cerr<<" used " << ((status & 8) == 8);
             cerr<< " qualityind "<<(status & 7);
             cerr<<" db "<<db<<" el "<< el;
             cerr<<" health " << (status & (1<<5));
@@ -1319,9 +1322,12 @@ int main(int argc, char** argv)
         for(unsigned int n = 0 ; n < payload[5]; ++n) {
           int gnssid = payload[8+16*n];
           int sv = payload[9+16*n];
+          int qi = payload[15+16*n];
+          uint16_t sigflags;
+          memcpy(&sigflags, &payload[18+16*n], 2);
           int sigid = 0;
 
-          if(version9) {
+          if(version9) { // we only use this on version9 right now tho
             sigid = payload[10+16*n];
             if(gnssid == 2 && sigid ==6)  // they separate out I and Q, but the rest of UBX doesn't
               sigid = 5;                  // so map it back
@@ -1347,6 +1353,9 @@ int main(int argc, char** argv)
           nmm.mutable_rd()->set_sigid(sigid);
           nmm.mutable_rd()->set_el(0);
           nmm.mutable_rd()->set_azi(0);
+          nmm.mutable_rd()->set_qi(qi);
+          nmm.mutable_rd()->set_used(sigflags & 8);
+          
           
           ns.emitNMM( nmm);
         }
