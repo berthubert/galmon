@@ -139,6 +139,8 @@ message NavMonMessage {
           optional double freqAccuracyPS = 9;
           optional string owner = 10;
           optional string remark = 11;
+          optional string recvgithash = 12;
+          optional uint32 uptime = 13;
   }
 
 

@@ -31,6 +31,7 @@
 #include "comboaddress.hh"
 #include "swrappers.hh"
 #include "sclasses.hh"
+#include "githash.h"
 
 bool doDEBUG{false};
 bool doLOGFILE{false};
@@ -521,6 +522,7 @@ int initFD(const char* fname, bool doRTSCTS)
 // ubxtool device srcid
 int main(int argc, char** argv)
 {
+  time_t starttime=time(0);
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   CLI::App app("ubxtool");
@@ -1395,6 +1397,11 @@ int main(int argc, char** argv)
 
         nmm.mutable_od()->set_owner(owner);
         nmm.mutable_od()->set_remark(remark);
+        extern const char* g_gitHash;
+        nmm.mutable_od()->set_recvgithash(g_gitHash);
+        nmm.mutable_od()->set_uptime(time(0) - starttime);
+        
+        
         ns.emitNMM( nmm);
       }
       else if(msg.getClass() == 0x02 && msg.getType() == 0x14) { // UBX-RXM-MEASX
