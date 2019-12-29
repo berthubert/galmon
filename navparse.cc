@@ -480,7 +480,7 @@ std::string humanTime(int gnssid, int wn, int tow)
   gmtime_r(&t, &tm);
 
   char buffer[80];
-  strftime(buffer, sizeof(buffer), "%a, %d %b %Y %T %z", &tm);
+  strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S %z", &tm);
   return buffer;
 }
 char getGNSSChar(int id)
