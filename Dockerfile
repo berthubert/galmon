@@ -13,7 +13,7 @@ RUN sed -i "s%http://archive.ubuntu.com/ubuntu/%${APT_URL}%" /etc/apt/sources.li
 RUN apt-get update && apt-get -y upgrade && apt-get -y clean
 RUN apt-get install -y protobuf-compiler libh2o-dev libcurl4-openssl-dev \
         libssl-dev libprotobuf-dev libh2o-evloop-dev libwslay-dev libeigen3-dev \
-	make gcc g++ build-essential curl autoconf automake libfmt-dev libncurses5-dev \
+	make gcc g++ git build-essential curl autoconf automake libfmt-dev libncurses5-dev \
     && apt-get -y clean
 
 # Build
