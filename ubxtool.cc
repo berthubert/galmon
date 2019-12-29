@@ -402,14 +402,23 @@ void NMMSender::Destination::emitNMM(const NavMonMessage& nmm)
 }
 
 
+bool version9 = false;
 void enableUBXMessageOnPort(int fd, uint8_t ubxClass, uint8_t ubxType, uint8_t port, uint8_t rate=1)
 {
   for(int n=0 ; n < 5; ++n) {
     try {
-      basic_string<uint8_t> payload({ubxClass, ubxType, 0, 0, 0, 0, 0, 0});
-      if(port > 6)
-        throw std::runtime_error("Port number out of range (>6)");
-     payload[2+ port]=rate;
+      basic_string<uint8_t> payload;
+      if(version9) {
+        payload= basic_string<uint8_t>({ubxClass, ubxType, rate});
+      }
+      else {
+        if(port > 6)
+          throw std::runtime_error("Port number out of range (>6)");
+
+        payload.assign({ubxClass, ubxType, 0, 0, 0, 0, 0, 0});
+        payload[2+ port]=rate;
+      }
+
 
      auto msg = buildUbxMessage(0x06, 0x01, payload);
       if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, 0x01))
@@ -582,7 +591,7 @@ int main(int argc, char** argv)
   
   int fd = initFD(portName.c_str(), doRTSCTS);
   
-  bool version9 = false;
+
   if(doFakeFix) // hack
     version9 = true;
   bool m8t = false;
@@ -1379,6 +1388,7 @@ int main(int argc, char** argv)
         memcpy(&nc, &payload[0], sizeof(nc));
 //        cerr<<"Clock offset "<< nc.clkBNS<<" nanoseconds, drift "<< nc.clkDNS<<" nanoseconds/second, accuracy " << nc.tAcc<<" ns, frequency accuracy "<<nc.fAcc << " ps/s"<<endl;
   //      cerr<<"hwversion "<<hwversion<<" swversion "<< swversion <<" mods "<< mods <<" serialno "<<serialno<<endl;
+
 
         NavMonMessage nmm;
         
