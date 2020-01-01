@@ -655,6 +655,12 @@ try
       cout<<endl;
       
     }
+    else if(nmm.type() == NavMonMessage::DebuggingType) {
+      /* reserved for future use */
+    }
+    else if(nmm.type() == NavMonMessage::ObserverDetailsType) {
+      /* reserved for future use */
+    }
     else {
       etstamp();
       cout<<"Unknown type "<< (int)nmm.type()<<endl;
