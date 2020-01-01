@@ -2043,6 +2043,12 @@ try
       }
       //      cout<<"GLONASS R"<<id.second<<" str "<<strno<<endl;
     }
+    else if(nmm.type() == NavMonMessage::DebuggingType) {
+      /* reserved for future use */
+    }
+    else if(nmm.type() == NavMonMessage::ObserverDetailsType) {
+      /* reserved for future use */
+    }
     else {
       cout<<"Unknown type "<< (int)nmm.type()<<endl;
     }
