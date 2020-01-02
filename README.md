@@ -235,6 +235,22 @@ The software can interpret SP3 files, good sources:
 Uncompress and concatenate all downloaded files into 'all.sp3' and run
 'navdump' on collected protobuf, and it will output 'sp3.csv' with fit data.
 
+
+Good source for TLE files:
+
+* www.celestrak.com
+   * https://www.celestrak.com/NORAD/elements/galileo.txt
+   * https://www.celestrak.com/NORAD/elements/gps-ops.txt
+   * https://www.celestrak.com/NORAD/elements/glo-ops.txt
+   * https://www.celestrak.com/NORAD/elements/beidou.txt
+
+* www.tle.info
+   * https://www.tle.info/data/galileo.txt
+   * https://www.tle.info/data/gps-ops.txt
+   * https://www.tle.info/data/glo-ops.txt
+   * https://www.tle.info/data/beidou.txt
+
+
 Big TODO
 --------
 
@@ -261,7 +277,7 @@ In alphabetical order:
  * Holland (Nootdorp, Hilversum, etc)
  * India (New Delhi area)
  * New Zealand (Auckland area)
- * Rusia (Moscow area)
+ * Russia (Moscow area)
  * Singapore
  * South Africa (Cape Town area)
  * Spain
