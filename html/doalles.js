@@ -118,6 +118,12 @@ function maketable(str, arr)
                 }
                 else if(column == "best-tle") {
                     ret.value = "<small>"+row[column]+"</small>";
+                    if(row["best-tle-dist"] != null) {
+                        if (Math.abs(row["best-tle-dist"]) > 10000)
+                            ret.color="red";
+                        else if (Math.abs(row["best-tle-dist"]) > 1000)
+                            ret.color="#ffaaaa";
+                    } 
                 }
                 else if(column == "gpshealth" && row[column] != null) {
                     if(row[column]==0)
