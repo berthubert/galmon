@@ -770,6 +770,30 @@ int main(int argc, char** argv)
           exit(-1);
         }
       }
+
+      if(!version9) {
+        /* ublox M8 only */
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Setting power mode to Full Power"<<endl; }
+
+        /* UBX-CFG-PMS, available in fw v3.01 */
+        msg = buildUbxMessage(0x06, 0x86, {
+          0x00, /* Message version = 0x00 */
+          0x00, /* Power Mode = 'Full Power' = 0x00 */
+          0x00, 0x00, /* Position update period, only valid in 'Interval' power mode, else 0 */
+          0x00, 0x00, /* Duration of ON, only valid in 'Interval' power mode, else 0 */
+          0x00, 0x00 /* Reserved */
+        });
+
+        if(sendAndWaitForUBXAckNack(fd, 10, msg, 0x06, 0x86)) {
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Set power mode to Full Power successfully"<<endl; }
+        }
+        else {
+          if (doDEBUG) { cerr<<humanTimeNow()<<" GOT NACK setting power mode to Full Power"<<endl; }
+        }
+      }
+      else {
+        /* No equivalent power management found for ublox 9 ??? */
+      }
        
       if(!doKeepNMEA) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Disabling NMEA"<<endl; }
