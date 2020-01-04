@@ -187,6 +187,22 @@ function makeTable(str, obj)
                     ret.value = row[column];
 
                 ret.color= null;
+                
+                if(column == "id" && row.sigid != null)
+                {
+                        var gnidstr = row.id.split("@")[0].substring(0,1).trim();
+                        var svstr = row.id.split("@")[0].substring(1).trim();
+                        var sigid = row.sigid;
+
+                        var gnssid = 0;
+                        if (gnidstr === "C") gnssid = 3;
+                        if (gnidstr === "G") gnssid = 0;
+                        if (gnidstr === "E") gnssid = 2;
+                        if (gnidstr === "R") gnssid = 6;
+
+                        ret.value = "<a href='sv.html?gnssid=" + gnssid + "&sv=" + svstr + "&sigid=" + sigid + "'>"+row.id+"</a>";
+                }
+                
                 return ret;
             })}).
         enter().append("td").html(function(d) {
