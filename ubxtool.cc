@@ -917,6 +917,12 @@ int main(int argc, char** argv)
         memcpy(&pvt, &payload[0], sizeof(pvt));
         //        cerr<<humanTimeNow()<<" Ground speed: "<<pvt.gSpeed<<", "<<pvt.velN<<" "<<pvt.velE<<" "<<pvt.velD<<endl;
         
+	if ((pvt.valid&0x07) != 0x07) {
+		// no validDate, validTime, or fullyResolved bits set yet
+		if (doDEBUG) { cerr<<humanTimeNow()<<" No timestamp. validMag,fullyResolved,validTime,validDate="<<(int)(pvt.valid&0x08>>3)<<","<<(int)(pvt.valid&0x04>>2)<<","<<(int)(pvt.valid&0x02>>1)<<","<<(int)(pvt.valid&0x01>>0)<<endl; }
+		continue;
+	}
+
         g_fixtype = pvt.fixtype;
         g_speed = pvt.gSpeed / 1000.0;
         
