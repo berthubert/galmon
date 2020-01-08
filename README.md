@@ -260,6 +260,7 @@ In alphabetical order:
  * Brazil
  * Holland (Nootdorp, Hilversum, etc)
  * India (New Delhi area)
+ * Israel (Jerusalem)
  * New Zealand (Auckland area)
  * Rusia (Moscow area)
  * Singapore
