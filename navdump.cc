@@ -859,12 +859,23 @@ try
     }
     else if(nmm.type() == NavMonMessage::ObserverDetailsType) {
       etstamp();
-      cout<<"Got observerdetails message"<<endl;
+      cout<<"vendor "<<nmm.od().vendor()<<" hwversion " <<nmm.od().hwversion()<<" modules "<<nmm.od().modules()<<" swversion "<<nmm.od().swversion();
+      cout<<" serial "<<nmm.od().serialno();
+      if(nmm.od().has_owner())
+        cout<<" owner "<<nmm.od().owner();
+      if(nmm.od().has_clockoffsetdriftns())
+        cout<<" drift "<<nmm.od().clockoffsetdriftns();
+      if(nmm.od().has_clockaccuracyns())
+        cout<<" clock-accuracy "<<nmm.od().clockaccuracyns();
+      
+      cout<<endl;
     }
     else if(nmm.type() == NavMonMessage::DebuggingType) {
-      etstamp();
-      cout<<"Got debugging message of type "<<nmm.dm().type()<<endl;
+
       auto res = parseTrkMeas(basic_string<uint8_t>((const uint8_t*)nmm.dm().payload().c_str(), nmm.dm().payload().size()));
+      if(res.empty())
+        continue;
+      etstamp();
       uint64_t maxt=0;
       for(const auto& sv : res) {
         if(sv.gnss != 2) continue;
