@@ -136,11 +136,21 @@ function makeTable(str, obj)
     gnss_position=[];
     Object.keys(obj).forEach(function(e) {
         if(e=="svs") {
-
             Object.keys(obj[e]).forEach(function(k) {
-                arr.push({id: k, elev: obj[e][k].elev.toFixed(1),
+                var obj2 ={id: k, elev: obj[e][k].elev.toFixed(1),
                           sigid: obj[e][k].sigid, 
-                          db: obj[e][k].db, azi: obj[e][k].azi.toFixed(1), prres: obj[e][k].prres.toFixed(1), "age-s": obj[e][k]["age-s"]});
+                          db: obj[e][k].db, azi: obj[e][k].azi.toFixed(1),
+                           "age-s": obj[e][k]["age-s"],
+                          prres: obj[e][k].prres.toFixed(1)};
+                
+                if(obj[e][k].delta_hz_corr != null)
+                    obj2["delta_hz_corr"]= obj[e][k].delta_hz_corr.toFixed(1);
+                if(obj[e][k].qi != null)
+                    obj2["qi"]= obj[e][k].qi;
+                if(obj[e][k].used != null)
+                    obj2["used"]= obj[e][k].used;
+                
+                arr.push(obj2);
                 let color="blue";
                 let gnssid = obj[e][k].gnss;
                 if(gnssid == 0)
@@ -164,7 +174,7 @@ function makeTable(str, obj)
         enter().
         append("tr");
 
-    var columns= ["id", "value", "sigid", "azi", "elev", "db", "prres", "age-s"];
+    var columns= ["id", "value", "sigid", "azi", "elev", "db", "qi", "used", "prres", "delta_hz_corr", "age-s"];
     
     // append the header row
     thead.append("tr")
@@ -189,7 +199,7 @@ function makeTable(str, obj)
                 ret.color= null;
                 return ret;
             })}).
-        enter().append("td").html(function(d) {
+        enter().append("td").text(function(d) {
             return d.value;
             
         }).attr("align", d=> d.align).style("background-color", d=> d.color);
@@ -214,7 +224,7 @@ function update()
     });
 
 
-    d3.queue(1).defer(d3.json, "./observers.json").defer(d3.json, "./almanac.json").awaitAll(ready);
+    d3.queue(1).defer(d3.json, "./observers.json").awaitAll(ready);
     
     function ready(error, results) {
         var obj = {};

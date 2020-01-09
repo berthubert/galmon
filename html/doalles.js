@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "best-tle", "iod", "eph-age-m", "latest-disco", "time-disco", "sisa", "health", "tle-dist", "alma-dist", "delta-utc", "delta-gps", "sources", "db", "delta_hz_corr","prres", "elev", "last-seen-s"];    
+    var columns = ["sv", "best-tle", "iod", "eph-age-m", "latest-disco", "time-disco", "sisa", "health", "alma-dist", "delta-utc", "sources", "hqsources", "db", "delta_hz_corr","prres", "elev", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -175,36 +175,68 @@ function updateSats()
             o.db="";
             o.elev="";
             o.delta_hz_corr="";
-            o.prres="";
+            o.sources=0;
+            let prrestot = 0, prresnum=0, dbtot=0, hztot=0, hznum=0;
+            let mindb=1000, maxdb=0;
+            let minelev=90, maxelev=-1;
+            o.hqsources=0;
             Object.keys(o.perrecv).forEach(function(k) {
-                if(o.perrecv[k]["last-seen-s"] < 1800) {
-                    o.sources = o.sources + '<a href="observer.html?observer=' + k + '">'+k+'</a> ';
-
-                    o.db = o.db + o.perrecv[k].db +" ";
-                    if(o.perrecv[k].elev != null)
-                        o.elev = o.elev + o.perrecv[k].elev.toFixed(0)+" ";
-                    else
-                        o.elev = o.elev + "? ";
-
-                    if(o.delta_hz_corr == null)
-                        o.delta_hz_corr ="";
-                    if(o.perrecv[k].delta_hz_corr != null)
-                        o.delta_hz_corr = o.delta_hz_corr + o.perrecv[k].delta_hz_corr.toFixed(0)+" ";
-                    else
-                        o.delta_hz_corr = o.delta_hz_corr + "_ ";
-
-                    if(o.prres == null)
-                        o.prres ="";
-                    if(o.perrecv[k].prres != null)
-                        o.prres = o.prres + o.perrecv[k].prres.toFixed(0)+" ";
-                    else
-                        o.prres = o.prres + "_ ";
-
+                if(o.perrecv[k]["last-seen-s"] < 30) {
+                    o.sources++;
                     
-                    
+                    dbtot += o.perrecv[k].db;
+                    if(o.perrecv[k].db != null) {
+                        let db=o.perrecv[k].db;
+                        if(db > maxdb)
+                            maxdb = db;
+                        if(db <mindb)
+                            mindb =db;
+                    }
+                    if(o.perrecv[k].elev != null) {
+                        let elev=o.perrecv[k].elev;
+                        if(elev > maxelev)
+                            maxelev = elev;
+                        if(elev <minelev)
+                            minelev =elev;
+                    }
+
+                    if(o.perrecv[k].qi != null && o.perrecv[k].qi == 7 && o.perrecv[k].elev > 20
+                       && (o.perrecv[k].prres != 0.000 || o.perrecv[k].used)) {
+                        o.hqsources++;
+
+                        if(o.perrecv[k].delta_hz_corr != null) {
+                            hztot += o.perrecv[k].delta_hz_corr;
+                            hznum++;
+                        }
+                        
+                        if(o.perrecv[k].prres != null) {
+                            prrestot+= o.perrecv[k].prres;
+                            prresnum++;
+                        }
+                    }
                 }
             });
-            
+
+            if(mindb != 1000)
+                o.db = mindb+" - " +maxdb;
+            else
+                o.db = "-";
+
+            if(maxelev != -1)
+                o.elev = minelev.toFixed(0)+" - " +maxelev.toFixed(0);
+            else
+                o.elev = "-";
+
+            if(o.hqsources > 2) {
+                if(prresnum)
+                    o.prres = (prrestot / prresnum).toFixed(2);
+                else
+                    o.prres ="-";
+                if(hznum)
+                    o.delta_hz_corr = (hztot / hznum).toFixed(2);
+                else
+                    o.delta_hz_corr ="-";
+            }
             arr.push(o);
         });
 

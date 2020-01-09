@@ -3,6 +3,11 @@ var repeat;
 
 moment.relativeTimeThreshold('m', 120);
 
+function escapeHTML(html) {
+    return document.createElement('div').appendChild(document.createTextNode(html)).parentNode.innerHTML;
+}
+
+
 function makeTable(str, arr)
 {
     var table=d3.select(str);
@@ -15,7 +20,7 @@ function makeTable(str, arr)
         enter().
         append("tr");
 
-    var columns= ["id", "last-seen", "latitude", "longitude", "satellites"];
+    var columns= ["id", "last-seen", "latitude", "longitude", "owner", "remark",  "vendor", "serialno", "hwversion", "swversion", "mods", "githash", "uptime", "clockdriftns", "clockacc", "freqacc", "h", "acc", "satellites"];
     
     // append the header row
     thead.append("tr")
@@ -51,9 +56,8 @@ function makeTable(str, arr)
                     ret.value += "</small>";
                     ret.align = "left";
                 }
-
                 else {
-                    ret.value = row[column];
+                    ret.value = escapeHTML(row[column]);
                 }
                 return ret;
             })}).
