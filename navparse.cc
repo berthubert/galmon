@@ -1976,7 +1976,7 @@ try
     else if(nmm.type()== NavMonMessage::DebuggingType) {
       auto ret =  parseTrkMeas(basic_string<uint8_t>((const uint8_t*)nmm.dm().payload().c_str(), nmm.dm().payload().size()));
       for(const auto& tss : ret) {
-        SatID id{tss.gnss, tss.sv, tss.gnss == 2 ? 1 : 0};
+        SatID id{static_cast<uint32_t>(tss.gnss), static_cast<uint32_t>(tss.sv), tss.gnss == 2 ? 1u : 0u};
         if(g_svstats[id].completeIOD()) {
           double freqMHZ =  1575.42;
           double tsat = ldexp(1.0* tss.tr, -32) /1000.0;
