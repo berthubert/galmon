@@ -55,7 +55,6 @@ vector<TrkSatStat> parseTrkMeas(std::basic_string_view<uint8_t> payload)
     cerr<<fmt::sprintf("%02x ", (unsigned int) payload[n]);
   cerr<<endl;
   */
-  int msgsize = (payload[2]+256*payload[3]) - 6;
 
   vector<TrkSatStat> ret;
   for(unsigned int n=4 ; n < payload.size(); n+=16) {
@@ -63,7 +62,10 @@ vector<TrkSatStat> parseTrkMeas(std::basic_string_view<uint8_t> payload)
       return ret;
     plaintext.append(plainchunk, plainchunk+16);
   }
-  //  cerr<<"msgsize: "<<msgsize<<", assumed SVs: "<<(int)plaintext[8]<<", per "<<(msgsize-104.0)/(int)plaintext[8]<<endl;
+  /*
+  int msgsize = (payload[2]+256*payload[3]) - 6;
+  cerr<<"msgsize: "<<msgsize<<", assumed SVs: "<<(int)plaintext[8]<<", per "<<(msgsize-104.0)/(int)plaintext[8]<<endl;
+  */
 
   int64_t maxtr=0;
   for(int n = 0 ; n < plaintext[8]; ++n) {
@@ -86,10 +88,10 @@ vector<TrkSatStat> parseTrkMeas(std::basic_string_view<uint8_t> payload)
 
     int gnssid = plaintext[offset+4];
     int sv = plaintext[offset+5];
-    int trkstat = plaintext[offset+8];
     double doppler = ldexp(1.0*rdoppler,-10)*10;
     int plcount = (unsigned int)plaintext[offset+17];
     /*    
+    int trkstat = plaintext[offset+8];
     cerr<<" gnssid " << gnssid <<" sv "<< sv;
     cerr<<" qi "<<(unsigned int)plaintext[offset+1] <<" c "<<(unsigned int)plaintext[offset];
     cerr<<" ? "<<(unsigned int)plaintext[offset+2] << " ? " <<(unsigned int)plaintext[offset+3];
