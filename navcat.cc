@@ -108,20 +108,20 @@ void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
     nmms.clear();
     for(const auto& src: srcs) {
       string fname = getPath(dir, start.first, src);
-      int fd = open(fname.c_str(), O_RDONLY);
-      if(fd < 0)
+      FILE* fp = fopen(fname.c_str(), "r");
+      if(!fp)
         continue;
       uint32_t offset= fpos[fname];
-      if(lseek(fd, offset, SEEK_SET) < 0) {
+      if(fseek(fp, offset, SEEK_SET) < 0) {
         cerr<<"Error seeking: "<<strerror(errno) <<endl;
-        close(fd);
+        fclose(fp);
         continue;
       }
       cerr <<"Seeked to position "<<fpos[fname]<<" of "<<fname<<endl;
       NavMonMessage nmm;
 
       uint32_t looked=0;
-      while(getNMM(fd, nmm, offset)) {
+      while(getNMM(fp, nmm, offset)) {
         // don't drop data that is only 5 seconds too old
         if(make_pair(nmm.localutcseconds() + 5, nmm.localutcnanoseconds()) >= start) {
           nmms.push_back(nmm);
@@ -130,8 +130,9 @@ void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
       }
       cerr<<"Harvested "<<nmms.size()<<" events out of "<<looked<<endl;
       fpos[fname]=offset;
-      close(fd);
+      fclose(fp);
     }
+
     sort(nmms.begin(), nmms.end(), [](const auto& a, const auto& b)
          {
            return make_pair(a.localutcseconds(), b.localutcnanoseconds()) <
@@ -139,12 +140,15 @@ void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
          });
 
     for(const auto& nmm: nmms) {
+      if(nmm.localutcseconds() > stopTime)
+        break;
       std::string out;
       nmm.SerializeToString(&out);
       std::string buf="bert";
       uint16_t len = htons(out.size());
       buf.append((char*)(&len), 2);
       buf+=out;
+      //fwrite(buf.c_str(), 1, buf.size(), stdout);
       writen2(1, buf.c_str(), buf.size());
     }
     if(3600 + start.first - (start.first%3600) < stopTime)
