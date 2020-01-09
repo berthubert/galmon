@@ -36,6 +36,20 @@ struct ObserverPosition
 {
   Point pos;
   double groundSpeed{-1};
+  double accuracy{-1.0};
+  string serialno;
+  string hwversion;
+  string swversion;
+  string mods;
+  string vendor;
+  double clockOffsetNS{-1};
+  double clockOffsetDriftNS{-1};
+  double clockAccuracyNS{-1};
+  double freqAccuracyPS{-1};
+  time_t uptime;
+  string githash;
+  string owner;
+  string remark;
   time_t lastSeen{0};
 };
 std::map<int, ObserverPosition> g_srcpos;
@@ -343,7 +357,7 @@ struct InfluxPusher
     checkSend();
   }
 
-  void addValueObserver(int src, string_view name, const initializer_list<pair<const char*, double>>& values, time_t t)
+  void addValueObserver(int src, string_view name, const initializer_list<pair<const char*, double>>& values, time_t t, std::optional<SatID> satid=std::optional<SatID>())
   {
     if(d_mute)
       return;
@@ -358,7 +372,9 @@ struct InfluxPusher
     }
 
     d_buffer+= string(name)+",src="+to_string(src);
-
+    if(satid) {
+      d_buffer+=",gnssid="+to_string(satid->gnss)+ +",sv=" +to_string(satid->sv)+",sigid="+to_string(satid->sigid);
+    }
     
     d_buffer+= " ";
     bool lefirst=true;
@@ -754,8 +770,19 @@ try
         item["eph-age"] = ephAge(latestTow(2, svstats), ae.second.getT0e());
         item["i0"] = 180.0 * ae.second.getI0()/ M_PI;
         item["inclination"] = 180 * ae.second.getI0() /M_PI;
+
+        item["omega"] = ae.second.getOmega();
+        item["sqrtA"]= ae.second.getSqrtA();
+        item["M0"] = ae.second.getM0();
+        item["delta-n"] = ae.second.getDeltan();
+        item["omega-dot"] = ae.second.getOmegadot();
+        item["omega0"] = ae.second.getOmega0();
+        item["idot"] = ae.second.getIdot();
+        item["t0e"] = ae.second.getT0e();
+
         Point sat;
-        getCoordinates(latestTow(2, svstats), ae.second, &sat);
+        double E=getCoordinates(latestTow(2, svstats), ae.second, &sat);
+        item["E"]=E;
         item["eph-ecefX"]= sat.x/1000;
         item["eph-ecefY"]= sat.y/1000;
         item["eph-ecefZ"]= sat.z/1000;
@@ -875,15 +902,34 @@ try
       for(const auto& src : g_srcpos) {
         nlohmann::json obj;
         obj["id"] = src.first;
-        auto longlat = getLongLat(src.second.pos.x, src.second.pos.y, src.second.pos.z);
-        longlat.first *= 180.0/M_PI;
-        longlat.second *= 180.0/M_PI;
-        longlat.first = ((int)(10*longlat.first))/10.0;
-        longlat.second = ((int)(10*longlat.second))/10.0;
-        obj["longitude"] = longlat.first;
-        obj["latitude"] = longlat.second;
+        auto latlonh = ecefToWGS84(src.second.pos.x, src.second.pos.y, src.second.pos.z);
+        get<0>(latlonh) *= 180.0/M_PI;
+        get<1>(latlonh) *= 180.0/M_PI;
+        get<0>(latlonh) = ((int)(10*get<0>(latlonh)))/10.0;
+        get<1>(latlonh) = ((int)(10*get<1>(latlonh)))/10.0;
+
+        get<2>(latlonh) = ((int)(10*get<2>(latlonh)))/10.0;
+
+        obj["latitude"] = get<0>(latlonh);
+        obj["longitude"] = get<1>(latlonh);
         obj["last-seen"] = src.second.lastSeen;
         obj["ground-speed"] = src.second.groundSpeed;
+        obj["swversion"] = src.second.swversion;
+        obj["hwversion"] = src.second.hwversion;
+        obj["mods"] = src.second.mods;
+        obj["serialno"] = src.second.serialno;
+        obj["clockoffsetns"]= src.second.clockOffsetNS;
+        obj["clockdriftns"]= src.second.clockOffsetDriftNS;
+        obj["clockacc"]= src.second.clockAccuracyNS;
+        obj["freqacc"]= src.second.freqAccuracyPS;
+        obj["uptime"]= src.second.uptime;
+        obj["githash"]= src.second.githash;
+        obj["owner"]= src.second.owner;
+        obj["vendor"]= src.second.vendor;
+        obj["remark"]= src.second.remark;
+
+        obj["acc"] = src.second.accuracy;
+        obj["h"] = get<2>(latlonh);
         auto svstats = g_statskeeper.get();
         nlohmann::json svs = nlohmann::json::object();
 
@@ -898,8 +944,14 @@ try
 
               Point sat;
               
-              if((sv.first.gnss == 0 || sv.first.gnss == 2) && sv.second.completeIOD())
+              if((sv.first.gnss == 0 || sv.first.gnss == 2) && sv.second.completeIOD()) {
+                svo["delta_hz"] = iter->second.deltaHz;
+                auto hzCorrection = getHzCorrection(time(0), src.first , sv.first.gnss, sv.first.sigid, svstats);
+                if(hzCorrection)
+                  svo["delta_hz_corr"] = iter->second.deltaHz - *hzCorrection;
+                
                 getCoordinates(latestTow(sv.first.gnss, svstats), sv.second.liveIOD(), & sat);
+              }
               if(sv.first.gnss == 3 && sv.second.oldBeidouMessage.sow >= 0 && sv.second.oldBeidouMessage.sqrtA != 0) {
                 getCoordinates(latestTow(sv.first.gnss, svstats), sv.second.oldBeidouMessage, &sat);
               }
@@ -914,8 +966,11 @@ try
                 svo["azi"] = getAzimuthDeg(sat, our);
               }
 
+
               
               svo["prres"] = iter->second.prres;
+              svo["qi"] = iter->second.qi;
+              svo["used"] = iter->second.used;
               svo["age-s"] = time(0) - iter->second.t;
               svo["last-seen"] = iter->second.t;
               svo["gnss"] = sv.first.gnss;
@@ -1064,6 +1119,21 @@ try
         ret["latitude"] = 180.0*longlat.second/M_PI;
        
       }
+
+      nlohmann::json recvs = nlohmann::json::object();
+
+      for(const auto& perrecv : s.perrecv) {
+        nlohmann::json recv = nlohmann::json::object();
+        recv["db"] = perrecv.second.db;
+        recv["qi"] = perrecv.second.qi;
+        recv["used"] = perrecv.second.used;
+        recv["prres"] = perrecv.second.prres;
+        recv["elev"] = perrecv.second.el;
+        recv["last-seen-s"] = time(0) - perrecv.second.t;
+        recvs[std::to_string(perrecv.first)] = recv;
+                
+      }
+      ret["recvs"]=recvs;
       return ret;
     }
     );
@@ -1404,6 +1474,8 @@ try
             det["db"] = pr.second.db;
             det["last-seen-s"] = time(0) - pr.second.t;
             det["prres"] = pr.second.prres;
+            det["qi"] = pr.second.qi;
+            det["used"] = pr.second.used;
 
             if(time(0) - pr.second.deltaHzTime < 60) {
               det["delta_hz"] = pr.second.deltaHz;
@@ -1484,11 +1556,24 @@ try
         sigid = 1;
       
       SatID id{(uint32_t)gnssid, (uint32_t)sv, (uint32_t)sigid};
-      g_svstats[id].perrecv[nmm.sourceid()].db = nmm.rd().db();
-      g_svstats[id].perrecv[nmm.sourceid()].el = nmm.rd().el();
-      g_svstats[id].perrecv[nmm.sourceid()].azi = nmm.rd().azi();
-      g_svstats[id].perrecv[nmm.sourceid()].prres = nmm.rd().prres();
+      auto& perrecv = g_svstats[id].perrecv[nmm.sourceid()];
 
+      perrecv.db = nmm.rd().db();
+      
+      perrecv.el = nmm.rd().el();
+      perrecv.azi = nmm.rd().azi();
+
+      perrecv.prres = nmm.rd().prres();
+      if(nmm.rd().has_qi())
+        perrecv.qi = nmm.rd().qi();
+      else
+        perrecv.qi = -1;
+
+      if(nmm.rd().has_used())
+        perrecv.used = nmm.rd().used();
+      else
+        perrecv.used = -1;
+      
       Point sat{0,0,0};
       //cout<<"Got recdata for "<<id.gnss<<","<<id.sv<<","<<id.sigid<<": count="<<g_svstats.count(id)<<endl;
       // XXX this needs to be unified somehow
@@ -1498,13 +1583,18 @@ try
       else if(g_svstats[id].completeIOD()) {
         getCoordinates(g_svstats[id].tow, g_svstats[id].liveIOD(), &sat);
       }
+      
       if(sat.x != 0 && g_srcpos[nmm.sourceid()].pos.x != 0) {
+        if(!(random() % 4))
         idb.addValue(id, nmm.localutcseconds()*1000000000, "recdata",
                      {
                      {"db", nmm.rd().db()},
                        {"azi", getAzimuthDeg(sat, g_srcpos[nmm.sourceid()].pos)},
                          {"ele", getElevationDeg(sat, g_srcpos[nmm.sourceid()].pos)},
-                           {"prres", nmm.rd().prres()}}, nmm.sourceid());
+                           {"prres", nmm.rd().prres()},
+                             {"qi", perrecv.qi},
+                               {"used", perrecv.used}
+                             }, nmm.sourceid());
       }
 
     }
@@ -1527,12 +1617,13 @@ try
       
       if(wtype == 1 || wtype == 2 || wtype == 3) {
         idb.addValue(id, "iod-live", svstat.galmsg.iodnav);
+        idb.addValue(id, "eph-age", ephAge(gm.tow, gm.getT0e()));
       }
       if(wtype == 5 && svstat.galmsgTyped.count(5)) {
         const auto& old5gm = svstat.galmsgTyped[5];
         if(make_tuple(old5gm.e5bhs, old5gm.e1bhs, old5gm.e5bdvs, old5gm.e1bdvs) !=
            make_tuple(gm.e5bhs, gm.e1bhs, gm.e5bdvs, gm.e1bdvs)) {
-          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" Galileo "<<id.sv <<" sigid "<<id.sigid<<" change in health: ["<<humanBhs(old5gm.e5bhs)<<", "<<humanBhs(old5gm.e1bhs)<<", "<<(int)old5gm.e5bdvs <<", " << (int)old5gm.e1bdvs<<"] -> ["<< humanBhs(gm.e5bhs)<<", "<< humanBhs(gm.e1bhs)<<", "<< (int)gm.e5bdvs <<", " << (int)gm.e1bdvs<<"], lastseen "<<ephAge(old5gm.tow, gm.tow)/3600.0 <<" hours"<<endl;
+          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" src "<<nmm.sourceid()<<" Galileo "<<id.sv <<" sigid "<<id.sigid<<" change in health: ["<<humanBhs(old5gm.e5bhs)<<", "<<humanBhs(old5gm.e1bhs)<<", "<<(int)old5gm.e5bdvs <<", " << (int)old5gm.e1bdvs<<"] -> ["<< humanBhs(gm.e5bhs)<<", "<< humanBhs(gm.e1bhs)<<", "<< (int)gm.e5bdvs <<", " << (int)gm.e1bdvs<<"], lastseen "<<ephAge(old5gm.tow, gm.tow)/3600.0 <<" hours"<<endl;
         }
       }
       
@@ -1560,10 +1651,7 @@ try
             idb.addValue(id, "af2", g_svstats[id].iods[iod].af2);
             idb.addValue(id, "t0c", g_svstats[id].iods[iod].t0c * 60);
             
-            double age = ephAge(g_svstats[id].tow, g_svstats[id].iods[iod].t0c * 60);
-            
-            double offset = ldexp(1000.0*(1.0*g_svstats[id].iods[iod].af0 + ldexp(age*g_svstats[id].iods[iod].af1, -12)), -34);
-            idb.addValue(id, "atomic_offset_ns", 1000000.0*offset);
+            idb.addValue(id, "atomic_offset_ns", svstat.galmsg.getAtomicOffset(svstat.tow).first);
 
             if(oldgm.af0 && oldgm.t0c != svstat.galmsg.t0c) {
               auto oldOffset = oldgm.getAtomicOffset(svstat.tow);
@@ -1717,6 +1805,7 @@ try
         g_srcpos[nmm.sourceid()].groundSpeed = nmm.op().groundspeed();
       }
       
+      g_srcpos[nmm.sourceid()].accuracy = nmm.op().acc();
       //      idb.addValueObserver(nmm.sourceid(), "accfix", nmm.op().acc(), nmm.localutcseconds());
 
       auto latlonh = ecefToWGS84(nmm.op().x(), nmm.op().y(), nmm.op().z());
@@ -1747,12 +1836,20 @@ try
                    {{"carrierphase", nmm.rfd().carrierphase()},
                        {"doppler", nmm.rfd().doppler()},
                          {"locktime", nmm.rfd().locktimems()},
-                           {"pseudorange", nmm.rfd().pseudorange()}});
+                           {"pseudorange", nmm.rfd().pseudorange()},
+                             {"prstd", nmm.rfd().prstd()},
+                               {"cpstd", nmm.rfd().cpstd()},
+                                 {"dostd", nmm.rfd().dostd()}
+
+                   }, nmm.sourceid());
       if(id.gnss == 3 && g_svstats[id].oldBeidouMessage.sow >= 0 && g_svstats[id].oldBeidouMessage.sqrtA != 0) {
         double freq = 1561.098;
         if(nmm.rfd().sigid() != 0)
           freq = 1207.140;
-        auto res = doDoppler(nmm.rfd().rcvtow(), g_srcpos[nmm.sourceid()].pos, g_svstats[id].oldBeidouMessage, freq * 1000000);
+
+        // the magic 14 is because 'rcvtow()' is in GPS/Galileo TOW
+        // but BeiDou operates with 14 leap seconds less than GPS/Galileo
+        auto res = doDoppler(nmm.rfd().rcvtow()-14, g_srcpos[nmm.sourceid()].pos, g_svstats[id].oldBeidouMessage, freq * 1000000);
 
         if(isnan(res.preddop)) {
           cerr<<"Problem with doppler calculation for C"<<id.sv<<": "<<endl;
@@ -1768,7 +1865,19 @@ try
           idb.addValue(id, "delta_hz", nmm.rfd().doppler() -  res.preddop);
           auto corr = getHzCorrection(t, nmm.sourceid(), id.gnss, id.sigid, g_svstats);
           if(corr) {
-            idb.addValue(id, "delta_hz_cor", nmm.rfd().doppler() -  res.preddop - (1561.098/1575.42) * (*corr));
+            idb.addValue(id, "delta_hz_cor", nmm.rfd().doppler() -  res.preddop - (*corr));
+            Point sat;
+            getCoordinates(nmm.rfd().rcvtow(), g_svstats[id].oldBeidouMessage, &sat);
+
+            idb.addValue(id, 1000000000.0*t, "correlator",
+                   {{"delta_hz_cor", nmm.rfd().doppler() -  res.preddop - (*corr)},
+                       {"delta_hz", nmm.rfd().doppler() -  res.preddop},
+                         {"elevation", getElevationDeg(sat, g_srcpos[nmm.sourceid()].pos)},
+                           {"prres", g_svstats[id].perrecv[nmm.sourceid()].prres},
+                             {"qi", g_svstats[id].perrecv[nmm.sourceid()].qi}
+                   }, nmm.sourceid());
+
+            
           }
         }
       }
@@ -1779,23 +1888,133 @@ try
         
         auto res = doDoppler(nmm.rfd().rcvtow(), g_srcpos[nmm.sourceid()].pos, g_svstats[id].liveIOD(),freqMHZ * 1000000);
         
-        idb.addValue(id, nanoTime(0, nmm.rfd().rcvwn(), nmm.rfd().rcvtow()), "orbit",
-                   {{"preddop", res.preddop},
-                       {"radvel", res.radvel}});
-
-
+        Point sat;
+        getCoordinates(nmm.rfd().rcvtow(), g_svstats[id].liveIOD(), &sat);
         
         time_t t = utcFromGPS(nmm.rfd().rcvwn(), nmm.rfd().rcvtow());
+//        idb.addValueObserver((int)nmm.sourceid(), "orbit",
+  //                     {{"preddop", res.preddop},
+    //                       {"radvel", res.radvel}}, t, id);
 
-        if(t - g_svstats[id].perrecv[nmm.sourceid()].deltaHzTime > 10) { // only replace after 10 seconds
+
+
+        if(t - g_svstats[id].perrecv[nmm.sourceid()].deltaHzTime > 10) { // only replace after 5 seconds
           g_svstats[id].perrecv[nmm.sourceid()].deltaHz =  nmm.rfd().doppler() -  res.preddop;
           g_svstats[id].perrecv[nmm.sourceid()].deltaHzTime =  t;
           idb.addValue(id, "delta_hz", nmm.rfd().doppler() -  res.preddop);
           auto corr = getHzCorrection(t, nmm.sourceid(), id.gnss, id.sigid, g_svstats);
           if(corr) {
-            idb.addValue(id, "delta_hz_cor", nmm.rfd().doppler() -  res.preddop - *corr);
+            idb.addValue(id, "delta_hz_cor", nmm.rfd().doppler() -  res.preddop - *corr, nmm.sourceid());
+            idb.addValue(id, 1000000000.0*t, "correlator",
+                         {{"delta_hz_cor", nmm.rfd().doppler() -  res.preddop - (*corr)},
+                             {"delta_hz", nmm.rfd().doppler() -  res.preddop},
+                               {"hz", nmm.rfd().doppler()},
+                                 {"elevation", getElevationDeg(sat, g_srcpos[nmm.sourceid()].pos)},
+                                   {"prres", g_svstats[id].perrecv[nmm.sourceid()].prres},
+                                     {"qi", g_svstats[id].perrecv[nmm.sourceid()].qi}
+                         }, nmm.sourceid());
+
+
           }
         }
+      }
+    }
+    else if(nmm.type()== NavMonMessage::ObserverDetailsType) {
+      auto& o = g_srcpos[nmm.sourceid()];
+      o.serialno = nmm.od().serialno();
+
+      o.swversion = nmm.od().swversion();
+      o.hwversion = nmm.od().hwversion();
+      o.mods = nmm.od().modules();
+      if(nmm.od().has_clockoffsetns())
+        o.clockOffsetNS = nmm.od().clockoffsetns();
+      else
+        o.clockOffsetNS = -1;
+      
+      if(nmm.od().has_clockoffsetdriftns())
+        o.clockOffsetDriftNS = nmm.od().clockoffsetdriftns();
+      else
+        o.clockOffsetDriftNS = -1;
+      
+      if(nmm.od().has_clockaccuracyns())
+        o.clockAccuracyNS = nmm.od().clockaccuracyns();
+      else
+        o.clockAccuracyNS = -1;
+      
+      if(nmm.od().has_freqaccuracyps())
+        o.freqAccuracyPS = nmm.od().freqaccuracyps();
+      else
+        o.freqAccuracyPS = -1;
+
+      if(nmm.od().has_uptime())
+        o.uptime = nmm.od().uptime();
+      else
+        o.uptime = -1;
+
+      if(nmm.od().has_recvgithash())
+        o.githash = nmm.od().recvgithash();
+      else
+        o.githash.clear();
+      
+      
+      o.vendor = nmm.od().vendor();
+      o.owner = nmm.od().owner();
+      o.remark = nmm.od().remark();
+
+
+      idb.addValueObserver(nmm.sourceid(), "observer_details", {
+          {"clock_offset_ns", o.clockOffsetNS},
+            {"clock_drift_ns", o.clockOffsetDriftNS},
+              {"clock_acc_ns", o.clockAccuracyNS},
+                {"freq_acc_ps", o.freqAccuracyPS},
+                  {"uptime", o.uptime}
+        }, 
+        nmm.localutcseconds());
+
+      
+    }
+    else if(nmm.type()== NavMonMessage::DebuggingType) {
+      auto ret =  parseTrkMeas(basic_string<uint8_t>((const uint8_t*)nmm.dm().payload().c_str(), nmm.dm().payload().size()));
+      for(const auto& tss : ret) {
+        SatID id{tss.gnss, tss.sv, tss.gnss == 2 ? 1 : 0};
+        if(g_svstats[id].completeIOD()) {
+          double freqMHZ =  1575.42;
+          double tsat = ldexp(1.0* tss.tr, -32) /1000.0;
+          auto res = doDoppler(tsat, g_srcpos[nmm.sourceid()].pos, g_svstats[id].liveIOD(),freqMHZ * 1000000);
+
+          
+          idb.addValueObserver((int)nmm.sourceid(), "orbit",
+                       {{"preddop", res.preddop},
+                           {"radvel", res.radvel}}, (time_t)nmm.localutcseconds(), id);
+
+          //          cout << " preddop "<<res.preddop <<" meas "<<tss.dopplerHz <<" delta " << (tss.dopplerHz - res.preddop);
+          double t = utcFromGPS(latestWN(0, g_svstats), tsat); 
+          if(t - g_svstats[id].perrecv[nmm.sourceid()].deltaHzTime > 5) { // only replace after 5 seconds
+            g_svstats[id].perrecv[nmm.sourceid()].deltaHz =  tss.dopplerHz -  res.preddop;
+            g_svstats[id].perrecv[nmm.sourceid()].deltaHzTime =  t;
+            idb.addValue(id, "delta_hz", tss.dopplerHz -  res.preddop);
+
+            auto corr = getHzCorrection(t, nmm.sourceid(), id.gnss, id.sigid, g_svstats);
+            if(corr) {
+              Point sat;
+              getCoordinates(tsat, g_svstats[id].liveIOD(), &sat);
+
+              idb.addValue(id, "delta_hz_cor", tss.dopplerHz -  res.preddop - *corr, nmm.sourceid());
+
+              idb.addValue(id, 1000000000.0*t, "correlator",
+                           {{"delta_hz_cor", tss.dopplerHz -  res.preddop - *corr},
+                               {"delta_hz", tss.dopplerHz -  res.preddop},
+                                 {"hz", tss.dopplerHz},
+                                   {"elevation", getElevationDeg(sat, g_srcpos[nmm.sourceid()].pos)},
+                                     {"prres", g_svstats[id].perrecv[nmm.sourceid()].prres},
+                                       {"qi", g_svstats[id].perrecv[nmm.sourceid()].qi}
+                           }, nmm.sourceid());
+
+              
+            }
+          }
+        }
+        //        cout<<endl;
       }
     }
     else if(nmm.type()== NavMonMessage::GPSInavType) {
@@ -1821,11 +2040,11 @@ try
         idb.addValue(id, "ura", svstat.ura);
 
         if(oldsvstat.af0 && oldsvstat.ura != svstat.ura)  { // XX find better way to check
-          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" wn "<<svstat.wn <<" GPS "<<id.sv <<"@"<<id.sigid<<" change in URA ["<< humanUra(oldsvstat.ura) <<"] -> [" << humanUra(svstat.ura)<<"] "<<(int)svstat.ura<<", lastseen "<<ephAge(oldsvstat.tow, svstat.tow)/3600.0 <<" hours"<<endl;
+          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" src "<<nmm.sourceid()<<" wn "<<svstat.wn <<" GPS "<<id.sv <<"@"<<id.sigid<<" change in URA ["<< humanUra(oldsvstat.ura) <<"] -> [" << humanUra(svstat.ura)<<"] "<<(int)svstat.ura<<", lastseen "<<ephAge(oldsvstat.tow, svstat.tow)/3600.0 <<" hours"<<endl;
         }
 
         if(oldsvstat.af0 && oldsvstat.gpshealth != svstat.gpshealth)  { // XX find better way to check
-          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" wn "<<svstat.wn <<" GPS "<<id.sv <<"@"<<id.sigid<<" change in health ["<< (int)oldsvstat.gpshealth <<"] -> [" << (int)svstat.gpshealth <<"], lastseen "<<ephAge(oldsvstat.tow, svstat.tow)/3600.0 <<" hours"<<endl;
+          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" src " <<nmm.sourceid()<<" wn "<<svstat.wn <<" GPS "<<id.sv <<"@"<<id.sigid<<" change in health ["<< (int)oldsvstat.gpshealth <<"] -> [" << (int)svstat.gpshealth <<"], lastseen "<<ephAge(oldsvstat.tow, svstat.tow)/3600.0 <<" hours"<<endl;
         }
 
 
@@ -1843,7 +2062,7 @@ try
       }
       else if(frame==2) {
         if(oldsvstat.gpshealth != svstat.gpshealth) {
-          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" GPS "<<id.sv <<"@"<<id.sigid<<" change in health: ["<< (int)oldsvstat.gpshealth<<"] -> ["<< (int)svstat.gpshealth<<"] , lastseen "<<ephAge(oldsvstat.tow, svstat.tow)/3600.0 <<" hours"<<endl;
+          cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" src "<<nmm.sourceid()<<" GPS "<<id.sv <<"@"<<id.sigid<<" change in health: ["<< (int)oldsvstat.gpshealth<<"] -> ["<< (int)svstat.gpshealth<<"] , lastseen "<<ephAge(oldsvstat.tow, svstat.tow)/3600.0 <<" hours"<<endl;
         }
         idb.addValue(id, "gpshealth", g_svstats[id].gpshealth);
       }
@@ -1866,6 +2085,7 @@ try
         g_svstats[id].wn += 2048;
     }
     else if(nmm.type()== NavMonMessage::BeidouInavTypeD1) {
+    try {
       SatID id{nmm.bid1().gnssid(), nmm.bid1().gnsssv(), nmm.bid1().sigid()};
 
       g_svstats[id].perrecv[nmm.sourceid()].t = nmm.localutcseconds();
@@ -1977,6 +2197,9 @@ try
         g_dtLSBeidou = bm.deltaTLS;
         //        cout<<"Beidou leap seconds: "<<g_dtLSBeidou<<endl;
       }
+      }catch(std::exception& e) {
+      cerr<<"Beidou: "<<e.what()<<endl;
+      }
     }
     else if(nmm.type()== NavMonMessage::BeidouInavTypeD2) {
       auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid2().contents().c_str(), nmm.bid2().contents().size()));
@@ -2007,6 +2230,7 @@ try
         //        cout<<"Glonass now: "<<humanTime(glotime + 820368000) << " n4 "<<(int)gm.n4<<" NT "<<(int)gm.NT<< " wn "<<svstat.wn <<" tow " <<svstat.tow<<endl;
       }
       else if(strno == 2) {
+        idb.addValue(id, "glohealth", gm.Bn);
         if(oldgm.Bn != gm.Bn) {
           cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" n4 "<< (int)gm.n4<<" NT " << (int)gm.NT<<" GLONASS R"<<id.sv<<"@"<<id.sigid<<" health changed from  "<<(int)oldgm.Bn <<" to "<< (int)gm.Bn <<endl;
 

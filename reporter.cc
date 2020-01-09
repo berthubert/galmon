@@ -40,7 +40,7 @@ int main(int argc, char **argv)
 {
   MiniCurl mc;
   MiniCurl::MiniCurlHeaders mch;
-  string dbname("galileo3");
+  string dbname("galileo");
 
   string url="http://127.0.0.1:8086/query?db="+dbname+"&epoch=s&q=";
   string period="time > now() - 1w";

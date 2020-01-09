@@ -756,6 +756,23 @@ int main(int argc, char** argv)
           cerr<<humanTimeNow()<<" Got nack on F9P GNSS setting"<<endl;
           exit(-1);
         }
+
+        /* VALSET
+        0x20 91 02 32 = 
+        */
+
+        msg = buildUbxMessage(0x06, 0x8a, {0x00, 0x01, 0x00, 0x00,
+              0x07, 0x00, 0x91, 0x20, 1,
+              0x32, 0x02, 0x91, 0x20, 1});
+        if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, 0x8a)) { // msg cfg F9P
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on F9P UART1 setting"<<endl; }
+        }
+        else {
+          cerr<<humanTimeNow()<<" Got nack on F9P UART1 setting"<<endl;
+          exit(-1);
+        }
+        
+        
       }
 
       if(doSBAS) {
