@@ -829,7 +829,7 @@ int main(int argc, char** argv)
       
       if(!version9 && !m8t) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling debugging data"<<endl; } // RF doppler
-        enableUBXMessageOnPort(fd, 0x03, 0x10, ubxport, 1);
+        enableUBXMessageOnPort(fd, 0x03, 0x10, ubxport, 4);
       }
       else
         enableUBXMessageOnPort(fd, 0x03, 0x10, ubxport, 0);
