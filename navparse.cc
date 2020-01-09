@@ -939,8 +939,8 @@ try
               nlohmann::json svo = nlohmann::json::object();
               svo["db"] = iter->second.db;
 
-              svo["elev"] = iter->second.el;
-              svo["azi"] = iter->second.azi;
+              svo["elev"] = roundf(10.0*iter->second.el)/10.0;
+              svo["azi"] = roundf(10.0*iter->second.azi)/10.0;
 
               Point sat;
               
@@ -962,8 +962,8 @@ try
               }
               if(sat.x) {
                 Point our = g_srcpos[iter->first].pos;
-                svo["elev"] = getElevationDeg(sat, our);
-                svo["azi"] = getAzimuthDeg(sat, our);
+                svo["elev"] = roundf(10.0*getElevationDeg(sat, our))/10.0;
+                svo["azi"] = roundf(10.0*getAzimuthDeg(sat, our))/10.0;
               }
 
 
@@ -1465,8 +1465,8 @@ try
 
             if(sat.x) {
               Point our = g_srcpos[pr.first].pos;
-              det["elev"] = getElevationDeg(sat, our);
-              det["azi"] = getAzimuthDeg(sat, our);
+              det["elev"] = roundf(10.0*getElevationDeg(sat, our))/10.0;
+              det["azi"] = roundf(10.0*getAzimuthDeg(sat, our))/10.0;
             }
             else
               det["elev"] = pr.second.el;
