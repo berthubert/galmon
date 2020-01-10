@@ -15,6 +15,12 @@ var projectionChoices = [
 ]
 
 var projectionChoice = 0;
+var constellation_state = {G: true, E: true, C: true, I: false, J: false, R: true};
+var coverage_map_state = true;
+var observer_map_state = true;
+var display_all_state = false;
+var globe_rotate = {lambda: 0.0, phi: 0.0};
+var globe_rotate_center = {lambda: 0.0, phi: 0.0};
 
 //
 //
@@ -732,9 +738,6 @@ function read_world()
 	}
 }
 
-var globe_rotate = {lambda: 0.0, phi: 0.0};
-var globe_rotate_center = {lambda: 0.0, phi: 0.0};
-
 function set_rotate_from_tz()
 {
 	var offset = new Date().getTimezoneOffset();	// in minutes from UTC
@@ -749,14 +752,14 @@ function set_rotate_from_tz()
 function geo_start()
 {
 	set_rotate_from_tz();
+	read_cookies();
 	read_world();
+	update_cookies();	// so that any new cookie format is correctly updated
 }
 
 geo_start();
 
 // d3.select("body").onresize = do_redisplay_timer;
-
-var constellation_state = {G: true, E: true, C: true, I: false, J: false, R: true};
 
 function constellation_click(node)
 {
@@ -780,6 +783,7 @@ function constellation_click(node)
 	}
 	d3.selectAll(".radials").remove();
 	display_all_refresh();
+	update_cookies();
 }
 
 function constellation_refresh()
@@ -794,9 +798,6 @@ function constellation_refresh()
 	}
 }
 
-var coverage_map_state = true;
-var observer_map_state = true;
-
 function coverage_map_click(node)
 {
 	if (node.childNodes[1].checked) {
@@ -805,6 +806,7 @@ function coverage_map_click(node)
 		coverage_map_state = false;
 	}
 	coverage_map_refresh();
+	update_cookies();
 }
 
 function coverage_map_refresh()
@@ -825,6 +827,7 @@ function observer_map_click(node)
 		observer_map_state = false;
 	}
 	observer_map_refresh();
+	update_cookies();
 }
 
 function observer_map_refresh()
@@ -837,8 +840,6 @@ function observer_map_refresh()
 	}
 }
 
-var display_all_state = false;
-
 function display_all_click(node)
 {
 	if (node.childNodes[1].checked) {
@@ -847,6 +848,7 @@ function display_all_click(node)
 		display_all_state = false;
 	}
 	display_all_refresh();
+	update_cookies();
 }
 
 function display_all_refresh()
@@ -870,6 +872,7 @@ function show_history_click(node)
 		// XXX
 		console.log(c + " :not checked");
 	}
+	update_cookies();
 }
 
 function show_animate_click(node)
@@ -882,6 +885,7 @@ function show_animate_click(node)
 		// XXX
 		console.log(c + " :not checked");
 	}
+	update_cookies();
 }
 
 function update_projection_click(node)
@@ -892,6 +896,7 @@ function update_projection_click(node)
 		projectionChoice = 0;
 	// now redraw everything!
 	read_world();
+	update_cookies();
 }
 
 function rotate_globe(node)
@@ -909,14 +914,163 @@ function rotate_globe(node)
 	} else if (t == "rotate_south") {
 		globe_rotate.phi -= 10;				// South
         }
+	if (globe_rotate.phi < -90)
+		globe_rotate.phi += 180;
+	if (globe_rotate.phi > 90)
+		globe_rotate.phi -= 180;
+
+	if (globe_rotate.lambda < -180)
+		globe_rotate.lambda += 360;
+	if (globe_rotate.lambda > 180)
+		globe_rotate.lambda -= 360;
 
 	read_world();
+	update_cookies();
+}
+
+
+function read_cookies()
+{
+	var cookie_name = 'galmon_geo';
+	var cookie_value;
+
+	cookie_value = getCookie(cookie_name);
+	// console.log('read cookie_value = "' + cookie_value + '"');
+	if (cookie_value == null) {
+		return;
+	}
+	if (cookie_value.indexOf(',') == -1) {
+		eraseCookie(cookie_name);
+		return;
+	}
+	var v = cookie_value.split(',');
+	for (var ii=0;ii<v.length;ii++) {
+		var a = v[ii].split('=');
+		// console.log('item = ' + a[0] + ' value = ' + a[1]);
+		switch (a[0]) {
+		case 'observer_map_state':
+			if (a[1] == 'true') { observer_map_state = true; } else { observer_map_state = false; }
+			document.getElementById("observer_map").childNodes[1].checked = observer_map_state;
+			break;
+		case 'coverage_map_state':
+			if (a[1] == 'true') { coverage_map_state = true; } else { coverage_map_state = false; }
+			document.getElementById("coverage_map").childNodes[1].checked = coverage_map_state;
+			coverage_map_refresh();
+			break;
+		case 'constellation_state':
+			var c = ['G', 'E', 'C', 'I', 'J', 'R'];
+			for (var jj=0;jj<c.length;jj++) {
+				var l = c[jj];
+				constellation_state[l] = false;	// turn all off first
+				if (document.getElementById('constellation' + l)) {
+					document.getElementById('constellation' + l).childNodes[1].checked = false;
+				}
+			}
+			for (var jj=0;jj<a[1].length;jj++) {
+				var l = a[1][jj];
+				constellation_state[l] = true;	// turn on the ones listed
+				if (document.getElementById('constellation' + l)) {
+					document.getElementById('constellation' + l).childNodes[1].checked = true;
+				}
+			}
+			break;
+		case 'display_all_state':
+			if (a[1] == 'true') { display_all_state = true; } else { display_all_state = false; }
+			document.getElementById("display_all").childNodes[1].checked = display_all_state;
+			break;
+		case 'projectionChoice':
+			projectionChoice = parseInt(a[1], 10);
+			if (projectionChoice < 0)
+				projectionChoice = 0;
+			if (projectionChoice >= projectionChoices.length)
+				projectionChoice = 0;
+			break;
+		case 'globe_rotate.phi':
+			globe_rotate.phi = parseFloat(a[1]);
+			if (globe_rotate.phi < -90)
+				globe_rotate.phi = -90;
+			if (globe_rotate.phi > 90)
+				globe_rotate.phi = 90;
+			break;
+		case 'globe_rotate.lambda':
+			globe_rotate.lambda = parseFloat(a[1]);
+			if (globe_rotate.lambda < -180)
+				globe_rotate.lambda = -180;
+			if (globe_rotate.lambda > 180)
+				globe_rotate.lambda = 180;
+			break;
+		default:
+			eraseCookie(cookie_name);
+			break;
+		}
+	}
+}
+
+function update_cookies()
+{
+	var cookie_name = 'galmon_geo';
+	var cookie_value = '';
+	var cookie_days = 14;
+
+	var v = '';
+	var c = ['G', 'E', 'C', 'I', 'J', 'R'];
+	for (var ii=0;ii<c.length;ii++) {
+		if (constellation_state[c[ii]]) {
+			v += c[ii];
+		}
+	}
+	cookie_value += 'observer_map_state' + '=' + observer_map_state + ',';
+	cookie_value += 'coverage_map_state' + '=' + coverage_map_state + ',';
+	cookie_value += 'constellation_state' + '=' + v + ',';
+	cookie_value += 'display_all_state' + '=' + display_all_state + ',';
+	cookie_value += 'projectionChoice' + '=' + projectionChoice + ',';
+	cookie_value += 'globe_rotate.phi' + '=' + globe_rotate.phi + ',';
+	cookie_value += 'globe_rotate.lambda' + '=' + globe_rotate.lambda;
+
+	// console.log('write cookie_value = "' + cookie_value + '"');
+	setCookie(cookie_name, cookie_value, cookie_days);
+}
+
+//
+// https://stackoverflow.com/questions/14573223/set-cookie-and-get-cookie-with-javascript
+//
+
+function setCookie(name, value, days)
+{
+	var expires = "";
+	if (days) {
+		var date = new Date();
+		date.setTime(date.getTime() + (days*24*60*60*1000));
+		expires = "; expires=" + date.toUTCString();
+	}
+	document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+}
+
+function getCookie(name)
+{
+	var nameEQ = name + "=";
+	var ca = document.cookie.split(';');
+	for(var i=0;i < ca.length;i++) {
+		var c = ca[i];
+		while (c.charAt(0) == ' ') {
+			c = c.substring(1, c.length); 
+		}
+		if (c.indexOf(nameEQ) == 0) {
+			return c.substring(nameEQ.length, c.length);
+		}
+	}
+	return null;
+}
+
+function eraseCookie(name)
+{   
+	document.cookie = name + '=; Max-Age=-99999999;';  
 }
 
 // JQuery also has a startup 
 
 $(document).ready(function () {
-	$("[id^='constilation']").click(function() { constellation_click(this); });
+	$("[id^='constellation']").click(function() { constellation_click(this); });
 	$('#coverage_map').click(function() { coverage_map_click(this); });
 	$('#observer_map').click(function() { observer_map_click(this); });
 
