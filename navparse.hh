@@ -1,3 +1,4 @@
+#pragma once
 #include "navmon.hh"
 #include "galileo.hh"
 #include "gps.hh"
