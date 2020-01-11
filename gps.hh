@@ -236,7 +236,7 @@ int parseGPSMessage(std::basic_string_view<uint8_t> cond, T& out, uint8_t* pagep
     out.af2 = getbits(&cond[0], 8*24, 8);           // * 2^-55
     out.af1 = getbits(&cond[0], 8*24 + 8, 16);      // * 2^-43
     out.af0 = getbits(&cond[0], 9*24, 22);          // * 2^-31
-    out.t0c = getbits(&cond[0], 7*24 + 8, 16);      // * 16 
+    out.t0c = getbitu(&cond[0], 7*24 + 8, 16);      // * 16
     //    cerr<<"t0c*16: "<<out.t0c*16<<", af2: "<< (int)out.af2 <<", af1: "<< out.af1 <<", af0: "<<
     //      out.af0 <<endl;
   }
