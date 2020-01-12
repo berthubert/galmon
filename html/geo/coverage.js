@@ -1,7 +1,7 @@
 'use strict';
 //
 
-var wantGPS=0, wantGalileo=0, wantBeidou=0;
+var wantGPS=0, wantGalileo=0, wantBeidou=0, wantGlonass=0;
 //
 //
 
@@ -315,14 +315,17 @@ function do_timer()
     wantGPS = 0;
     wantGalileo = 0;
     wantBeidou = 0;
+    wantGlonass = 0;
     if(d3.select("#GPSL1CA").property("checked"))
         wantGPS=1;
     if(d3.select("#GalE1").property("checked"))
         wantGalileo=1;
     if(d3.select("#Beidou").property("checked"))
         wantBeidou=1;
+    if(d3.select("#Glonass").property("checked"))
+        wantGlonass=1;
 
-    var galcovurl="../cov.json?gps="+wantGPS+"&galileo="+wantGalileo+"&beidou="+wantBeidou;
+    var galcovurl="../cov.json?gps="+wantGPS+"&galileo="+wantGalileo+"&beidou="+wantBeidou+"&glonass="+wantGlonass;
     
     d3.queue(1)
 	.defer(d3.json, fileAlmanac)
