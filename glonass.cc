@@ -110,7 +110,7 @@ double getCoordinates(double tow, const GlonassMessage& eph, Point* p)
   uint32_t ephtow =  (gloT0e - 820368000) % (7*86400);
 
   double DT = tow - ephtow;
-  int n = abs (DT / 100); // integrate in roughly 100 second steps
+  int n = abs (DT / 100) + 1; // integrate in roughly 100 second steps
   double h = DT / n;
   for (int j = 0; j < n; j ++)
     rk4step (A, y0, h);
