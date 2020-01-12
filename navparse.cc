@@ -123,8 +123,6 @@ string humanUra(uint8_t ura)
   return "NO URA AVAILABLE";
 }
 
-
-
 void SVIOD::addGalileoWord(std::basic_string_view<uint8_t> page)
 {
   uint8_t wtype = getbitu(&page[0], 0, 6);
@@ -1513,7 +1511,8 @@ try
               auto oldOffset = oldgm.getAtomicOffset(svstat.tow);
               auto newOffset = svstat.galmsg.getAtomicOffset(svstat.tow);
               svstat.timeDisco = oldOffset.first - newOffset.first;
-              idb.addValue(id, "clock_jump_ns", {{"value", svstat.timeDisco}}, satUTCTime(id));
+              if(fabs(svstat.timeDisco) < 10000)
+                idb.addValue(id, "clock_jump_ns", {{"value", svstat.timeDisco}}, satUTCTime(id));
             }
           }
         }
@@ -1548,6 +1547,7 @@ try
           idb.addValue(id, "utcoffset", {
               {"a0", g_svstats[id].a0},
                 {"a1", g_svstats[id].a1},
+                  {"t0t", g_svstats[id].t0t},
                   {"delta", 1.073741824*ldexp(1.0*shift, -20)}
             },
             satUTCTime(id));
@@ -1633,8 +1633,8 @@ try
                                          {"x", p.x},
                                            {"y", p.y},
                                              {"z", p.z},
-                                               {"oid", 1.0*ent.second.getIOD()},
-                                                 {"oldoid", 1.0*ent.second.prevIOD.first}}, satUTCTime(id));
+                                               {"iod", 1.0*ent.second.getIOD()},
+                                                 {"iod", 1.0*ent.second.prevIOD.first}}, satUTCTime(id));
               }
             }
             ent.second.clearPrev();          
@@ -1719,8 +1719,11 @@ try
                    {{"delta_hz_cor", nmm.rfd().doppler() -  res.preddop - (*corr)},
                        {"delta_hz", nmm.rfd().doppler() -  res.preddop},
                          {"elevation", getElevationDeg(sat, g_srcpos[nmm.sourceid()].pos)},
+                           {"hz", nmm.rfd().doppler()},
                            {"prres", g_svstats[id].perrecv[nmm.sourceid()].prres},
-                             {"qi", g_svstats[id].perrecv[nmm.sourceid()].qi}
+                             {"qi", g_svstats[id].perrecv[nmm.sourceid()].qi},
+                               {"used", g_svstats[id].perrecv[nmm.sourceid()].used},
+                               {"db", g_svstats[id].perrecv[nmm.sourceid()].db}
                    }, nanoTime(0, nmm.rfd().rcvwn(), nmm.rfd().rcvtow())/1000000000.0, nmm.sourceid()); //this time is supplied in GPS timeframe
 
             
@@ -1757,7 +1760,10 @@ try
                                {"hz", nmm.rfd().doppler()},
                                  {"elevation", getElevationDeg(sat, g_srcpos[nmm.sourceid()].pos)},
                                    {"prres", g_svstats[id].perrecv[nmm.sourceid()].prres},
-                                     {"qi", g_svstats[id].perrecv[nmm.sourceid()].qi}
+                                     {"qi", g_svstats[id].perrecv[nmm.sourceid()].qi},
+                                       {"used", g_svstats[id].perrecv[nmm.sourceid()].used},
+                                         {"db", g_svstats[id].perrecv[nmm.sourceid()].db}
+                               
                          }, t, nmm.sourceid());
 
 
@@ -1853,7 +1859,10 @@ try
                                  {"hz", tss.dopplerHz},
                                    {"elevation", getElevationDeg(sat, g_srcpos[nmm.sourceid()].pos)},
                                      {"prres", g_svstats[id].perrecv[nmm.sourceid()].prres},
-                                       {"qi", g_svstats[id].perrecv[nmm.sourceid()].qi}
+                                       {"qi", g_svstats[id].perrecv[nmm.sourceid()].qi},
+                                         {"used", g_svstats[id].perrecv[nmm.sourceid()].used},
+                                           {"db", g_svstats[id].perrecv[nmm.sourceid()].db}
+
                            }, t, nmm.sourceid());
 
               
@@ -1903,7 +1912,8 @@ try
           auto oldOffset = getGPSAtomicOffset(svstat.tow, oldsvstat);
           auto newOffset = getGPSAtomicOffset(svstat.tow, svstat);
           svstat.timeDisco = oldOffset.first - newOffset.first;
-          idb.addValue(id, "clock_jump_ns", {{"value", svstat.timeDisco}}, satUTCTime(id));
+          if(fabs(svstat.timeDisco) < 10000)
+            idb.addValue(id, "clock_jump_ns", {{"value", svstat.timeDisco}}, satUTCTime(id));
         }
       }
       else if(frame==2) {
@@ -1967,11 +1977,13 @@ try
                     {"af2", bm.a2 / 128}}, satUTCTime(id)); // scaled to galileo units
         
         idb.addValue(id, "beidouhealth", {{"sath1", bm.sath1}}, satUTCTime(id));
+        idb.addValue(id, "beidouurai", {{"value", bm.urai}}, satUTCTime(id));
         if(svstat.lastBeidouMessage1.wn >=0 && svstat.lastBeidouMessage1.t0c != bm.t0c) {
           auto oldOffset = svstat.lastBeidouMessage1.getAtomicOffset(bm.sow);
           auto newOffset = bm.getAtomicOffset(bm.sow);
           svstat.timeDisco = oldOffset.first - newOffset.first;
-          idb.addValue(id, "clock_jump_ns", {{"value", svstat.timeDisco}}, satUTCTime(id));
+          if(fabs(svstat.timeDisco) < 10000)
+            idb.addValue(id, "clock_jump_ns", {{"value", svstat.timeDisco}}, satUTCTime(id));
         }
         svstat.lastBeidouMessage1 = bm;        
       }
@@ -2012,8 +2024,8 @@ try
                                {"seconds", hours*3600.0},
                                  {"oldx", oldpoint.x}, {"oldy", oldpoint.y}, {"oldz", oldpoint.z},
                                                                                {"x", newpoint.x}, {"y", newpoint.y}, {"z", newpoint.z},
-                             {"oid", 0},
-                               {"oldoid", 0}}, nanoTime(id.gnss, bm.wn, bm.sow)/1000000000.0);
+                             {"iod", 0},
+                               {"oldiod", 0}}, nanoTime(id.gnss, bm.wn, bm.sow)/1000000000.0);
             }
           }
           
