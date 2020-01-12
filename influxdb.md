@@ -20,6 +20,8 @@ band on which this data was received.
    * value: raw Galileo SISA value
  * gpsura, updated every frame
    * value: raw GPS URA value
+ * beidouurai, updated every frame
+   * value: raw BeiDou URAI value (more or less same as GPS)
  * FT, GLONASS specific FT value (SISA)
  * clock, clock information, updated every frame
    * offset\_ns: time offset of this clock wrt GST/GPS time/Beidou time
