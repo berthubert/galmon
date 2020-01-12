@@ -13,6 +13,11 @@ most high-end receiver, which does all bands, all the time, is the Ublox
 F9P, several of us use the
 [ArdusimpleRTK2B](https://www.ardusimple.com/simplertk2b/) board.
 
+To deliver data to the project, please read
+[The Galmon GNSS Monitoring Project](https://berthub.eu/articles/posts/galmon-project/)
+and consult the rules outlined in [the operator
+guidelines](https://github.com/ahupowerdns/galmon/blob/master/operator.md).
+
 Highlights
 ----------
 
@@ -35,7 +40,9 @@ Highlights
 
 Data is made available as JSON, as a user-friendly website and as a
 time-series database. This time-series database is easily mated to the
-industry standard Matplotlib/Pandas/Jupyter combination. 
+industry standard Matplotlib/Pandas/Jupyter combination (details 
+[here]((https://github.com/ahupowerdns/galmon/blob/master/influxdb.md)).
+
 
 There is also tooling to extract raw frames/strings/words from specific
 timeframes.
