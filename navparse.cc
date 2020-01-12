@@ -797,7 +797,7 @@ try
               if(sv.first.gnss == 3 && sv.second.oldBeidouMessage.sow >= 0 && sv.second.oldBeidouMessage.sqrtA != 0) {
                 getCoordinates(latestTow(sv.first.gnss, svstats), sv.second.oldBeidouMessage, &sat);
               }
-              if(sv.first.gnss == 6) {
+              if(sv.first.gnss == 6 && sv.second.wn > 0) {
 		getCoordinates(latestTow(6, svstats), sv.second.glonassMessage, &sat);
               }
               if(sat.x) {
