@@ -520,11 +520,11 @@ try
       if(frame == 1) {
         static map<int, GPSState> oldgs1s;
         gpswn = gs.wn;
-        cout << "gpshealth = "<<(int)gs.gpshealth<<", wn "<<gs.wn << " t0c "<<gs.t0c;
+        cout << "gpshealth = "<<(int)gs.gpshealth<<", wn "<<gs.wn << " t0c "<<gs.t0c << " af0 " << gs.af0 << " af1 " << gs.af1 <<" af2 " << gs.af2;
         if(auto iter = oldgs1s.find(sv); iter != oldgs1s.end() && iter->second.t0c != gs.t0c) {
           auto oldOffset = getGPSAtomicOffset(gs.tow, iter->second);
           auto newOffset = getGPSAtomicOffset(gs.tow, gs);
-          cout<<"  Timejump: "<<oldOffset.first - newOffset.first<<" after "<<(getT0c(gs) - getT0c(iter->second) )<<" seconds, old t0c "<<iter->second.t0c;
+          cout<<"  Timejump: "<<oldOffset.first - newOffset.first<<" after "<< ephAge(getT0c(gs), getT0c(iter->second) )<<" seconds, old t0c "<<iter->second.t0c;
         }
         oldgs1s[sv] = gs;
       }
@@ -961,7 +961,7 @@ try
         cout<<" clockoff-ms " << clockoffms << endl;
         
       }
-      
+      cout<<endl;
     }
     else {
       etstamp();
