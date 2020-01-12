@@ -4,6 +4,7 @@
 #include "bits.hh"
 #include <iostream>
 #include <math.h>
+#include "minivec.hh"
 std::basic_string<uint8_t> getGlonassessage(std::basic_string_view<uint8_t> payload);
 
 struct GlonassMessage
@@ -195,3 +196,4 @@ struct GlonassMessage
   
 };
 uint32_t getGlonassT0e(time_t referencetime, int Tb);
+double getCoordinates(double tow, const GlonassMessage& eph, Point* p);

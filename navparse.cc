@@ -798,9 +798,7 @@ try
                 getCoordinates(latestTow(sv.first.gnss, svstats), sv.second.oldBeidouMessage, &sat);
               }
               if(sv.first.gnss == 6) {
-                sat.x = sv.second.glonassMessage.x;
-                sat.y = sv.second.glonassMessage.y;
-                sat.z = sv.second.glonassMessage.z;
+		getCoordinates(latestTow(6, svstats), sv.second.glonassMessage, &sat);
               }
               if(sat.x) {
                 Point our = g_srcpos[iter->first].pos;
@@ -990,7 +988,7 @@ try
       //  cout<<"pseudoTow "<<pseudoTow<<endl;
       string_view path = convert(req->path);
 
-      bool doGalileo{true}, doGPS{false}, doBeidou{false};
+      bool doGalileo{true}, doGPS{false}, doBeidou{false}, doGlonass{false};
       auto pos = path.find("gps=");
       if(pos != string::npos) {
         doGPS = (path[pos+4]=='1');
@@ -1002,6 +1000,10 @@ try
       pos = path.find("beidou=");
       if(pos != string::npos) {
         doBeidou = (path[pos+7]=='1');
+      }
+      pos = path.find("glonass=");
+      if(pos != string::npos) {
+        doGlonass = (path[pos+8]=='1');
       }
       
       if(doGalileo)
@@ -1060,6 +1062,19 @@ try
         sats.push_back(sat);
       }
 
+      // fake almanac from svstats -- to avoid ejecting Glonasses to another galaxy due
+      // to excessive extrapolation, they freeze where they were last seen.
+      if(doGlonass)
+      for(const auto &s : svstats) {
+	if(s.first.gnss == 6 && s.second.wn > 0) {
+	  Point sat;
+	  getCoordinates(s.second.tow, s.second.glonassMessage, &sat);
+	  if(svstats[s.first].glonassMessage.Bn & 7) {
+	    continue;
+	  }
+	  sats.push_back(sat);
+	}
+      }
       
       
       auto cov = emitCoverage(sats);
