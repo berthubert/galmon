@@ -79,6 +79,32 @@ bool getNMM(FILE* fp, NavMonMessage& nmm, uint32_t& offset)
   return true;
 }
 
+bool getRawNMM(int fd, timespec& t, string& raw, uint32_t& offset)
+{
+  char bert[4];
+  if(read(fd, bert, 4) != 4 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
+    return false;
+  }
+    
+    
+  uint16_t len;
+  if(read(fd, &len, 2) != 2)
+    return false;
+  len = htons(len);
+  char buffer[len];
+  if(read(fd, buffer, len) != len)
+    return false;
+
+  NavMonMessage nmm;
+  raw.assign(buffer, len);
+  nmm.ParseFromString(raw);
+  t.tv_sec = nmm.localutcseconds();
+  t.tv_nsec = nmm.localutcnanoseconds();
+  offset += 4 + 2 + len;
+  return true;
+}
+
+
 
 bool getRawNMM(FILE* fp, timespec& t, string& raw, uint32_t& offset)
 {
