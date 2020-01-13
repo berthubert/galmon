@@ -98,7 +98,9 @@ static size_t writen2(int fd, const void *buf, size_t count)
 
 void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
 {
-  pair<int64_t, int64_t> start(startTime, 0);
+  timespec start;
+  start.tv_sec = startTime;
+  start.tv_nsec = 0;
 
   // so we have a ton of files, and internally these are not ordered
   map<string,uint32_t> fpos;
@@ -107,7 +109,7 @@ void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
     auto srcs = getSources(dir);
     rnmms.clear();
     for(const auto& src: srcs) {
-      string fname = getPath(dir, start.first, src);
+      string fname = getPath(dir, start.tv_sec, src);
       FILE* fp = fopen(fname.c_str(), "r");
       if(!fp)
         continue;
@@ -124,7 +126,7 @@ void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
       struct timespec ts;
       while(getRawNMM(fp, ts, msg, offset)) {
         // don't drop data that is only 5 seconds too old
-        if(make_pair(ts.tv_sec + 5, ts.tv_nsec) >= start) {
+        if(make_pair(ts.tv_sec + 5, ts.tv_nsec) >= make_pair(start.tv_sec, start.tv_nsec)) {
           rnmms.push_back({ts, msg});
         }
         ++looked;
@@ -150,8 +152,8 @@ void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
       //fwrite(buf.c_str(), 1, buf.size(), stdout);
       writen2(1, buf.c_str(), buf.size());
     }
-    if(3600 + start.first - (start.first%3600) < stopTime)
-      start.first = 3600 + start.first - (start.first%3600);
+    if(3600 + start.tv_sec - (start.tv_sec%3600) < stopTime)
+      start.tv_sec = 3600 + start.tv_sec - (start.tv_sec%3600);
     else {
       break;
     }

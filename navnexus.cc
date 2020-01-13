@@ -60,7 +60,9 @@ try
 {
   cerr<<"New downstream client "<<client.toStringWithPort() << endl;
 
-  pair<int64_t, int64_t> start(startTime, 0);
+  timespec start;
+  start.tv_sec = startTime;
+  start.tv_nsec = 0;
 
   // so we have a ton of files, and internally these are not ordered
   map<string,uint32_t> fpos;
@@ -69,7 +71,7 @@ try
     auto srcs = getSources();
     rnmms.clear();
     for(const auto& src: srcs) {
-      string fname = getPath(g_storage, start.first, src);
+      string fname = getPath(g_storage, start.tv_sec, src);
       int fd = open(fname.c_str(), O_RDONLY);
       if(fd < 0)
         continue;
@@ -88,7 +90,7 @@ try
 
       while(getRawNMM(fd, ts, msg, offset)) {
         // don't drop data that is only 5 seconds too old
-        if(make_pair(ts.tv_sec + 5, ts.tv_nsec) >= start) {
+        if(make_pair(ts.tv_sec + 5, ts.tv_nsec) >= make_pair(start.tv_sec, start.tv_nsec)) {
           rnmms.push_back({ts, msg});
         }
         ++looked;
@@ -114,8 +116,8 @@ try
       SWriten(clientfd, buf);
     }
     cout<<"Done"<<endl;
-    if(3600 + start.first - (start.first%3600) < time(0))
-      start.first = 3600 + start.first - (start.first%3600);
+    if(3600 + start.tv_sec - (start.tv_sec % 3600) < time(0))
+      start.tv_sec = 3600 + start.tv_sec - (start.tv_sec % 3600);
     else {
       if(!rnmms.empty())
         start = {rnmms.rbegin()->first.tv_sec, rnmms.rbegin()->first.tv_nsec};
