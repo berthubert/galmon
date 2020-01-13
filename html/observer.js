@@ -215,7 +215,7 @@ function makeTable(str, obj)
                 
                 return ret;
             })}).
-        enter().append("td").text(function(d) {
+        enter().append("td").html(function(d) {
             return d.value;
             
         }).attr("align", d=> d.align).style("background-color", d=> d.color);
