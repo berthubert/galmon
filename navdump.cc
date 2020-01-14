@@ -732,8 +732,8 @@ try
       etstamp();
       
       auto latlonh = ecefToWGS84(nmm.op().x(), nmm.op().y(), nmm.op().z());
-      cout<<std::fixed<<"ECEF "<<nmm.op().x()<<", "<<nmm.op().y()<<", "<<nmm.op().z();
-      cout<<", WGS84 lon "<< 180*std::get<1>(latlonh)/M_PI
+      cout<<std::fixed<<"ECEF "<<nmm.op().x()<<" "<<nmm.op().y()<<" "<<nmm.op().z();
+      cout<<" WGS84 lon "<< 180*std::get<1>(latlonh)/M_PI
 	  <<" lat "<< 180*std::get<0>(latlonh)/M_PI
 	  <<" elev "<< std::get<2>(latlonh) << " acc "<<nmm.op().acc()<<" m "<<endl;
 
