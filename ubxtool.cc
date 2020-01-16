@@ -575,9 +575,10 @@ int main(int argc, char** argv)
   
   int surveyMinSeconds = 0;
   int surveyMinCM = 0;
+  bool doSurveyReset=false;
   app.add_option("--survey-min-seconds", surveyMinSeconds, "Survey minimally this amount of seconds");
   app.add_option("--survey-min-cm", surveyMinCM, "Survey until accuracy is better (lower) than this setting");
-  
+  app.add_flag("--survey-reset", doSurveyReset, "Reset the Surveyed-in state");
   app.add_flag("--debug", doDEBUG, "Display debug information");  
   app.add_flag("--logfile", doLOGFILE, "Create logfile");  
   try {
@@ -757,50 +758,6 @@ int main(int argc, char** argv)
           cerr<<humanTimeNow()<<" Got nack on F9P GNSS setting"<<endl;
           exit(-1);
         }
-
-        if(surveyMinSeconds || surveyMinCM) {
-          uint32_t minSecondsVal = surveyMinSeconds;
-          uint32_t minCentimetersVal;
-          if(surveyMinCM==0)
-            minCentimetersVal = 10000000; // 100km
-          else 
-            minCentimetersVal = surveyMinCM * 100;
-          uint8_t* ptrSeconds = (uint8_t*)&minSecondsVal, *ptrCent= (uint8_t*)&minCentimetersVal;
-          uint8_t cmd;
-          if(version9) {        
-            cmd = 0x8a;
-            msg = buildUbxMessage(0x06, cmd, {0x00, 0x01, 0x00, 0x00,
-                0x01,0x00,0x03,0x20, 1, // survey in mode
-                // min survey time:  
-                0x10,0x00,0x03,0x40, ptrSeconds[0], ptrSeconds[1], ptrSeconds[2], ptrSeconds[3], 
-                0x11,0x00,0x03,0x40, ptrCent[0], ptrCent[1], ptrCent[2], ptrCent[3]
-                });
-          }
-          else {
-            cmd = 0x71;                   //  vers  res   survey ign
-            msg = buildUbxMessage(0x06, cmd, {0x00, 0x00, 1,     0,
-              0,0,0,0, // x
-              0,0,0,0, // y
-              0,0,0,0, // z
-              0, 0, 0, // HP x, y, z
-              0, // reserved
-              0,0,0,0, // fixed position accuracy
-              ptrSeconds[0], ptrSeconds[1], ptrSeconds[2], ptrSeconds[3], 
-              ptrCent[0], ptrCent[1], ptrCent[2], ptrCent[3],
-              0,0,0,0,0,0,0,0});
-          }
-              
-          cerr<<humanTimeNow()<<" Sending survey-in commmand"<<endl;
-        
-          if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, cmd)) { 
-            if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on survey-in"<<endl; }
-          }
-          else {
-            cerr<<humanTimeNow()<<" Got nack on F9P GNSS setting"<<endl;
-            exit(-1);
-          }
-        }
-
         /* VALSET
         0x20 91 02 32 = 
         */
@@ -815,10 +772,87 @@ int main(int argc, char** argv)
           cerr<<humanTimeNow()<<" Got nack on F9P UART1 setting"<<endl;
           exit(-1);
         }
-        
-        
       }
+      if(m8t) {
+        cerr<<humanTimeNow()<<" Sending TMODE2 status query"<<endl;
+        msg = buildUbxMessage(0x06, 0x3d, {});      
+        um1=sendAndWaitForUBX(fd, 1, msg, 0x06, 0x3d); // query TMODE2
+        auto tmodepayload = um1.getPayload();
+        cerr<<humanTimeNow()<<" TMODE2 status, mode " << (int)tmodepayload[0] << endl;
 
+        try {
+          if(waitForUBXAckNack(fd, 2, 0x06, 0x3d)) {
+            if (doDEBUG) { cerr<<humanTimeNow()<<" Got ACK for our poll of TMODE2"<<endl; }
+          }
+          }catch(...) {
+            cerr<<"Got timeout waiting for ack of poll, no problem"<<endl;
+        }
+      }
+      if(doSurveyReset) {
+          uint8_t cmd = 0x3d;                   //  vers  res   survey ign      
+          auto msg = buildUbxMessage(0x06, cmd, 
+          { 0,0,0,0, // survey-in, res, flag1, flag2
+            0,0,0,0, // x
+            0,0,0,0, // y
+            0,0,0,0, // z
+            0,0,0,0, // fixed position accuracy
+            0,0,0,0,
+            0,0,0,0
+            });
+        cerr<<humanTimeNow()<<" Sending survey-reset commmand"<<endl;
+      
+        if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, cmd)) { 
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on survey-reset"<<endl; }
+        }
+        else {
+          cerr<<humanTimeNow()<<" Got nack on survey-reset"<<endl;
+          exit(-1);
+        }     
+        exit(0);
+      }
+      if(surveyMinSeconds || surveyMinCM) {
+        uint32_t minSecondsVal = surveyMinSeconds;
+        uint32_t minCentimetersVal;
+        if(surveyMinCM==0)
+          minCentimetersVal = 10000000; // 100km
+        else 
+          minCentimetersVal = surveyMinCM * 100;
+        uint8_t* ptrSeconds = (uint8_t*)&minSecondsVal, *ptrCent= (uint8_t*)&minCentimetersVal;
+        uint8_t cmd;
+        std::basic_string<uint8_t> msg;
+        if(version9) {        
+          cmd = 0x8a;
+          msg = buildUbxMessage(0x06, cmd, {0x00, 0x01, 0x00, 0x00,
+              0x01,0x00,0x03,0x20, 1, // survey in mode
+              // min survey time:  
+              0x10,0x00,0x03,0x40, ptrSeconds[0], ptrSeconds[1], ptrSeconds[2], ptrSeconds[3], 
+              0x11,0x00,0x03,0x40, ptrCent[0], ptrCent[1], ptrCent[2], ptrCent[3]
+              });
+        }
+        else {
+          minCentimetersVal /= 10;
+          cmd = 0x3d;                   
+          msg = buildUbxMessage(0x06, cmd, 
+          { 1,0,0,0, // survey-in, res, flag1, flag2
+            0,0,0,0, // x
+            0,0,0,0, // y
+            0,0,0,0, // z
+            0,0,0,0, // fixed position accuracy
+            ptrSeconds[0], ptrSeconds[1], ptrSeconds[2], ptrSeconds[3], 
+            ptrCent[0], ptrCent[1], ptrCent[2], ptrCent[3]
+            });
+        }
+    
+        cerr<<humanTimeNow()<<" Sending survey-in commmand"<<endl;
+      
+        if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, cmd)) { 
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on survey-in"<<endl; }
+        }
+        else {
+          cerr<<humanTimeNow()<<" Got nack on survey-in"<<endl;
+          exit(-1);
+        }
+      }
       if(doSBAS) {
         //                                 "on" "*.*"  ign   
         msg = buildUbxMessage(0x06, 0x16, {0x01, 0x07, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00}); // enable SBAS
@@ -880,13 +914,16 @@ int main(int argc, char** argv)
       
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RLM"<<endl; } // SAR
       enableUBXMessageOnPort(fd, 0x02, 0x59, ubxport); // UBX-RXM-RLM
-      
-      if(m8t || version9) {
+
+      if(version9) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-SVIN"<<endl; } // Survey-in results
         enableUBXMessageOnPort(fd, 0x01, 0x3b, ubxport, 2); 
       }
+      else if(m8t) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-TIM-SVIN"<<endl; } // Survey-in results
+        enableUBXMessageOnPort(fd, 0x0d, 0x04, ubxport, 2);       
+      }
 
-      
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RAWX"<<endl; } // RF doppler
       enableUBXMessageOnPort(fd, 0x02, 0x15, ubxport, 8); // RXM-RAWX
 
@@ -1599,6 +1636,32 @@ int main(int argc, char** argv)
         }
         lastNS = NS;
       }      
+      else if(msg.getClass() == 0x0d && msg.getType() == 0x04) { // UBX-TIM-SVIN
+        struct TimSin
+        {
+          uint32_t dur;
+          int32_t meanXCM, meanYCM, meanZCM;
+          uint32_t meanVar;
+          uint32_t obs;
+          int8_t valid;
+          int8_t active;
+          uint8_t res3[2];
+        } __attribute__((packed));
+        TimSin TS;
+        static TimSin lastTS;
+        
+        if(payload.size() != sizeof(TS)) {
+          cerr<<"Wrong NAV-SVIN message size, skipping"<<endl;
+          continue;
+        }
+        memcpy(&TS, payload.c_str(), sizeof(TS));
+        TS.res3[0] = TS.res3[1] = 0;
+        if(memcmp(&TS, &lastTS, sizeof(TS))) {
+          cerr<<humanTimeNow()<<" TIM-SVIN valid "<< (int)TS.valid<<" active " << (int)TS.active<<" duration "<<TS.dur<<"s meanAcc " <<sqrt(TS.meanVar)/10<< "cm obs "<<TS.obs<<" ";
+          cerr<<std::fixed<<"("<<TS.meanXCM <<", "<<TS.meanYCM <<", "<<TS.meanZCM<<")"<<endl;
+        }
+        lastTS = TS;
+      }            
       else 
         if (doDEBUG) { cerr<<humanTimeNow()<<" Unknown UBX message of class "<<(int) msg.getClass() <<" and type "<< (int) msg.getType()<< " of "<<payload.size()<<" bytes"<<endl; }
 
