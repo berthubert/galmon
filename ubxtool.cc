@@ -573,6 +573,11 @@ int main(int argc, char** argv)
   app.add_option("--owner,-o", owner, "Name/handle/nick of owner/operator");
   app.add_option("--remark", remark, "Remark for this station");
   
+  int surveyMinSeconds = 0;
+  int surveyMinCM = 0;
+  app.add_option("--survey-min-seconds", surveyMinSeconds, "Survey minimally this amount of seconds");
+  app.add_option("--survey-min-cm", surveyMinCM, "Survey until accuracy is better (lower) than this setting");
+  
   app.add_flag("--debug", doDEBUG, "Display debug information");  
   app.add_flag("--logfile", doLOGFILE, "Create logfile");  
   try {
@@ -741,12 +746,8 @@ int main(int argc, char** argv)
               0x25,0x00,0x31,0x10, doGlonass,
               0x18,0x00,0x31,0x10, doGlonass,
               0x1a,0x00,0x31,0x10, doGlonass
-              
-
-
               });
 
-        
         if (doDEBUG) { cerr<<humanTimeNow()<<" Sending F9P GNSS setting, GPS: "<<doGPS<<", Galileo: "<<doGalileo<<", BeiDou: "<<doBeidou<<", GLONASS: "<<doGlonass<<", SBAS: "<<doSBAS<<endl; }
         
         if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, 0x8a)) { // GNSS setting, F9 stylee
@@ -755,6 +756,49 @@ int main(int argc, char** argv)
         else {
           cerr<<humanTimeNow()<<" Got nack on F9P GNSS setting"<<endl;
           exit(-1);
+        }
+
+        if(surveyMinSeconds || surveyMinCM) {
+          uint32_t minSecondsVal = surveyMinSeconds;
+          uint32_t minCentimetersVal;
+          if(surveyMinCM==0)
+            minCentimetersVal = 10000000; // 100km
+          else 
+            minCentimetersVal = surveyMinCM * 100;
+          uint8_t* ptrSeconds = (uint8_t*)&minSecondsVal, *ptrCent= (uint8_t*)&minCentimetersVal;
+          uint8_t cmd;
+          if(version9) {        
+            cmd = 0x8a;
+            msg = buildUbxMessage(0x06, cmd, {0x00, 0x01, 0x00, 0x00,
+                0x01,0x00,0x03,0x20, 1, // survey in mode
+                // min survey time:  
+                0x10,0x00,0x03,0x40, ptrSeconds[0], ptrSeconds[1], ptrSeconds[2], ptrSeconds[3], 
+                0x11,0x00,0x03,0x40, ptrCent[0], ptrCent[1], ptrCent[2], ptrCent[3]
+                });
+          }
+          else {
+            cmd = 0x71;                   //  vers  res   survey ign
+            msg = buildUbxMessage(0x06, cmd, {0x00, 0x00, 1,     0,
+              0,0,0,0, // x
+              0,0,0,0, // y
+              0,0,0,0, // z
+              0, 0, 0, // HP x, y, z
+              0, // reserved
+              0,0,0,0, // fixed position accuracy
+              ptrSeconds[0], ptrSeconds[1], ptrSeconds[2], ptrSeconds[3], 
+              ptrCent[0], ptrCent[1], ptrCent[2], ptrCent[3],
+              0,0,0,0,0,0,0,0});
+          }
+              
+          cerr<<humanTimeNow()<<" Sending survey-in commmand"<<endl;
+        
+          if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, cmd)) { 
+            if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on survey-in"<<endl; }
+          }
+          else {
+            cerr<<humanTimeNow()<<" Got nack on F9P GNSS setting"<<endl;
+            exit(-1);
+          }
         }
 
         /* VALSET
@@ -836,6 +880,12 @@ int main(int argc, char** argv)
       
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RLM"<<endl; } // SAR
       enableUBXMessageOnPort(fd, 0x02, 0x59, ubxport); // UBX-RXM-RLM
+      
+      if(m8t || version9) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-SVIN"<<endl; } // Survey-in results
+        enableUBXMessageOnPort(fd, 0x01, 0x3b, ubxport, 2); 
+      }
+
       
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RAWX"<<endl; } // RF doppler
       enableUBXMessageOnPort(fd, 0x02, 0x15, ubxport, 8); // RXM-RAWX
@@ -1515,6 +1565,40 @@ int main(int argc, char** argv)
         nmm.mutable_dm()->set_payload(string((char*)&payload[0], payload.size())); 
         ns.emitNMM( nmm);
       }
+      else if(msg.getClass() == 0x01 && msg.getType() == 0x3B) { // UBX-NAV-SVIN
+        struct NavSin
+        {
+          uint8_t ver;
+          uint8_t res[3];
+          uint32_t iTow;
+          uint32_t dur;
+          int32_t meanXCM, meanYCM, meanZCM;
+          int8_t meanXHP, meanYHP, meanZHP;
+          uint8_t res2;
+          int32_t meanAcc;
+          int32_t obs;
+          int8_t valid;
+          int8_t active;
+          uint8_t res3[2];
+        } __attribute__((packed));
+        NavSin NS;
+        static NavSin lastNS;
+        
+        if(payload.size() != sizeof(NS)) {
+          cerr<<"Wrong NAV-SVIN message size, skipping"<<endl;
+          continue;
+        }
+        memcpy(&NS, payload.c_str(), sizeof(NS));
+        NS.res[0] = NS.res[1] = NS.res[2] = 0;
+        NS.res2=0;
+        NS.res3[0] = NS.res3[1] = 0;
+        NS.iTow = 0;
+        if(memcmp(&NS, &lastNS, sizeof(NS))) {
+          cerr<<humanTimeNow()<<" NAV-SVIN ver "<<(int)NS.ver<< " valid "<< (int)NS.valid<<" active " << (int)NS.active<<" duration "<<NS.dur<<"s meanAcc " <<NS.meanAcc /100<< "cm obs "<<NS.obs<<" ";
+          cerr<<std::fixed<<" ( "<<NS.meanXCM + 0.01*NS.meanXHP<<", "<<NS.meanYCM  + 0.01*NS.meanYHP<<", "<<NS.meanZCM  + 0.01*NS.meanZHP<<")"<<endl;
+        }
+        lastNS = NS;
+      }      
       else 
         if (doDEBUG) { cerr<<humanTimeNow()<<" Unknown UBX message of class "<<(int) msg.getClass() <<" and type "<< (int) msg.getType()<< " of "<<payload.size()<<" bytes"<<endl; }
 
