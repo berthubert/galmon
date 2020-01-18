@@ -281,6 +281,7 @@ In alphabetical order:
  * Holland (Nootdorp, Hilversum, etc)
  * India (New Delhi area)
  * Israel (Jerusalem)
+ * Italy (Rome)
  * New Zealand (Auckland area)
  * Rusia (Moscow area)
  * Singapore
