@@ -21,7 +21,7 @@ F9P, several of us use the
 To deliver data to the project, please read
 [The Galmon GNSS Monitoring Project](https://berthub.eu/articles/posts/galmon-project/)
 and consult the rules outlined in [the operator
-guidelines](https://github.com/ahupowerdns/galmon/blob/master/operator.md).
+guidelines](https://github.com/ahupowerdns/galmon/blob/master/Operator.md).
 
 Highlights
 ----------
@@ -174,7 +174,7 @@ cp ubxtool.service /etc/systemd/system/
 ```
 
 Then collect the server IP address (SERVER-IP) and a station number
-(STATION-NUMBER) as described in [operator.md], and run:
+(STATION-NUMBER) as described in [Operator.md], and run:
 
 ```
 echo SERVER-IP > /usr/local/ubxtool/destination
