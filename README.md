@@ -70,7 +70,7 @@ Build locally
 -------------
 
 To get started, make sure you have a C++17 compiler (like g++ 8 or higher),
-git, protobuf-compiler.  Then run 'make ubxtool navdump' to build the
+git, protobuf-compiler.  Then run 'make ubxtool navdump navparse' to build the
 receiver-only tools.
 
 To build everything, including the webserver, try:
@@ -89,6 +89,8 @@ library installed. If you get an error about 'wslay', do the following, and run 
 ```
 echo WSLAY=-lwslay > Makefile.local
 ```
+
+Some additional help or tips on building for specific platforms is found in __Building.md__
 
 Build in Docker
 ---------------
@@ -111,7 +113,7 @@ Running
 -------
 
 Once compiled, run for example `./ubxtool --wait --port /dev/ttyACM0
---station 1 --stdout --galileo | ./navparse 127.0.0.1:10000 html null`
+--stdout --galileo | ./navparse 127.0.0.1:10000 html null`
 
 Next up, browse to http://[::1]:10000 (or try http://localhost:10000/ and
 you should be in business. ubxtool changes (non-permanently) the
@@ -132,13 +134,13 @@ the `--ubxport <id>` option using one of the following numeric IDs:
 To see what is going on, try:
 
 ```
-./ubxtool --wait --port /dev/ttyACM0 --station 1 --stdout --galileo | ./navdump
+./ubxtool --wait --port /dev/ttyACM0 --stdout --galileo | ./navdump
 ```
 
 To distribute data to a remote `navrecv`, use:
 
 ```
-./ubxtool --wait --port /dev/ttyACM0 --galileo --station 255 --dest 127.0.0.1
+./ubxtool --wait --port /dev/ttyACM0 --galileo --dest 127.0.0.1
 ```
 
 This will send protobuf to 127.0.0.1:29603. You can add as many destinations
@@ -298,6 +300,7 @@ In alphabetical order:
    * California (Santa Cruz, Los Angeles area, etc)
    * Massachusetts (Boston area)
  * Uruguay
+ * and others (see galmon.eu map)
  
 Additional sites are welcome (and encouraged) as the more data receiving sites that exist, then more accurate data and absolute coverage of each constellation can be had.
 
