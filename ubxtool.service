@@ -17,3 +17,4 @@ ExecStart=/usr/local/ubxtool/ubxtool.sh
 
 [Install]
 WantedBy=multi-user.target
+

@@ -5,6 +5,11 @@ CONSTELLATIONS="--galileo --gps --glonass"
 # CONSTELLATIONS="--galileo --gps --beidou"
 # CONSTELLATIONS="--galileo --gps --glonass --beidou"  # only on the F9P
 
+if [ -e /usr/local/ubxtool/constellations ]
+then
+	CONSTELLATIONS=$(cat /usr/local/ubxtool/constellations)
+fi
+
 # DEVICE="/dev/ttyACM0"		# comment out or leave blank to auto-search
 
 #########################################################################
@@ -33,9 +38,9 @@ fi
 DESTINATION=$(cat /usr/local/ubxtool/destination)
 STATION=$(cat /usr/local/ubxtool/station)
 
+
 # systemctl script will do this, but if you don't use systemctl, we need to take care of it
 [[ -d ${runDir} ]] || mkdir -p ${runDir}
-[[ -e ${runDir}/gps.sock ]] || mkfifo ${runDir}/gps.sock
 
 for logFile in stdout stderr logfile
 do
@@ -43,4 +48,4 @@ do
 done
 
 
-exec /usr/local/ubxtool/ubxtool --wait ${CONSTELLATIONS} --port ${DEVICE} --station ${STATION} --destination ${DESTINATION} >> ${runDir}/stdout.log 2>> ${runDir}/stderr.log < /dev/null 
+exec /usr/local/ubxtool/ubxtool ${CONSTELLATIONS} --port ${DEVICE} --station ${STATION} --destination ${DESTINATION} >> ${runDir}/stdout.log 2>> ${runDir}/stderr.log < /dev/null 

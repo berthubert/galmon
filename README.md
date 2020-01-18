@@ -160,26 +160,39 @@ Tooling:
 Linux Systemd
 -------------
 
-This is very much a first stab. Do the following at root.
+First make sure 'ubxtool' has been compiled (run: make ubxtool). Then, as
+root:
 ```
-mkdir /run/ubxtool
 mkdir /usr/local/ubxtool
-cp ubxtool.sh /usr/local/ubxtool/
-chmod +x /usr/local/ubxtool/ubxtool.sh
-cp ubxtool /usr/local/ubxtool/
-cp ubxtool.service /etc/systemd/system/ubxtool.service
-touch /usr/local/ubxtool/destination
-touch /usr/local/ubxtool/station
+cp ubxtool ubxtool.sh /usr/local/ubxtool/
+cp ubxtool.service /etc/systemd/system/
 ```
-Then edit /usr/local/ubxtool/destination with an IP address collected from Bert.
-Then edit /usr/local/ubxtool/station with a station number collected from Bert.
 
-The start up the service.
+Then collect the server IP address (SERVER-IP) and a station number
+(STATION-NUMBER) as described in [operator.md], and run:
+
 ```
-sudo systemctl enable ubxtool
-sudo systemctl start ubxtool
+echo SERVER-IP > /usr/local/ubxtool/destination
+echo STATION-NUMBER > /usr/local/ubxtool/station
 ```
-This will be cleaned up and better packaged sometime soon.
+
+Then start up the service (as root):
+```
+systemctl enable ubxtool
+systemctl start ubxtool
+```
+
+To check if it is all working, do 'service ubxtool status'.
+
+To change the default constellations, create a file called
+/usr/local/ubxtool/constellations and set your favorites. To set all four
+constellations (which only F9-receivers support), do as root:
+
+```
+echo --gps --glonass --beidou --galileo > /usr/local/ubxtool/constellations
+```
+
+And then 'service ubxtool restart'.
 
 Distributed setup
 -----------------
