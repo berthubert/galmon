@@ -785,10 +785,10 @@ try
               Point sat;
               
               if((sv.first.gnss == 0 || sv.first.gnss == 2) && sv.second.completeIOD()) {
-                svo["delta_hz"] = iter->second.deltaHz;
+                svo["delta_hz"] = truncPrec(iter->second.deltaHz, 2);
                 auto hzCorrection = getHzCorrection(time(0), src.first , sv.first.gnss, sv.first.sigid, svstats);
                 if(hzCorrection)
-                  svo["delta_hz_corr"] = iter->second.deltaHz - *hzCorrection;
+                  svo["delta_hz_corr"] = truncPrec(iter->second.deltaHz - *hzCorrection, 2);
                 
                 getCoordinates(latestTow(sv.first.gnss, svstats), sv.second.liveIOD(), & sat);
               }
@@ -804,9 +804,7 @@ try
                 svo["azi"] = roundf(10.0*getAzimuthDeg(sat, our))/10.0;
               }
 
-
-              
-              svo["prres"] = iter->second.prres;
+              svo["prres"] = truncPrec(iter->second.prres, 2);
               svo["qi"] = iter->second.qi;
               svo["used"] = iter->second.used;
               svo["age-s"] = time(0) - iter->second.t;
@@ -965,7 +963,7 @@ try
         recv["db"] = perrecv.second.db;
         recv["qi"] = perrecv.second.qi;
         recv["used"] = perrecv.second.used;
-        recv["prres"] = perrecv.second.prres;
+        recv["prres"] = truncPrec(perrecv.second.prres, 2);
         recv["elev"] = perrecv.second.el;
         recv["last-seen-s"] = time(0) - perrecv.second.t;
         recvs[std::to_string(perrecv.first)] = recv;
@@ -1152,7 +1150,7 @@ try
             if(auto iter = beidoualma.find(s.first.sv); iter != beidoualma.end()) {
               Point almapos;
               getCoordinates(s.second.tow, iter->second.alma, &almapos);
-              item["alma-dist"] = Vector(almapos, p).length()/1000.0;
+              item["alma-dist"] = truncPrec(Vector(almapos, p).length()/1000.0, 1);
             }
           }
         }
@@ -1171,7 +1169,7 @@ try
           item["eph-age-m"] = ephAge(s.second.tow, getGlonassT0e(pseudoTow, s.second.glonassMessage.Tb))/60.0;
           if(s.second.tleMatch.distance >=0) {
             item["best-tle"] = s.second.tleMatch.name;
-            item["best-tle-dist"] = s.second.tleMatch.distance /1000.0;
+            item["best-tle-dist"] = truncPrec(s.second.tleMatch.distance /1000.0, 1);
             item["best-tle-norad"] = s.second.tleMatch.norad;
             item["best-tle-int-desig"] = s.second.tleMatch.internat;
           }
@@ -1328,7 +1326,7 @@ try
             
             det["db"] = pr.second.db;
             det["last-seen-s"] = time(0) - pr.second.t;
-            det["prres"] = pr.second.prres;
+            det["prres"] = truncPrec(pr.second.prres, 2);
             det["qi"] = pr.second.qi;
             det["used"] = pr.second.used;
 
@@ -1348,11 +1346,11 @@ try
         item["last-seen-s"] = time(0) - nanoTime(s.first.gnss, s.second.wn, s.second.tow)/1000000000;
 
         if(s.second.latestDisco >=0) {
-          item["latest-disco"]= s.second.latestDisco;
+          item["latest-disco"]= truncPrec(s.second.latestDisco, 3);
           item["latest-disco-age"]= s.second.latestDiscoAge;
         }
         if(s.second.timeDisco > -100 && s.second.timeDisco < 100) {
-          item["time-disco"]= s.second.timeDisco;
+          item["time-disco"]= truncPrec(s.second.timeDisco, 1);
         }
 
         

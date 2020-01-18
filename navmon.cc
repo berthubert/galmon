@@ -152,3 +152,13 @@ std::string humanTime(time_t t, uint32_t nanoseconds)
   strftime(buffer, sizeof(buffer), fmt.c_str(), &tm);
   return buffer;
 }
+
+// truncate to x digits precision, see testrunner.cc for details
+double truncPrec(double in, unsigned int digits)
+{
+  double partial = in - trunc(in);
+  int factor=1;
+  for(; digits ; --digits)
+    factor *= 10;
+  return trunc(in) + round(partial * factor) / factor;
+}

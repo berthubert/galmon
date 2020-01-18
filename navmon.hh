@@ -49,3 +49,5 @@ private:
   std::mutex d_lock;
 };
 
+
+double truncPrec(double in, unsigned int digits);

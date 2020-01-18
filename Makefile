@@ -72,7 +72,7 @@ navmon.pb.cc: navmon.proto
 ubxtool: navmon.pb.o ubxtool.o ubx.o bits.o ext/fmt-5.2.1/src/format.o galileo.o  gps.o beidou.o navmon.o ephemeris.o $(SIMPLESOCKETS) osen.o githash.o
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -lprotobuf -pthread
 
-testrunner: navmon.pb.o testrunner.o ubx.o bits.o ext/fmt-5.2.1/src/format.o galileo.o  gps.o beidou.o ephemeris.o sp3.o osen.o
+testrunner: navmon.pb.o testrunner.o ubx.o bits.o ext/fmt-5.2.1/src/format.o galileo.o  gps.o beidou.o ephemeris.o sp3.o osen.o navmon.o
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -lprotobuf
 
 check: testrunner
