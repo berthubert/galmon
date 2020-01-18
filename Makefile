@@ -1,6 +1,6 @@
 CFLAGS = -O3 -Wall -ggdb 
 
-CXXFLAGS:= -std=gnu++17 -Wall -O3 -MMD -MP -ggdb -fno-omit-frame-pointer -Iext/CLI11 \
+CXXFLAGS:= -std=gnu++17 -Wall -O0 -MMD -MP -fno-omit-frame-pointer -Iext/CLI11 \
 	 -Iext/fmt-5.2.1/include/ -Iext/powerblog/ext/simplesocket -Iext/powerblog/ext/ \
 	 -I/usr/local/opt/openssl/include/  \
 	 -Iext/sgp4/libsgp4/ \

@@ -1632,7 +1632,12 @@ int main(int argc, char** argv)
         NS.iTow = 0;
         if(memcmp(&NS, &lastNS, sizeof(NS))) {
           cerr<<humanTimeNow()<<" NAV-SVIN ver "<<(int)NS.ver<< " valid "<< (int)NS.valid<<" active " << (int)NS.active<<" duration "<<NS.dur<<"s meanAcc " <<NS.meanAcc /100<< "cm obs "<<NS.obs<<" ";
-          cerr<<std::fixed<<" ( "<<NS.meanXCM + 0.01*NS.meanXHP<<", "<<NS.meanYCM  + 0.01*NS.meanYHP<<", "<<NS.meanZCM  + 0.01*NS.meanZHP<<")"<<endl;
+          cerr<<std::fixed<<" ("<<NS.meanXCM + 0.01*NS.meanXHP<<", "<<NS.meanYCM  + 0.01*NS.meanYHP<<", "<<NS.meanZCM  + 0.01*NS.meanZHP<<")";
+          
+          auto latlonh = ecefToWGS84Deg((NS.meanXCM +0.01*NS.meanXHP)/100.0, 
+                                        (NS.meanYCM +0.01*NS.meanYHP)/100.0, 
+                                        (NS.meanZCM +0.01*NS.meanZHP)/100.0);
+          cerr<<" lat "<< get<0>(latlonh)<<" lon "<< get<1>(latlonh) << " h " << get<2>(latlonh) << endl;
         }
         lastNS = NS;
       }      
