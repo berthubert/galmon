@@ -13,6 +13,11 @@ most high-end receiver, which does all bands, all the time, is the Ublox
 F9P, several of us use the
 [ArdusimpleRTK2B](https://www.ardusimple.com/simplertk2b/) board.
 
+> NOTE: One of our programs is called 'ubxtool'. Sadly, we did not do our
+> research, and there is another '[ubxtool](https://gpsd.io/ubxtool.html)' already, part of
+> [gpsd](https://gpsd.io). You might have ended up on our page by mistake.
+> Sorry!
+
 To deliver data to the project, please read
 [The Galmon GNSS Monitoring Project](https://berthub.eu/articles/posts/galmon-project/)
 and consult the rules outlined in [the operator
