@@ -164,7 +164,6 @@ Tooling:
 
 Linux Systemd
 -------------
-
 First make sure 'ubxtool' has been compiled (run: make ubxtool). Then, as
 root:
 ```
@@ -188,6 +187,13 @@ systemctl start ubxtool
 ```
 
 To check if it is all working, do 'service ubxtool status'.
+
+> NOTE!  If you don't use one of the AliExpress or Navilock devices, it may
+> be that your U-blox is not connected to the USB-port of the U-blox chip
+> but to the UART1 or UART2 port.  If so, you'll need to edit the script so
+> it finds your USB-to-serial adapter.  At the very least you'll have to
+> update the DEVICE line.  You'll likely also have to add --ubxport 1 at the
+> end, and likely also the baudrate (-b) and/or --rtscts=0.
 
 To change the default constellations, create a file called
 /usr/local/ubxtool/constellations and set your favorites. To set all four
