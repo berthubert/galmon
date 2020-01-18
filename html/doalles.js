@@ -88,18 +88,22 @@ function maketable(str, arr)
                         ret.value="";
                 }
                 else if(row[column] != null && (column == "delta_hz_corr" || column =="delta_hz")) {
-
                     ret.value = row[column];
                 }
                 else if((column == "tle-dist")) {
-                    if(row["best-tle-dist"] != null)
+                    if(row["best-tle-dist"] != null) {
                         ret.value = row["best-tle-dist"].toFixed(1) + " km";
+
+                        if (Math.abs(row["best-tle-dist"]) > 10000)
+                            ret.color="red";
+                        else if (Math.abs(row["best-tle-dist"]) > 1000)
+                            ret.color="#ffaaaa";
+                    } 
                 }
                 else if((column == "alma-dist")) {
                     if(row["alma-dist"] != null)
                         ret.value = row["alma-dist"].toFixed(1) + " km";
                 }
-
                 else if(column == "norad") {
                     ret.value = row["best-tle-norad"];
                 }
