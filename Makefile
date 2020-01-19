@@ -8,6 +8,11 @@ CXXFLAGS:= -std=gnu++17 -Wall -O0 -MMD -MP -fno-omit-frame-pointer -Iext/CLI11 \
 
 # CXXFLAGS += -Wno-delete-non-virtual-dtor
 
+# If unset, create a variable for the path or binary to use as "install" for debuild.
+INSTALL ?= install
+# If unset, create a variable with the path used by "make install"
+prefix ?= /usr/local/ubxtool
+
 ifneq (,$(wildcard ubxsec.c))
 	EXTRADEP = ubxsec.o
 else ifneq (,$(wildcard ubxsec.o))
@@ -32,6 +37,19 @@ SIMPLESOCKETS=ext/powerblog/ext/simplesocket/swrappers.o ext/powerblog/ext/simpl
 clean:
 	rm -f *~ *.o *.d ext/*/*.o $(PROGRAMS) navmon.pb.h navmon.pb.cc $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) $(H2OPP) $(SIMPLESOCKETS)
 	rm -f ext/fmt-5.2.1/src/format.o
+
+install: $(PROGRAMS)
+	$(INSTALL) -s -m 755 -D navparse $(DESTDIR)$(prefix)/bin/navparse
+	$(INSTALL) -s -m 755 -D ubxtool $(DESTDIR)$(prefix)/bin/ubxtool
+	$(INSTALL) -s -m 755 -D navnexus $(DESTDIR)$(prefix)/bin/navnexus
+	$(INSTALL) -s -m 755 -D navcat $(DESTDIR)$(prefix)/bin/navcat
+	$(INSTALL) -s -m 755 -D navrecv $(DESTDIR)$(prefix)/bin/navrecv
+	$(INSTALL) -s -m 755 -D navdump $(DESTDIR)$(prefix)/bin/navdump
+	$(INSTALL) -s -m 755 -D navdisplay $(DESTDIR)$(prefix)/bin/navdisplay
+	$(INSTALL) -s -m 755 -D tlecatch $(DESTDIR)$(prefix)/bin/tlecatch
+	$(INSTALL) -s -m 755 -D reporter $(DESTDIR)$(prefix)/bin/reporter
+	$(INSTALL) -s -m 755 -D galmonmon $(DESTDIR)$(prefix)/bin/galmonmon
+	$(INSTALL) -s -m 755 -D testrunner $(DESTDIR)$(prefix)/bin/testrunner
 
 decrypt: decrypt.o bits.o ext/fmt-5.2.1/src/format.o
 	$(CXX) -std=gnu++17 $^ -o $@ 
