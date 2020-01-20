@@ -41,17 +41,17 @@ clean:
 	rm -f ext/fmt-5.2.1/src/format.o
 
 install: $(PROGRAMS)
-	$(INSTALL) -s -m 755 -D navparse $(DESTDIR)$(prefix)/bin/navparse
-	$(INSTALL) -s -m 755 -D ubxtool $(DESTDIR)$(prefix)/bin/ubxtool
-	$(INSTALL) -s -m 755 -D navnexus $(DESTDIR)$(prefix)/bin/navnexus
-	$(INSTALL) -s -m 755 -D navcat $(DESTDIR)$(prefix)/bin/navcat
-	$(INSTALL) -s -m 755 -D navrecv $(DESTDIR)$(prefix)/bin/navrecv
-	$(INSTALL) -s -m 755 -D navdump $(DESTDIR)$(prefix)/bin/navdump
-	$(INSTALL) -s -m 755 -D navdisplay $(DESTDIR)$(prefix)/bin/navdisplay
-	$(INSTALL) -s -m 755 -D tlecatch $(DESTDIR)$(prefix)/bin/tlecatch
-	$(INSTALL) -s -m 755 -D reporter $(DESTDIR)$(prefix)/bin/reporter
 	$(INSTALL) -s -m 755 -D galmonmon $(DESTDIR)$(prefix)/bin/galmonmon
+	$(INSTALL) -s -m 755 -D navcat $(DESTDIR)$(prefix)/bin/navcat
+	$(INSTALL) -s -m 755 -D navdisplay $(DESTDIR)$(prefix)/bin/navdisplay
+	$(INSTALL) -s -m 755 -D navdump $(DESTDIR)$(prefix)/bin/navdump
+	$(INSTALL) -s -m 755 -D navnexus $(DESTDIR)$(prefix)/bin/navnexus
+	$(INSTALL) -s -m 755 -D navparse $(DESTDIR)$(prefix)/bin/navparse
+	$(INSTALL) -s -m 755 -D navrecv $(DESTDIR)$(prefix)/bin/navrecv
+	$(INSTALL) -s -m 755 -D reporter $(DESTDIR)$(prefix)/bin/reporter
 	$(INSTALL) -s -m 755 -D testrunner $(DESTDIR)$(prefix)/bin/testrunner
+	$(INSTALL) -s -m 755 -D tlecatch $(DESTDIR)$(prefix)/bin/tlecatch
+	$(INSTALL) -s -m 755 -D ubxtool $(DESTDIR)$(prefix)/bin/ubxtool
 	@echo "using cp instead of install because recursive directories of ascii"
 	mkdir -p $(DESTDIR)$(prefix)$(htdocs)/galmon
 	cp -a html $(DESTDIR)$(prefix)$(htdocs)/galmon/
