@@ -46,13 +46,13 @@ apt-get update && apt-get -y upgrade galmon && systemctl restart ubxtool@*
 
 ## Reference Information
 
-You can stop reading here if your insterest was limited to installing a compiled package.
+You can stop reading here if your interest was limited to installing a compiled package.
 
 ### One time steps for bootstrapping package build on a fresh git repo
 
 Run debmake in the source directory. It tries to autocreate 90% of everything you need in the debian folder.
 Key files: copyright, changelog, control, and anything else that looks interesting to cat. Once they exist, we're done.
-Refer to the manual's [tutorial](https://www.debian.org/doc/manuals/debmake-doc/ch04.en.html)
+Refer to the manual's [tutorial](https://www.debian.org/doc/manuals/debmake-doc/ch04.en.html).
 
 ### One time steps for creating package-specific files and scripts
 

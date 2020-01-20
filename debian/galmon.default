@@ -19,10 +19,10 @@
 #
 # uBlox M8-series and Aliexpress Specials support ( (gps AND galileo) AND ( beidou OR glonass) ) with optional SBAS.
 #
-DAEMON_OPTS="--wait --owner 'OWNER' --remark 'REMARK' --gps --galileo --station 65000 --destination ::1"
-#DAEMON_OPTS="--wait --owner 'OWNER' --remark 'REMARK' --gps --galileo --beidou --sbas --station 65000 --destination ::1"
-#DAEMON_OPTS="--wait --owner 'OWNER' --remark 'REMARK' --gps --galileo --glonass --sbas --station 65000 --destination ::1"
+DAEMON_OPTS="--owner 'OWNER' --remark 'REMARK' --gps --galileo --station 65000 --destination ::1"
+#DAEMON_OPTS="--owner 'OWNER' --remark 'REMARK' --gps --galileo --beidou --sbas --station 65000 --destination ::1"
+#DAEMON_OPTS="--owner 'OWNER' --remark 'REMARK' --gps --galileo --glonass --sbas --station 65000 --destination ::1"
 #
-# uBlox ZED F9T and F9P modules support all four major constellations but not SBAS.
+# uBlox ZED F9T and F9P modules support all four major constellations simultaneously but not SBAS.
 #
-#DAEMON_OPTS="--wait --owner 'OWNER' --remark 'REMARK' --gps --galileo --beidou --glonass --station 65000 --destination ::1"
+#DAEMON_OPTS="--owner 'OWNER' --remark 'REMARK' --gps --galileo --beidou --glonass --station 65000 --destination ::1"
