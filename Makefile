@@ -12,6 +12,8 @@ CXXFLAGS:= -std=gnu++17 -Wall -O0 -MMD -MP -fno-omit-frame-pointer -Iext/CLI11 \
 INSTALL ?= install
 # If unset, create a variable with the path used by "make install"
 prefix ?= /usr/local/ubxtool
+# If unset, create a variable for a path underneath $prefix that stores html files
+htdocs ?= /share/package
 
 ifneq (,$(wildcard ubxsec.c))
 	EXTRADEP = ubxsec.o
@@ -51,8 +53,8 @@ install: $(PROGRAMS)
 	$(INSTALL) -s -m 755 -D galmonmon $(DESTDIR)$(prefix)/bin/galmonmon
 	$(INSTALL) -s -m 755 -D testrunner $(DESTDIR)$(prefix)/bin/testrunner
 	@echo "using cp instead of install because recursive directories of ascii"
-	mkdir -p $(DESTDIR)$(prefix)/share/package/galmon
-	cp -a html $(DESTDIR)$(prefix)/share/package/galmon/
+	mkdir -p $(DESTDIR)$(prefix)$(htdocs)/galmon
+	cp -a html $(DESTDIR)$(prefix)$(htdocs)/galmon/
 
 install-debian:
 	apt-key adv --fetch-keys https://ota.bike/public-package-signing-keys/86E7F51C04FBAAB0.asc
