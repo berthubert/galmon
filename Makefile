@@ -50,6 +50,9 @@ install: $(PROGRAMS)
 	$(INSTALL) -s -m 755 -D reporter $(DESTDIR)$(prefix)/bin/reporter
 	$(INSTALL) -s -m 755 -D galmonmon $(DESTDIR)$(prefix)/bin/galmonmon
 	$(INSTALL) -s -m 755 -D testrunner $(DESTDIR)$(prefix)/bin/testrunner
+	@echo "using cp instead of install because recursive directories of ascii"
+	mkdir -p $(DESTDIR)$(prefix)/share/package/galmon
+	cp -a html $(DESTDIR)$(prefix)/share/package/galmon/
 
 decrypt: decrypt.o bits.o ext/fmt-5.2.1/src/format.o
 	$(CXX) -std=gnu++17 $^ -o $@ 
