@@ -14,7 +14,7 @@
 #   Thank you for contributing, it is nice to see data from your location on the map.
 #
 #
-# DO NOT SET DEVICE HERE.
+# DO NOT SET THE "PORT" OPTION HERE.
 #   The device is set by an argument to service, see above.
 #
 # uBlox M8-series and Aliexpress Specials support ( (gps AND galileo) AND ( beidou OR glonass) ) with optional SBAS.
