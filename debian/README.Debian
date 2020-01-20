@@ -1,0 +1,9 @@
+galmon for Debian
+
+This directory contains files created by debmake and 
+required by debuild to create Debian packages.
+
+For further instruction, review the Guide for Debian Maintainers
+by Osamu Aoki: https:/www.debian.org/doc/manuals/debmake-doc/
+
+ -- Patrick Tudor <debian@ptudor.net>  Sun, 19 Jan 2020 22:52:16 +0000

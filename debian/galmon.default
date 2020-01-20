@@ -1,0 +1,28 @@
+# Copyright 2020 AHU Holding BV - bert@hubertnet.nl - https://berthub.eu/
+# This package is free software: /usr/share/common-licenses/GPL-3
+#
+# INSTRUCTIONS:
+#   Copy this file from /etc/default/galmon to /etc/default/ubxtool-ttyACM0
+#   Please choose your constellations, update the owner and remark, and set your station and destination (ipv6 supported)
+#   After customization, start the daemon: 
+#     systemctl enable --now ubxtool@ttyACM0 && journalctl -fu ubxtool
+# 
+#
+# FOR HELP:
+#   Review the Operator.md file: https://github.com/ahupowerdns/galmon/blob/master/Operator.md
+#   Download an IRC client like Textual (Mac) or HexChat (Windows). Join #galileo on the OFTC servers.
+#   Thank you for contributing, it is nice to see data from your location on the map.
+#
+#
+# DO NOT SET DEVICE HERE.
+#   The device is set by an argument to service, see above.
+#
+# uBlox M8-series and Aliexpress Specials support ( (gps AND galileo) AND ( beidou OR glonass) ) with optional SBAS.
+#
+DAEMON_OPTS="--wait --owner 'OWNER' --remark 'REMARK' --gps --galileo --station 65000 --destination ::1"
+#DAEMON_OPTS="--wait --owner 'OWNER' --remark 'REMARK' --gps --galileo --beidou --sbas --station 65000 --destination ::1"
+#DAEMON_OPTS="--wait --owner 'OWNER' --remark 'REMARK' --gps --galileo --glonass --sbas --station 65000 --destination ::1"
+#
+# uBlox ZED F9T and F9P modules support all four major constellations but not SBAS.
+#
+#DAEMON_OPTS="--wait --owner 'OWNER' --remark 'REMARK' --gps --galileo --beidou --glonass --station 65000 --destination ::1"

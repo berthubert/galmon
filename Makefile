@@ -54,6 +54,12 @@ install: $(PROGRAMS)
 	mkdir -p $(DESTDIR)$(prefix)/share/package/galmon
 	cp -a html $(DESTDIR)$(prefix)/share/package/galmon/
 
+install-debian:
+	apt-key adv --fetch-keys https://ota.bike/public-package-signing-keys/86E7F51C04FBAAB0.asc
+	echo "deb https://ota.bike/debian/ buster main" > /etc/apt/sources.list.d/galmon.list
+	apt-get update && apt-get install -y galmon
+	cp -i /etc/default/galmon /etc/default/ubxtool-ttyACM0
+
 decrypt: decrypt.o bits.o ext/fmt-5.2.1/src/format.o
 	$(CXX) -std=gnu++17 $^ -o $@ 
 
