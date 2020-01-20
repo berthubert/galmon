@@ -232,7 +232,7 @@ UBXMessage sendAndWaitForUBX(int fd, int seconds, basic_string_view<uint8_t> msg
     catch(...) {
       if(n==1)
         throw;
-      cerr<<"Retransmit"<<endl;
+      cerr<<humanTimeNow()<<" sendAndWaitForUBX Retransmit"<<endl;
     }
   }
   // we actually never get here, but if you remove this line, we get a warning
@@ -255,7 +255,7 @@ bool waitForUBXAckNack(int fd, int seconds, int ubxClass, int ubxType)
       
     const auto& payload = msg.getPayload();
     if(payload.size() != 2) {
-      if (doDEBUG) { cerr<<"Wrong payload size for ack/nack: "<<payload.size()<<endl; }
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Wrong payload size for ack/nack: "<<payload.size()<<endl; }
       continue;
     }
     if (doDEBUG) { cerr<<humanTimeNow()<<" Got an " << (msg.getType() ? "ack" : "nack")<<" for "<<(int)payload[0] <<" " << (int)payload[1]<<" while waiting for "<<ubxClass<<" " <<ubxType<<endl; }
@@ -280,7 +280,7 @@ bool sendAndWaitForUBXAckNack(int fd, int seconds, basic_string_view<uint8_t> ms
     catch(...) {
       if(n==1)
         throw;
-      cerr<<"Retransmit"<<endl;
+      cerr<<humanTimeNow()<<" sendAndWaitForUBXAckNack Retransmit"<<endl;
     }
   }
   return false;
@@ -361,7 +361,7 @@ public:
         if (doDEBUG) { cerr<<humanTimeNow()<<" Sending thread for "<<d->dst.toStringWithPort()<<" had error"; }
         {
           std::lock_guard<std::mutex> mut(d->mut);
-          if (doDEBUG) { cerr<<"There are now "<<d->queue.size()<<" messages queued for "<<d->dst.toStringWithPort()<<endl; }
+          if (doDEBUG) { cerr<<humanTimeNow()<<" There are now "<<d->queue.size()<<" messages queued for "<<d->dst.toStringWithPort()<<endl; }
         }
         sleep(1);
       }
@@ -464,7 +464,7 @@ void readSome(int fd)
         if (doDEBUG) { cerr<<humanTimeNow()<<" "<<string((char*)msg.getPayload().c_str(), msg.getPayload().size()) <<endl; }
     }
     catch(TimeoutError& te) {
-      cerr<<"Timeout"<<endl;
+      cerr<<humanTimeNow()<<" readSome Timeout"<<endl;
     }
   }
   
@@ -698,7 +698,7 @@ int main(int argc, char** argv)
         if (doDEBUG) { cerr<<humanTimeNow()<<" Got ACK for our poll of GNSS settings"<<endl; }
       }
       }catch(...) {
-        cerr<<"Got timeout waiting for ack of poll, no problem"<<endl;
+        cerr<<humanTimeNow()<<" Got timeout waiting for ack of poll, no problem"<<endl;
       }
       if(!version9) {
         //                                  ver   RO   maxch cfgs
@@ -898,7 +898,7 @@ int main(int argc, char** argv)
       
       UBXMessage um=sendAndWaitForUBX(fd, 4, msg, 0x06, 0x00); // UBX-CFG-PRT
       if (doDEBUG) {
-        cerr<<humanTimeNow()<<" Protocol settings on port: "<<endl;
+        cerr<<humanTimeNow()<<" Protocol settings on port: ";
         for(const auto& c : um.getPayload())
           cerr<<(int)c<< " ";
         cerr<<endl;
@@ -908,7 +908,7 @@ int main(int argc, char** argv)
           if (doDEBUG) { cerr<<humanTimeNow()<<" Got ACK for our poll of port protocol settings"<<endl; }
         }
       }catch(...) {
-        cerr<<"Got timeout waiting for ack of port protocol poll, no problem"<<endl;
+        cerr<<humanTimeNow()<<" Got timeout waiting for ack of port protocol poll, no problem"<<endl;
       }
 
       
@@ -1019,8 +1019,14 @@ int main(int argc, char** argv)
         PVT pvt;
         
         memcpy(&pvt, &payload[0], sizeof(pvt));
-        //        cerr << "Ground speed: "<<pvt.gSpeed<<", "<<pvt.velN<<" "<<pvt.velE<<" "<<pvt.velD << endl;
+        //        cerr<<humanTimeNow()<<" Ground speed: "<<pvt.gSpeed<<", "<<pvt.velN<<" "<<pvt.velE<<" "<<pvt.velD<<endl;
         
+	if ((pvt.valid&0x07) != 0x07) {
+		// no validDate, validTime, or fullyResolved bits set yet
+		if (doDEBUG) { cerr<<humanTimeNow()<<" No timestamp. validMag,fullyResolved,validTime,validDate="<<(int)(pvt.valid&0x08>>3)<<","<<(int)(pvt.valid&0x04>>2)<<","<<(int)(pvt.valid&0x02>>1)<<","<<(int)(pvt.valid&0x01>>0)<<endl; }
+		continue;
+	}
+
         g_fixtype = pvt.fixtype;
         g_speed = pvt.gSpeed / 1000.0;
         
@@ -1391,7 +1397,7 @@ int main(int argc, char** argv)
             if (doDEBUG) { cerr<<humanTimeNow()<<" SBAS "<<id.second<<" frame, numwords: "<<(int)payload[4]<<", version: "<<(int)payload[6]<<", totsize "<<payload.size()<<endl; }
 
             auto sbas = getSBASFromSFRBXMsg(payload);
-            if (doDEBUG) { cerr<<"SBAS Preamble: "<<(int)sbas[0]<<", type "<<getbitu(&sbas[0], 8, 6)<<endl; }
+            if (doDEBUG) { cerr<<humanTimeNow()<<" SBAS Preamble: "<<(int)sbas[0]<<", type "<<getbitu(&sbas[0], 8, 6)<<endl; }
 
           }
           else
@@ -1414,7 +1420,7 @@ int main(int argc, char** argv)
           auto el = (int)(char)payload[11+12*n];
           auto azi = ((int)payload[13+12*n]*256 + payload[12+12*n]);
           auto db = (int)payload[10+12*n];
-          //          if (doDEBUG) { cerr<<"gnssid "<<gnssid<<" sv "<<sv<<" el "<<el<<endl; }
+          //          if (doDEBUG) { cerr<<humanTimeNow()<<" gnssid "<<gnssid<<" sv "<<sv<<" el "<<el<<endl; }
           NavMonMessage nmm;
           nmm.set_sourceid(g_srcid);
           nmm.set_localutcseconds(g_gnssutc.tv_sec);
@@ -1472,7 +1478,7 @@ int main(int argc, char** argv)
           }
 
           auto db = (int)payload[14+16*n];
-          //          if (doDEBUG) { cerr<<"gnssid "<<gnssid<<" sv "<<sv<<" el "<<el<<endl; }
+          //          if (doDEBUG) { cerr<<humanTimeNow()<<" gnssid "<<gnssid<<" sv "<<sv<<" el "<<el<<endl; }
           NavMonMessage nmm;
           nmm.set_sourceid(g_srcid);
           nmm.set_localutcseconds(g_gnssutc.tv_sec);
@@ -1506,8 +1512,8 @@ int main(int argc, char** argv)
           uint32_t fAcc;
         } nc;
         memcpy(&nc, &payload[0], sizeof(nc));
-//        cerr<<"Clock offset "<< nc.clkBNS<<" nanoseconds, drift "<< nc.clkDNS<<" nanoseconds/second, accuracy " << nc.tAcc<<" ns, frequency accuracy "<<nc.fAcc << " ps/s"<<endl;
-  //      cerr<<"hwversion "<<hwversion<<" swversion "<< swversion <<" mods "<< mods <<" serialno "<<serialno<<endl;
+//        cerr<<humanTimeNow()<<" Clock offset "<< nc.clkBNS<<" nanoseconds, drift "<< nc.clkDNS<<" nanoseconds/second, accuracy " << nc.tAcc<<" ns, frequency accuracy "<<nc.fAcc << " ps/s"<<endl;
+  //      cerr<<humanTimeNow()<<" hwversion "<<hwversion<<" swversion "<< swversion <<" mods "<< mods <<" serialno "<<serialno<<endl;
 
 
         NavMonMessage nmm;
@@ -1676,7 +1682,7 @@ int main(int argc, char** argv)
       if (doDEBUG) { cerr<<humanTimeNow()<<" Bad UBX checksum, skipping message"<<endl; }
     }
     catch(EofException& em) {
-      cerr<<"EOF, break"<<endl;
+      cerr<<humanTimeNow()<<" EOF, break"<<endl;
       break;
     }
   }

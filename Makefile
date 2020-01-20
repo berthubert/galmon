@@ -32,6 +32,7 @@ SIMPLESOCKETS=ext/powerblog/ext/simplesocket/swrappers.o ext/powerblog/ext/simpl
 clean:
 	rm -f *~ *.o *.d ext/*/*.o $(PROGRAMS) navmon.pb.h navmon.pb.cc $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) $(H2OPP) $(SIMPLESOCKETS)
 	rm -f ext/fmt-5.2.1/src/format.o
+	rm -f githash.h githash
 
 decrypt: decrypt.o bits.o ext/fmt-5.2.1/src/format.o
 	$(CXX) -std=gnu++17 $^ -o $@ 
