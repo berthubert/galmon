@@ -1,0 +1,8 @@
+# Copyright 2020 AHU Holding BV - bert@hubertnet.nl - https://berthub.eu/
+# This package is free software: /usr/share/common-licenses/GPL-3
+#
+# Here are daemon options used by the navrecv and navnexus services
+DAEMON_OPTS_NAVNEXUS="/var/lib/galmon/storage ::"
+DAEMON_OPTS_NAVRECV=":: /var/lib/galmon/storage"
+#
+DAEMON_OPTS_NAVPARSE="[::]:10000 html galileo"
