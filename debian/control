@@ -3,12 +3,13 @@ Section: net
 Priority: optional
 Maintainer: Patrick Tudor <debian@ptudor.net>
 Build-Depends: debhelper (>=11~)
-Standards-Version: 4.1.4
+Standards-Version: 4.3.0
 Homepage: https://github.com/ahupowerdns/galmon/
 
 Package: galmon
 Architecture: any
 Multi-Arch: foreign
+Conflicts: gpsd-clients
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Description: galmon GNSS Monitoring Project software
                          88                                             
