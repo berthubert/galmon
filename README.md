@@ -7,11 +7,9 @@ Live website: https://galmon.eu/
 Theoretically multi-vendor, although currently only the U-blox 8 and 9
 chipsets are supported.  Navilock NL-8012U receiver works really well, as
 does the U-blox evaluation kit for the 8MT.  In addition, many stations have
-reported success with this very cheap [AliExpress sourced
-device](https://www.aliexpress.com/item/32816656706.html).  The best and
-most high-end receiver, which does all bands, all the time, is the Ublox
-F9P, several of us use the
-[ArdusimpleRTK2B](https://www.ardusimple.com/simplertk2b/) board.
+reported success with this very cheap [AliExpress sourced device](https://www.aliexpress.com/item/32816656706.html).
+The best and most high-end receiver, which does all bands, all the time,
+is the Ublox F9P, several of us use the [ArdusimpleRTK2B](https://www.ardusimple.com/simplertk2b/) board.
 
 > NOTE: One of our programs is called 'ubxtool'. Sadly, we did not do our
 > research, and there is another '[ubxtool](https://gpsd.io/ubxtool.html)' already, part of
@@ -20,8 +18,12 @@ F9P, several of us use the
 
 To deliver data to the project, please read
 [The Galmon GNSS Monitoring Project](https://berthub.eu/articles/posts/galmon-project/)
-and consult the rules outlined in [the operator
-guidelines](https://github.com/ahupowerdns/galmon/blob/master/Operator.md).
+and consult the rules outlined in [the operator guidelines](https://github.com/ahupowerdns/galmon/blob/master/Operator.md).
+
+The galmon project is very grateful to all its volunteering receiving stations
+as documented in the [volunteers](https://github.com/ahupowerdns/galmon/blob/master/Volunteers.md) file.
+Additional sites are welcome (and encouraged) as the more data receiving sites that exist,
+then more accurate data and absolute coverage of each constellation can be had.
 
 Highlights
 ----------
@@ -281,33 +283,6 @@ Big TODO
    
  * Semantics definition for output of Navnexus
    "we'll never surprise you with old data"
-
-Global coverage (via volunteers)
---------------------------------
-
-In alphabetical order:
-
- * Austria (Vienna area)
- * Brazil
- * Holland (Nootdorp, Hilversum, etc)
- * India (New Delhi area)
- * Israel (Jerusalem)
- * Italy (Rome)
- * New Zealand (Auckland area)
- * Rusia (Moscow area)
- * Singapore
- * South Africa (Cape Town area)
- * Spain
- * Tonga 
- * USA
-   * Alaska (Anchorage)
-   * California (Santa Cruz, Los Angeles area, etc)
-   * Massachusetts (Boston area)
- * Uruguay
- 
-Additional sites are welcome (and encouraged) as the more data receiving sites that exist, then more accurate data and absolute coverage of each constellation can be had.
-
-The galmon project is very grateful to all its volunteering receiving stations.
 
 ubxtool
 -------
