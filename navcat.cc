@@ -16,8 +16,20 @@
 #include <dirent.h>
 #include <inttypes.h>
 #include "navmon.hh"
+#include "githash.h"
+#include "CLI/CLI.hpp"
+#include "version.hh"
+
+static char program[]="navcat";
 
 using namespace std;
+
+extern const char* g_gitHash;
+
+void showVersion()
+{
+    _showVersion(program,g_gitHash)
+}
 
 void unixDie(const std::string& str)
 {
@@ -163,6 +175,23 @@ void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
 
 int main(int argc, char** argv)
 {
+  bool doVERSION{false};
+
+  CLI::App app(program);
+
+  app.add_flag("--version", doVERSION, "show program version and copyright");
+
+  try {
+    app.parse(argc, argv);
+  } catch(const CLI::Error &e) {
+    return app.exit(e);
+  }
+
+  if(doVERSION) {
+    showVersion();
+    exit(0);
+  }
+
   signal(SIGPIPE, SIG_IGN);
   if(argc < 3) {
     cout<<"Syntax: navcat storage start stop"<<endl;

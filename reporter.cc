@@ -4,8 +4,20 @@
 #include "navmon.hh"
 #include "fmt/format.h"
 #include "fmt/printf.h"
+#include "githash.h"
+#include "CLI/CLI.hpp"
+#include "version.hh"
+
+static char program[]="reporter";
 
 using namespace std;
+
+extern const char* g_gitHash;
+
+void showVersion()
+{
+    _showVersion(program,g_gitHash)
+}
 
 /*
   Goal: generate statistics from influxdb.
@@ -45,6 +57,23 @@ int main(int argc, char **argv)
   string url="http://127.0.0.1:8086/query?db="+dbname+"&epoch=s&q=";
   string period="time > now() - 1w";
   int sigid=1;
+  bool doVERSION{false};
+
+  CLI::App app(program);
+
+  app.add_flag("--version", doVERSION, "show program version and copyright");
+
+  try {
+    app.parse(argc, argv);
+  } catch(const CLI::Error &e) {
+    return app.exit(e);
+  }
+
+  if(doVERSION) {
+    showVersion();
+    exit(0);
+  }
+
   if(argc == 2)
     period = "time > now() - "+string(argv[1]);
   if(argc == 3) {

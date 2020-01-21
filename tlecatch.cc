@@ -1,7 +1,21 @@
 #include "SGP4.h"
 #include <string>
 #include <time.h>
+#include "githash.h"
+#include "CLI/CLI.hpp"
+#include "version.hh"
+
+static char program[]="tlecatch";
+
 using namespace std;
+
+extern const char* g_gitHash;
+
+void showVersion()
+{
+    _showVersion(program,g_gitHash)
+}
+
 int main(int argc, char **argv)
 {
   string line;
@@ -9,7 +23,23 @@ int main(int argc, char **argv)
   time_t now = time(0);
   struct tm tm;
   gmtime_r(&now, &tm);
-    
+  bool doVERSION{false};
+
+  CLI::App app(program);
+
+  app.add_flag("--version", doVERSION, "show program version and copyright");
+
+  try {
+    app.parse(argc, argv);
+  } catch(const CLI::Error &e) {
+    return app.exit(e);
+  }
+
+  if(doVERSION) {
+    showVersion();
+    exit(0);
+  }
+
   for(;;) {
     DateTime d(1900 + tm.tm_year, tm.tm_mon+1, tm.tm_mday, 04, 43, 51);
     string name, line1, line2;

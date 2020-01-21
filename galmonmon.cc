@@ -7,7 +7,19 @@
 #include "ext/powerblog/h2o-pp.hh"
 #include <variant>
 #include "githash.h"
+#include "CLI/CLI.hpp"
+#include "version.hh"
+
+static char program[]="galmonmon";
+
 using namespace std;
+
+extern const char* g_gitHash;
+
+void showVersion()
+{
+    _showVersion(program,g_gitHash)
+}
 
 /*
   Monitoring the satellites for sensible alerts.
@@ -164,14 +176,28 @@ int main(int argc, char **argv)
   MiniCurl::MiniCurlHeaders mch;
   //  string url="https://galmon.eu/svs.json";
   string url="http://[::1]:10000/";
-  
+  bool doVERSION{false};
+
+  CLI::App app(program);
+
+  app.add_flag("--version", doVERSION, "show program version and copyright");
+
+  try {
+    app.parse(argc, argv);
+  } catch(const CLI::Error &e) {
+    return app.exit(e);
+  }
+
+  if(doVERSION) {
+    showVersion();
+    exit(0);
+  }
+
   g_sk.setBoolNames("health", "healthy", "unhealthy");
   g_sk.setBoolNames("eph-too-old", "ephemeris fresh", "ephemeris too old");
   g_sk.setBoolNames("silent", "observed", "not observed");
 
   std::variant<bool, string> tst;
-
-  extern const char* g_gitHash;
 
   auto observers = nlohmann::json::parse(mc.getURL(url+"observers.json"));
   

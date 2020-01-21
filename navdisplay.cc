@@ -13,8 +13,20 @@
 #include "navmon.pb.h"
 #include <unistd.h>
 #include "navmon.hh" 
+#include "githash.h"
+#include "CLI/CLI.hpp"
+#include "version.hh"
+
+static char program[]="navdisplay";
+
 using namespace std;
 
+extern const char* g_gitHash;
+
+void showVersion()
+{
+    _showVersion(program,g_gitHash)
+}
 
 struct WinKeeper
 {

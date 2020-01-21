@@ -11,7 +11,20 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include "githash.h"
+#include "CLI/CLI.hpp"
+#include "version.hh"
+
+static char program[]="navrecv";
+
 using namespace std;
+
+extern const char* g_gitHash;
+
+void showVersion()
+{
+    _showVersion(program,g_gitHash)
+}
 
 /* Goals in life:
 
@@ -181,6 +194,23 @@ void recvListener(Socket&& s, ComboAddress local)
 
 int main(int argc, char** argv)
 {
+  bool doVERSION{false};
+
+  CLI::App app(program);
+
+  app.add_flag("--version", doVERSION, "show program version and copyright");
+
+  try {
+    app.parse(argc, argv);
+  } catch(const CLI::Error &e) {
+    return app.exit(e);
+  }
+
+  if(doVERSION) {
+    showVersion();
+    exit(0);
+  }
+
   signal(SIGPIPE, SIG_IGN);
   if(argc != 3) {
     cout<<"Syntax: navrecv listen-address storage"<<endl;

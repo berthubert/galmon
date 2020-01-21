@@ -15,8 +15,21 @@
 #include "storage.hh"
 #include <dirent.h>
 #include <inttypes.h>
+#include "githash.h"
+#include "CLI/CLI.hpp"
+#include "version.hh"
+
+static char program[]="navnexus";
 
 using namespace std;
+
+extern const char* g_gitHash;
+
+void showVersion()
+{
+    _showVersion(program,g_gitHash)
+}
+
 
 std::mutex g_clientmut;
 set<int> g_clients;
@@ -143,6 +156,23 @@ void sendListener(Socket&& s, ComboAddress local, int hours)
 
 int main(int argc, char** argv)
 {
+  bool doVERSION{false};
+
+  CLI::App app(program);
+
+  app.add_flag("--version", doVERSION, "show program version and copyright");
+
+  try {
+    app.parse(argc, argv);
+  } catch(const CLI::Error &e) {
+    return app.exit(e);
+  }
+
+  if(doVERSION) {
+    showVersion();
+    exit(0);
+  }
+
   signal(SIGPIPE, SIG_IGN);
   if(argc < 3) {
     cout<<"Syntax: navnexus storage listen-address [backlog-hours]"<<endl;

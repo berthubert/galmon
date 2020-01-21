@@ -32,9 +32,13 @@
 #include "swrappers.hh"
 #include "sclasses.hh"
 #include "githash.h"
+#include "version.hh"
+
+static char program[]="ubxtool";
 
 bool doDEBUG{false};
 bool doLOGFILE{false};
+bool doVERSION{false};
 
 struct timespec g_gnssutc;
 uint16_t g_galwn;
@@ -44,6 +48,12 @@ using namespace std;
 uint16_t g_srcid{0};
 int g_fixtype{-1};
 double g_speed{-1};
+extern const char* g_gitHash;
+
+void showVersion()
+{
+    _showVersion(program,g_gitHash)
+}
 
 static int getBaudrate(int baud)
 {
@@ -534,7 +544,7 @@ int main(int argc, char** argv)
   time_t starttime=time(0);
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-  CLI::App app("ubxtool");
+  CLI::App app(program);
     
 
   bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true}, doReset{false}, doWait{true}, doRTSCTS{true}, doSBAS{false};
@@ -563,7 +573,7 @@ int main(int argc, char** argv)
   app.add_flag("--sbas,-s", doSBAS, "Enable SBAS (EGNOS/WAAS/etc) reception");
   app.add_option("--rtscts", doRTSCTS, "Set hardware handshaking");
   app.add_flag("--stdout", doSTDOUT, "Emit output to stdout");
-  app.add_option("--port,-p", portName, "Device or file to read serial from")->required();
+  auto pn = app.add_option("--port,-p", portName, "Device or file to read serial from");
   app.add_option("--station", g_srcid, "Station id");
   app.add_option("--ubxport,-u", ubxport, "UBX port to enable messages on (usb=3)");
   app.add_option("--baud,-b", baudrate, "Baudrate for serial connection");
@@ -581,12 +591,22 @@ int main(int argc, char** argv)
   app.add_flag("--survey-reset", doSurveyReset, "Reset the Surveyed-in state");
   app.add_flag("--debug", doDEBUG, "Display debug information");  
   app.add_flag("--logfile", doLOGFILE, "Create logfile");  
+  app.add_flag("--version", doVERSION, "show program version and copyright");
   try {
     app.parse(argc, argv);
   } catch(const CLI::Error &e) {
     return app.exit(e);
   }
 
+  if(doVERSION) {
+    showVersion();
+    exit(0);
+  }
+
+  if(! *pn) {
+    cerr<<"you must provide the --port"<<endl;
+    exit(1);
+  }
 
   g_baudval = getBaudrate(baudrate);
 
@@ -1529,7 +1549,6 @@ int main(int argc, char** argv)
 
         nmm.mutable_od()->set_owner(owner);
         nmm.mutable_od()->set_remark(remark);
-        extern const char* g_gitHash;
         nmm.mutable_od()->set_recvgithash(g_gitHash);
         nmm.mutable_od()->set_uptime(time(0) - starttime);
         
