@@ -50,11 +50,6 @@ int g_fixtype{-1};
 double g_speed{-1};
 extern const char* g_gitHash;
 
-void showVersion()
-{
-    _showVersion(program,g_gitHash)
-}
-
 static int getBaudrate(int baud)
 {
   if(baud==115200)
@@ -599,7 +594,7 @@ int main(int argc, char** argv)
   }
 
   if(doVERSION) {
-    showVersion();
+    showVersion(program, g_gitHash);
     exit(0);
   }
 

@@ -26,11 +26,6 @@ using namespace std;
 
 extern const char* g_gitHash;
 
-void showVersion()
-{
-    _showVersion(program,g_gitHash)
-}
-
 void unixDie(const std::string& str)
 {
   throw std::runtime_error(str+string(": ")+string(strerror(errno)));
@@ -188,7 +183,7 @@ int main(int argc, char** argv)
   }
 
   if(doVERSION) {
-    showVersion();
+    showVersion(program, g_gitHash);
     exit(0);
   }
 

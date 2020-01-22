@@ -35,11 +35,6 @@ using namespace std;
 
 extern const char* g_gitHash;
 
-void showVersion()
-{
-    _showVersion(program,g_gitHash)
-}
-
 Point g_ourpos;
 
 
@@ -272,7 +267,7 @@ try
     return app.exit(e);
   }
   if(doVERSION) {
-    showVersion();
+    showVersion(program, g_gitHash);
     exit(0);
   }
   SVFilter svfilter;

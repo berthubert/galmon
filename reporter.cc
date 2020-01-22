@@ -14,11 +14,6 @@ using namespace std;
 
 extern const char* g_gitHash;
 
-void showVersion()
-{
-    _showVersion(program,g_gitHash)
-}
-
 /*
   Goal: generate statistics from influxdb.
 
@@ -70,7 +65,7 @@ int main(int argc, char **argv)
   }
 
   if(doVERSION) {
-    showVersion();
+    showVersion(program, g_gitHash);
     exit(0);
   }
 
