@@ -35,9 +35,12 @@ systemctl enable --now ubxtool@ttyACM3
 ### Automatic Updates
 
 Armbian and Raspbian have apt-daily timers enabled by default.
+However, most configurations for unattended installs require customization.
 
-Sources should update randomly twice daily but actual package updates
-will be applied randomly during a one-hour window depending on computer timezone.
+A simple timer is included that will apply any galmon upgrades every three days:
+```sh
+systemctl enable --now galmon-upgrade.timer
+```
 
 You can perform an immediate update by hand:
 ```sh
