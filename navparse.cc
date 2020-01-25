@@ -30,8 +30,15 @@
 #include "navparse.hh"
 #include <fenv.h> 
 #include "influxpush.hh"
+#include "githash.h"
+#include "CLI/CLI.hpp"
+#include "version.hh"
+
+static char program[]="navparse";
 
 using namespace std;
+
+extern const char* g_gitHash;
 
 struct ObserverPosition
 {
@@ -415,6 +422,23 @@ void addHeaders(h2o_req_t* req)
 int main(int argc, char** argv)
 try
 {
+  bool doVERSION{false};
+
+  CLI::App app(program);
+
+  app.add_flag("--version", doVERSION, "show program version and copyright");
+
+  try {
+    app.parse(argc, argv);
+  } catch(const CLI::Error &e) {
+    return app.exit(e);
+  }
+
+  if(doVERSION) {
+    showVersion(program, g_gitHash);
+    exit(0);
+  }
+
   //  feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW ); 
 
   

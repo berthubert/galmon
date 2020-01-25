@@ -26,7 +26,14 @@
 #include "sp3.hh"
 #include "ubx.hh"
 #include <unistd.h>
+#include "githash.h"
+#include "version.hh"
+
+static char program[]="navdump";
+
 using namespace std;
+
+extern const char* g_gitHash;
 
 Point g_ourpos;
 
@@ -226,7 +233,7 @@ try
 {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-  CLI::App app("navdump");
+  CLI::App app(program);
 
   
   TLERepo tles;
@@ -247,15 +254,21 @@ try
   bool doReceptionData{false};
   bool doRFData{true};
   bool doObserverPosition{false};
+  bool doVERSION{false};
   app.add_option("--svs", svpairs, "Listen to specified svs. '0' = gps, '2' = Galileo, '2,1' is E01");
   app.add_option("--stations", stations, "Listen to specified stations.");
   app.add_option("--positions,-p", doObserverPosition, "Print out observer positions (or not)");
   app.add_option("--rfdata,-r", doRFData, "Print out RF data (or not)");
+  app.add_flag("--version", doVERSION, "show program version and copyright");
     
   try {
     app.parse(argc, argv);
   } catch(const CLI::Error &e) {
     return app.exit(e);
+  }
+  if(doVERSION) {
+    showVersion(program, g_gitHash);
+    exit(0);
   }
   SVFilter svfilter;
   for(const auto& svp : svpairs) {
