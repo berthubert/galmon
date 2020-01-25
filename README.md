@@ -46,8 +46,7 @@ Highlights
 Data is made available as JSON, as a user-friendly website and as a
 time-series database. This time-series database is easily mated to the
 industry standard Matplotlib/Pandas/Jupyter combination (details 
-[here]((https://github.com/ahupowerdns/galmon/blob/master/influxdb.md)).
-
+[here](https://github.com/ahupowerdns/galmon/blob/master/influxdb.md).
 
 There is also tooling to extract raw frames/strings/words from specific
 timeframes.
