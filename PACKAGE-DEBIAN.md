@@ -78,31 +78,32 @@ debuild
 dpkg -i ../*.deb
 ```
 
-## Future maintenance considerations
+### Future maintenance considerations
 
 The githash.h files cannot change after the debuild process has started.
 For now, the Makefile used by debuild does not run that script and
 the files must be created before starting the debuild process.
 
-## Real World Build Results in January 2020
+### Real World Build Results in January 2020
 
-Avoid arm6 computers. The arm6 used in cheap Raspberry Pi models is an expensive model to support 
+Avoid compiling on arm6 computers, it is slow. The arm6 used in cheap Raspberry Pi models is an expensive model to support
 relative to the much faster arm7 and arm8 computers available. Compiling approaches 90 minutes at O3. 
 
 The arm7 and arm8 both compile in 20 to 30 minutes at -j1 -O3 but the 64 bit arm8 has approximately
 double the RAM requirements during compilation. To avoid swapping, increasing compile time 150%,
 use hardware with at least 1GB of RAM. The NanoPi Neo2 and NanoPi ZeroPi models with 512MB of RAM
 are perfect clients, but the OrangePi PCs with 1GB of RAM and the Allwinner H3 or H5 are
-better suited for smooth building.
+better suited for smooth building. For comparison, a VM on a low-end AMD Ryzen 3 2200G builds the package at -j1 in about two minutes.
 
 These are fast multi-core computers but we turn off parallel compiles because of limited RAM.
+Limiting optimizations to -O0 cuts the compile time in half approximately.
 
-## Why do this?
+### Why do this?
 
 Convenience, uniformity, and scalability:
 Hand-compiling software is fun, but vendor package management solutions
 exist to give us reliable unattended installations for free.
 
-## Signing key
+### Signing key
 
 GPG Public Key [86E7F51C04FBAAB0](debian/86E7F51C04FBAAB0.asc)
