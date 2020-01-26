@@ -13,6 +13,9 @@ most high-end receiver, which does all bands, all the time, is the Ublox
 F9P, several of us use the
 [ArdusimpleRTK2B](https://www.ardusimple.com/simplertk2b/) board.
 
+An annotated presentation about our project aimed at GNSS professionals can
+be found [here](https://berthub.eu/galileo/The%20galmon.eu%20project.pdf). 
+
 > NOTE: One of our programs is called 'ubxtool'. Sadly, we did not do our
 > research, and there is another '[ubxtool](https://gpsd.io/ubxtool.html)' already, part of
 > [gpsd](https://gpsd.io). You might have ended up on our page by mistake.
@@ -110,7 +113,7 @@ Running
 -------
 
 Once compiled, run for example `./ubxtool --wait --port /dev/ttyACM0
---station 1 --stdout --galileo | ./navparse 127.0.0.1:10000 html null`
+--station 1 --stdout --galileo | ./navparse --bind [::1]:10000`
 
 Next up, browse to http://[::1]:10000 (or try http://localhost:10000/ and
 you should be in business. ubxtool changes (non-permanently) the
@@ -213,8 +216,9 @@ Next up, run `navnexus ./storage ::`, which will serve your recorded data from p
 coming in from all sources and serve them in time order.
 
 Finally, you can do `nc 127.0.0.1 29601 | ./navdump`, which will give you all messages over the past 24 hours, and stream you more.
-This also works for `navparse` for the pretty website and influx storage, `nc 127.0.0.1 29601 | ./navparse 127.0.0.0:10000 html galileo`,
+This also works for `navparse` for the pretty website and influx storage, `nc 127.0.0.1 29601 | ./navparse --influxdb=galileo`,
 if you have an influxdb running on localhost with a galileo database in there.
+The default URL is http://127.0.0.1:29599/ 
 
 Internals
 ---------

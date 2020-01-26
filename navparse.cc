@@ -399,7 +399,7 @@ try
   app.add_flag("--version", doVERSION, "show program version and copyright");
   app.add_option("--bind,-b", localAddress, "Address to bind to");
   app.add_option("--html", htmlDir, "Where to source the HTML & JavaScript");
-  app.add_option("--influxdb", htmlDir, "Name of influxdb database");
+  app.add_option("--influxdb", influxDBName, "Name of influxdb database");
     
   try {
     app.parse(argc, argv);
