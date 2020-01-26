@@ -8,7 +8,7 @@ ConditionPathExists=/etc/default/galmon
 [Service]
 Type=simple
 Restart=no
-ExecStartPre=+apt-get upgrade
+ExecStartPre=+apt-get update
 ExecStart=+apt-get install -y galmon
 
 [Install]
