@@ -8,8 +8,8 @@ ConditionPathExists=/etc/default/galmon
 [Service]
 Type=simple
 Restart=no
-ExecStartPre=+apt-get update
-ExecStart=+apt-get upgrade -y galmon
+ExecStartPre=+apt-get upgrade
+ExecStart=+apt-get install -y galmon
 
 [Install]
 WantedBy=multi-user.target
