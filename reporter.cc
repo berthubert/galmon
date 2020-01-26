@@ -55,9 +55,9 @@ int main(int argc, char **argv)
   bool doVERSION{false};
 
   CLI::App app(program);
-
+  string periodarg("1d");
   app.add_flag("--version", doVERSION, "show program version and copyright");
-
+  app.add_option("--period,-p", periodarg, "period over which to report (1h, 1w)");
   try {
     app.parse(argc, argv);
   } catch(const CLI::Error &e) {
@@ -68,12 +68,12 @@ int main(int argc, char **argv)
     showVersion(program, g_gitHash);
     exit(0);
   }
-
-  if(argc == 2)
-    period = "time > now() - "+string(argv[1]);
-  if(argc == 3) {
+  
+  period = "time > now() - "+periodarg;
+  /*  if(argc == 3) {
     period = "time > '"+string(argv[1]) +"' and time <= '" + string(argv[2])+"'"; 
   }
+  */
   auto res = mc.getURL(url + mc.urlEncode("select distinct(value) from sisa where "+period+" and sigid='"+to_string(sigid)+"' group by gnssid,sv,sigid,time(10m)"));
 
 
