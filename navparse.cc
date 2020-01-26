@@ -96,39 +96,6 @@ double utcFromGPS(int wn, double tow)
   return (315964800 + wn * 7*86400 + tow - g_dtLS); 
 }
 
-string humanFt(uint8_t ft)
-{
-  static const char* ret[]={"100 cm", "200 cm", "250 cm", "400 cm", "500 cm", "7 m", "10 m", "12 m", "14 m", "16 m", "32 m", "64 m", "128 m", "256 m", "512 m", "NONE"};
-  if(ft < 16)
-    return ret[ft];
-  return "???";
-}
-
-
-string humanSisa(uint8_t sisa)
-{
-  unsigned int sval = sisa;
-  if(sisa < 50)
-    return std::to_string(sval)+" cm";
-  if(sisa < 75)
-    return std::to_string(50 + 2* (sval-50))+" cm";
-  if(sisa < 100)
-    return std::to_string(100 + 4*(sval-75))+" cm";
-  if(sisa < 125)
-    return std::to_string(200 + 16*(sval-100))+" cm";
-  if(sisa < 255)
-    return "SPARE";
-  return "NO SISA AVAILABLE";
-}
-
-string humanUra(uint8_t ura)
-{
-  if(ura < 6)
-    return fmt::sprintf("%d cm", (int)(100*pow(2.0, 1.0+1.0*ura/2.0)));
-  else if(ura < 15)
-    return fmt::sprintf("%d m", (int)(pow(2, ura-2)));
-  return "NO URA AVAILABLE";
-}
 
 void SVIOD::addGalileoWord(std::basic_string_view<uint8_t> page)
 {
@@ -425,9 +392,15 @@ try
   bool doVERSION{false};
 
   CLI::App app(program);
-
+  string localAddress("127.0.0.1:29599");
+  string htmlDir("./html");
+  string influxDBName("null");
+  
   app.add_flag("--version", doVERSION, "show program version and copyright");
-
+  app.add_option("--bind,-b", localAddress, "Address to bind to");
+  app.add_option("--html", htmlDir, "Where to source the HTML & JavaScript");
+  app.add_option("--influxdb", htmlDir, "Name of influxdb database");
+    
   try {
     app.parse(argc, argv);
   } catch(const CLI::Error &e) {
@@ -451,7 +424,7 @@ try
 
   
   signal(SIGPIPE, SIG_IGN);
-  InfluxPusher idb(argc > 3 ? argv[3] : "galileo");
+  InfluxPusher idb(influxDBName);
   MiniCurl::init();
   
   H2OWebserver h2s("galmon");
@@ -1158,6 +1131,7 @@ try
 
         if(s.first.gnss == 3) { // beidou
           item["sisa"]=humanUra(s.second.ura);
+          item["sisa-m"]=numUra(s.second.ura);          
           if(s.second.t0eMSB >= 0 && s.second.t0eLSB >=0)
             item["eph-age-m"] = ephAge(s.second.tow, 8.0*((s.second.t0eMSB<<15) + s.second.t0eLSB))/60.0;
 
@@ -1179,8 +1153,10 @@ try
           }
         }
         else if(s.first.gnss == 6) { // glonass
-          if(s.second.glonassMessage.FT < 16)
+          if(s.second.glonassMessage.FT < 16) {
             item["sisa"] = humanFt(s.second.glonassMessage.FT);
+            item["sisa-m"] = numFt(s.second.glonassMessage.FT);
+          }
           item["aode"] = s.second.aode;
           item["iod"] = s.second.glonassMessage.Tb;
 
@@ -1203,10 +1179,13 @@ try
           item["iod"]=s.second.getIOD();
           if(s.first.gnss == 0 || s.first.gnss == 3) {
             item["sisa"]=humanUra(s.second.ura);
+            item["sisa-m"]=truncPrec(numUra(s.second.ura),3);
             //            cout<<"Asked to convert "<<s.second.ura<<" for sv "<<s.first.first<<","<<s.first.second<<endl;
           }
-          else
+          else {
             item["sisa"]=humanSisa(s.second.liveIOD().sisa);
+            item["sisa-m"]=numSisa(s.second.liveIOD().sisa);
+          }
           item["eph-age-m"] = ephAge(s.second.tow, s.second.liveIOD().t0e)/60.0;
           item["af0"] = s.second.liveIOD().af0;
           item["af1"] = s.second.liveIOD().af1;
@@ -1386,9 +1365,9 @@ try
       }
       return ret;
     });
-  h2s.addDirectory("/", argc > 2 ? argv[2] : "./html/");
+  h2s.addDirectory("/", htmlDir);
 
-  const char *address = argc > 1 ? argv[1] : "127.0.0.1:29599";
+  const char *address = localAddress.c_str();
   std::thread ws([&h2s, address]() {
       auto actx = h2s.addContext();
       ComboAddress listenOn(address);
@@ -1429,6 +1408,8 @@ try
       int gnssid = nmm.rd().gnssid();
       int sv = nmm.rd().gnsssv();
       int sigid = nmm.rd().sigid();
+      if(nmm.sourceid()==14)
+        cerr<<"gnssid: "<<gnssid<<endl;
       if(gnssid==2 && sigid == 0)
         sigid = 1;
       
@@ -2111,7 +2092,7 @@ try
         //        cout<<"Glonass now: "<<humanTime(glotime + 820368000) << " n4 "<<(int)gm.n4<<" NT "<<(int)gm.NT<< " wn "<<svstat.wn <<" tow " <<svstat.tow<<endl;
       }
       else if(strno == 2) {
-        if(svstat.wn > 0 && svstat.tow >= 0)
+        if(svstat.wn > 0)
           idb.addValue(id, "glohealth", {{"Bn", gm.Bn}}, satUTCTime(id));
         if(oldgm.Bn != gm.Bn) {
           cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" n4 "<< (int)gm.n4<<" NT " << (int)gm.NT<<" GLONASS R"<<id.sv<<"@"<<id.sigid<<" health changed from  "<<(int)oldgm.Bn <<" to "<< (int)gm.Bn <<endl;
@@ -2121,12 +2102,15 @@ try
       }
       else if(strno == 4) {
         svstat.aode = gm.En * 24;
-        idb.addValue(id, "glo_taun_ns", {{"value", gm.getTaunNS()}}, satUTCTime(id));
-        idb.addValue(id, "ft", {{"value", gm.FT}}, satUTCTime(id));
-        if(oldgm.taun && oldgm.taun != gm.taun) {
-          if(gm.getGloTime() - oldgm.getGloTime()  < 300) {
-            svstat.timeDisco = gm.getTaunNS() - oldgm.getTaunNS();
-            idb.addValue(id, "clock_jump_ns", {{"value", svstat.timeDisco}}, satUTCTime(id));
+        if(svstat.wn > 0) {
+          idb.addValue(id, "glo_taun_ns", {{"value", gm.getTaunNS()}}, satUTCTime(id));
+          idb.addValue(id, "ft", {{"value", gm.FT}}, satUTCTime(id));
+
+          if(oldgm.taun && oldgm.taun != gm.taun) {
+            if(gm.getGloTime() - oldgm.getGloTime()  < 300) {
+              svstat.timeDisco = gm.getTaunNS() - oldgm.getTaunNS();
+              idb.addValue(id, "clock_jump_ns", {{"value", svstat.timeDisco}}, satUTCTime(id));
+            }
           }
         }
         if(gm.x && gm.y && gm.z) {
