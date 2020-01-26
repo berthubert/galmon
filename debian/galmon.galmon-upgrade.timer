@@ -1,6 +1,6 @@
 [Unit]
 Description=Update galmon
-Documentation=man:ubxtool
+Documentation=https://github.com/ahupowerdns/galmon
 
 [Timer]
 OnBootSec=3min

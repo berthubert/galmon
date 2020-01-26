@@ -7,6 +7,8 @@
 #   Please choose your constellations, update the owner and remark, and set your station and destination (ipv6 supported)
 #   After customization, start the daemon: 
 #     systemctl enable --now ubxtool@ttyACM0 && journalctl -fu ubxtool
+#   If you want, enable automatic upgrades at boot and every three days following:
+#     systemctl enable --now galmon-upgrade.timer
 # 
 #
 # FOR HELP:
