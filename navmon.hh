@@ -51,3 +51,13 @@ private:
 
 
 double truncPrec(double in, unsigned int digits);
+std::string humanFt(uint8_t ft);
+std::string humanSisa(uint8_t sisa);
+std::string humanUra(uint8_t ura);
+
+double numFt(uint8_t ft);
+double numSisa(uint8_t sisa);
+double numUra(uint8_t ura);
+
+
+
