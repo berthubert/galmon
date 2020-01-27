@@ -21,6 +21,7 @@ int main(int argc, char **argv)
   bool doVERSION{false};
 
   CLI::App app(program);
+  app.allow_extras(true); // allow bare positional parameters
 
   app.add_flag("--version", doVERSION, "show program version and copyright");
 
