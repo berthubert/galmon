@@ -946,7 +946,7 @@ int main(int argc, char** argv)
       enableUBXMessageOnPort(fd, 0x01, 0x22, ubxport, 16); // UBX-NAV-CLOCK
 
       
-      if(!version9 && !m8t) {
+      if(!version9 && !m8t && !fuzzPositionMeters) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling debugging data"<<endl; } // RF doppler
         enableUBXMessageOnPort(fd, 0x03, 0x10, ubxport, 4);
       }
