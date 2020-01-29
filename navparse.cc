@@ -1828,6 +1828,23 @@ try
 
       
     }
+    else if(nmm.type() == NavMonMessage::UbloxJammingStatsType) {
+      /*
+      cout<<"noisePerMS "<<nmm.ujs().noiseperms() << " agcCnt "<<
+        nmm.ujs().agccnt()<<" flags "<<nmm.ujs().flags()<<" jamind "<<
+        nmm.ujs().jamind()<<endl;
+      */
+      idb.addValueObserver(nmm.sourceid(), "ubx_jamming", {
+          {"noise_per_ms", nmm.ujs().noiseperms()},
+            {"agccnt", nmm.ujs().agccnt()},
+              {"jamind", nmm.ujs().jamind()},
+                {"flags", nmm.ujs().flags()}
+        }, 
+        nmm.localutcseconds());
+
+      
+    }
+
     else if(nmm.type()== NavMonMessage::DebuggingType) {
       auto ret =  parseTrkMeas(basic_string<uint8_t>((const uint8_t*)nmm.dm().payload().c_str(), nmm.dm().payload().size()));
       for(const auto& tss : ret) {

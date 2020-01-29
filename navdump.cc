@@ -883,6 +883,12 @@ try
       
       cout<<endl;
     }
+    else if(nmm.type() == NavMonMessage::UbloxJammingStatsType) {
+      etstamp();
+      cout<<"noisePerMS "<<nmm.ujs().noiseperms() << " agcCnt "<<
+        nmm.ujs().agccnt()<<" flags "<<nmm.ujs().flags()<<" jamind "<<
+        nmm.ujs().jamind()<<endl;
+    }
     else if(nmm.type() == NavMonMessage::DebuggingType) {
 
       auto res = parseTrkMeas(basic_string<uint8_t>((const uint8_t*)nmm.dm().payload().c_str(), nmm.dm().payload().size()));

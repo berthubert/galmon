@@ -104,4 +104,9 @@ Observer and SV measurements:
    * ele: calculated elevation for SV from this receiver
    * prres: pseudorange residual according to receiver
    * qi: 0-7, quality indicator according to receiver
+ * ubx\_jamming
+   * noise\_per\_ms: the Ublox noisePerMS field
+   * agccnt: the Ublox automatic gain correction "count"
+   * jamind: The Ublox jamming indicator
+   * flag: The Ublox jamming flag field
 

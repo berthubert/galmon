@@ -930,6 +930,10 @@ int main(int argc, char** argv)
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RLM"<<endl; } // SAR
       enableUBXMessageOnPort(fd, 0x02, 0x59, ubxport); // UBX-RXM-RLM
 
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-MON-HW"<<endl; } // SAR
+      enableUBXMessageOnPort(fd, 0x0A, 0x09, ubxport, 16); // UBX-MON-HW
+
+      
       if(version9) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-SVIN"<<endl; } // Survey-in results
         enableUBXMessageOnPort(fd, 0x01, 0x3b, ubxport, 2); 
@@ -1086,7 +1090,6 @@ int main(int argc, char** argv)
           nmm.mutable_op()->set_z(5001904.9952);
           nmm.mutable_op()->set_acc(3.14);
           ns.emitNMM( nmm);
-          
         }
       }
       
@@ -1680,7 +1683,41 @@ int main(int argc, char** argv)
           cerr<<std::fixed<<"("<<TS.meanXCM <<", "<<TS.meanYCM <<", "<<TS.meanZCM<<")"<<endl;
         }
         lastTS = TS;
-      }            
+      }
+      else if(msg.getClass() == 0x0a && msg.getType() == 0x09) { // UBX-MON-HW
+        struct MonHW {
+          uint32_t pinSel, pinBank, pinDir, pinVal;
+
+          uint16_t noisePerMS;
+          uint16_t agcCnt;
+
+          uint8_t aStatus;
+          uint8_t aPower;
+          uint8_t flags;
+          uint8_t res1;
+          
+          uint32_t usedMask;
+          
+          uint8_t VP[17];
+          uint8_t jamInd;
+          uint16_t res2;
+          uint32_t pinIrq, pullH, pullL;
+        } __attribute__((packed));
+        MonHW mhw;
+        memcpy(&mhw, payload.c_str(), sizeof(MonHW));
+        //        cerr << "agcCnt "<< mhw.agcCnt <<" jamind " << (unsigned int) mhw.jamInd <<" flags "<< (unsigned int)mhw.flags << endl;
+        NavMonMessage nmm;
+        nmm.set_sourceid(g_srcid);
+        nmm.set_localutcseconds(g_gnssutc.tv_sec);
+        nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
+        
+        nmm.set_type(NavMonMessage::UbloxJammingStatsType);
+        nmm.mutable_ujs()->set_noiseperms(mhw.noisePerMS);
+        nmm.mutable_ujs()->set_agccnt(mhw.agcCnt);
+        nmm.mutable_ujs()->set_flags(mhw.flags);
+        nmm.mutable_ujs()->set_jamind(mhw.jamInd);
+        ns.emitNMM(nmm);
+      }
       else 
         if (doDEBUG) { cerr<<humanTimeNow()<<" Unknown UBX message of class "<<(int) msg.getClass() <<" and type "<< (int) msg.getType()<< " of "<<payload.size()<<" bytes"<<endl; }
 
