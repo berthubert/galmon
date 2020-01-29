@@ -153,9 +153,12 @@ int main(int argc, char** argv)
   bool doVERSION{false};
 
   CLI::App app(program);
-
+  string localAddress("127.0.0.1");
+  int hours = 4;   
   app.add_flag("--version", doVERSION, "show program version and copyright");
-
+  app.add_option("--bind,-b", localAddress, "Address:port to bind to");
+  app.add_option("--storage,-s", g_storage, "Location of storage files");  
+  app.add_option("--hours", hours, "Number of hours of backlog to replay");
   try {
     app.parse(argc, argv);
   } catch(const CLI::Error &e) {
@@ -168,14 +171,9 @@ int main(int argc, char** argv)
   }
 
   signal(SIGPIPE, SIG_IGN);
-  if(argc < 3) {
-    cout<<"Syntax: navnexus storage listen-address [backlog-hours]"<<endl;
-    return(EXIT_FAILURE);
-  }
-  g_storage=argv[1];
-    
-  ComboAddress sendaddr(argv[2], 29601);
-  int hours = argc > 3 ? atoi(argv[3]) : 4;
+  
+  ComboAddress sendaddr(localAddress, 29601);
+
   cout<<"Listening on "<<sendaddr.toStringWithPort()<<", backlog "<<hours<<" hours, storage: "<<g_storage<<endl;
   Socket sender(sendaddr.sin4.sin_family, SOCK_STREAM);
   SSetsockopt(sender, SOL_SOCKET, SO_REUSEADDR, 1 );

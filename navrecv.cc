@@ -192,9 +192,11 @@ int main(int argc, char** argv)
   bool doVERSION{false};
 
   CLI::App app(program);
-
+  string localAddress("127.0.0.1");
   app.add_flag("--version", doVERSION, "show program version and copyright");
-
+  
+  app.add_option("--bind,-b", localAddress, "Address:port to bind to");
+  app.add_option("--storage,-s", g_storagedir, "Location to store files");  
   try {
     app.parse(argc, argv);
   } catch(const CLI::Error &e) {
@@ -207,13 +209,8 @@ int main(int argc, char** argv)
   }
 
   signal(SIGPIPE, SIG_IGN);
-  if(argc != 3) {
-    cout<<"Syntax: navrecv listen-address storage"<<endl;
-    return EXIT_FAILURE;
-  }
-  g_storagedir=argv[2];
   
-  ComboAddress recvaddr(argv[1], 29603);
+  ComboAddress recvaddr(localAddress, 29603);
   Socket receiver(recvaddr.sin4.sin_family, SOCK_STREAM, 0);
   SSetsockopt(receiver,SOL_SOCKET, SO_REUSEADDR, 1 );
   

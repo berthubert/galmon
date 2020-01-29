@@ -209,11 +209,13 @@ And then 'service ubxtool restart'.
 
 Distributed setup
 -----------------
-Run `navrecv :: ./storage` to receive frames on port 29603 of ::, aka all your IPv6 addresses (and IPv4 too on Linux).
-This allows anyone to send you frames, so be aware.
+Run `navrecv -b :: --storage ./storage` to receive frames on port 29603 of
+::, aka all your IPv6 addresses (and IPv4 too on Linux).  This allows anyone
+to send you frames, so be aware.
 
-Next up, run `navnexus ./storage ::`, which will serve your recorded data from port 29601. It will merge messages
-coming in from all sources and serve them in time order.
+Next up, run `navnexus --storage ./storage -b ::`, which will serve your
+recorded data from port 29601.  It will merge messages coming in from all
+sources and serve them in time order.
 
 Finally, you can do `nc 127.0.0.1 29601 | ./navdump`, which will give you all messages over the past 24 hours, and stream you more.
 This also works for `navparse` for the pretty website and influx storage, `nc 127.0.0.1 29601 | ./navparse --influxdb=galileo`,
