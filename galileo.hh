@@ -181,6 +181,7 @@ struct GalileoMessage
     return t0g * 3600;
   }
 
+  // pair of nanosecond, nanosecond/s 
   std::pair<double, double> getAtomicOffset(int tow) const
   {
     int delta = ephAge(tow, getT0c());

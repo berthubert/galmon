@@ -13,8 +13,15 @@
 #include "navmon.pb.h"
 #include <unistd.h>
 #include "navmon.hh" 
+#include "githash.h"
+#include "CLI/CLI.hpp"
+#include "version.hh"
+
+static char program[]="navdisplay";
+
 using namespace std;
 
+extern const char* g_gitHash;
 
 struct WinKeeper
 {
@@ -136,11 +143,26 @@ void WinKeeper::setStatus(int sv, std::string_view line)
 }
 
 
-int main()
+int main(int argc, char** argv)
 {
-  WinKeeper wk;
-  
+  bool doVERSION{false};
 
+  CLI::App app(program);
+
+  app.add_flag("--version", doVERSION, "show program version and copyright");
+
+  try {
+    app.parse(argc, argv);
+  } catch(const CLI::Error &e) {
+    return app.exit(e);
+  }
+
+  if(doVERSION) {
+    showVersion(program, g_gitHash);
+    exit(0);
+  }
+
+  WinKeeper wk;
   for(;;) {
     char bert[4];
     if(readn2(0, bert, 4) != 4 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {

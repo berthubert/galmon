@@ -7,12 +7,14 @@ StartLimitIntervalSec=0
 Type=simple
 Restart=always
 RestartSec=1
+# uncomment User and Group to not run as root
 #User=ubxtool
 #Group=ubxtool
-#DynamicUser=yes
-#RuntimeDirectory=ubxtool
+RuntimeDirectory=ubxtool
+RuntimeDirectoryPreserve=yes
 WorkingDirectory=/run/ubxtool
 ExecStart=/usr/local/ubxtool/ubxtool.sh
 
 [Install]
 WantedBy=multi-user.target
+

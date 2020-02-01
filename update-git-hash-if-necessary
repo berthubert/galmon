@@ -1,0 +1,17 @@
+#!/bin/sh
+HASH=$(git describe --always --dirty=+ | tr -d '\n')
+
+echo \#define GIT_HASH \"$HASH\" > githash.h.tmp
+echo $HASH > githash
+
+cmp -s githash.h githash.h.tmp > /dev/null
+
+if [ "$?" -ne "0" ]
+then
+	mv githash.h.tmp githash.h
+	echo updated githash.h
+else
+	rm githash.h.tmp
+fi
+
+

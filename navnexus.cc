@@ -15,8 +15,15 @@
 #include "storage.hh"
 #include <dirent.h>
 #include <inttypes.h>
+#include "githash.h"
+#include "CLI/CLI.hpp"
+#include "version.hh"
+
+static char program[]="navnexus";
 
 using namespace std;
+
+extern const char* g_gitHash;
 
 std::mutex g_clientmut;
 set<int> g_clients;
@@ -60,16 +67,18 @@ try
 {
   cerr<<"New downstream client "<<client.toStringWithPort() << endl;
 
-  pair<uint64_t, uint64_t> start = {startTime, 0};
+  timespec start;
+  start.tv_sec = startTime;
+  start.tv_nsec = 0;
 
   // so we have a ton of files, and internally these are not ordered
   map<string,uint32_t> fpos;
-  vector<NavMonMessage> nmms;
+  vector<pair<timespec,string> > rnmms;
   for(;;) {
     auto srcs = getSources();
-    nmms.clear();
+    rnmms.clear();
     for(const auto& src: srcs) {
-      string fname = getPath(g_storage, start.first, src);
+      string fname = getPath(g_storage, start.tv_sec, src);
       int fd = open(fname.c_str(), O_RDONLY);
       if(fd < 0)
         continue;
@@ -83,37 +92,42 @@ try
       NavMonMessage nmm;
 
       uint32_t looked=0;
-      while(getNMM(fd, nmm, offset)) {
+      string msg;
+      struct timespec ts;
+
+      while(getRawNMM(fd, ts, msg, offset)) {
         // don't drop data that is only 5 seconds too old
-        if(make_pair(nmm.localutcseconds() + 5, nmm.localutcnanoseconds()) >= start) {
-          nmms.push_back(nmm);
+        if(make_pair(ts.tv_sec + 5, ts.tv_nsec) >= make_pair(start.tv_sec, start.tv_nsec)) {
+          rnmms.push_back({ts, msg});
         }
         ++looked;
       }
-      cout<<"Harvested "<<nmms.size()<<" events out of "<<looked<<endl;
+      //      cout<<"Harvested "<<rnmms.size()<<" events out of "<<looked<<endl;
       fpos[fname]=offset;
       close(fd);
     }
-    sort(nmms.begin(), nmms.end(), [](const auto& a, const auto& b)
+    cout<<"Sorting.. ";
+    cout.flush();
+    sort(rnmms.begin(), rnmms.end(), [](const auto& a, const auto& b)
          {
-           return make_pair(a.localutcseconds(), a.localutcnanoseconds()) <
-             make_pair(b.localutcseconds(), b.localutcnanoseconds());
+           return std::tie(a.first.tv_sec, a.first.tv_nsec)
+             < std::tie(b.first.tv_sec, b.first.tv_nsec);
          });
-
-    for(const auto& nmm: nmms) {
-      std::string out;
-      nmm.SerializeToString(&out);
+    cout<<"Sending.. ";
+    cout.flush();
+    for(const auto& nmm: rnmms) {
       std::string buf="bert";
-      uint16_t len = htons(out.size());
+      uint16_t len = htons(nmm.second.size());
       buf.append((char*)(&len), 2);
-      buf+=out;
+      buf += nmm.second;
       SWriten(clientfd, buf);
     }
-    if(3600 + start.first - (start.first%3600) < time(0))
-      start.first = 3600 + start.first - (start.first%3600);
+    cout<<"Done"<<endl;
+    if(3600 + start.tv_sec - (start.tv_sec % 3600) < time(0))
+      start.tv_sec = 3600 + start.tv_sec - (start.tv_sec % 3600);
     else {
-      if(!nmms.empty())
-        start = {nmms.rbegin()->localutcseconds(), nmms.rbegin()->localutcnanoseconds()};
+      if(!rnmms.empty())
+        start = {rnmms.rbegin()->first.tv_sec, rnmms.rbegin()->first.tv_nsec};
       sleep(1);
     }
   }
@@ -136,15 +150,30 @@ void sendListener(Socket&& s, ComboAddress local, int hours)
 
 int main(int argc, char** argv)
 {
-  signal(SIGPIPE, SIG_IGN);
-  if(argc < 3) {
-    cout<<"Syntax: navnexus storage listen-address [backlog-hours]"<<endl;
-    return(EXIT_FAILURE);
+  bool doVERSION{false};
+
+  CLI::App app(program);
+  string localAddress("127.0.0.1");
+  int hours = 4;   
+  app.add_flag("--version", doVERSION, "show program version and copyright");
+  app.add_option("--bind,-b", localAddress, "Address:port to bind to");
+  app.add_option("--storage,-s", g_storage, "Location of storage files");  
+  app.add_option("--hours", hours, "Number of hours of backlog to replay");
+  try {
+    app.parse(argc, argv);
+  } catch(const CLI::Error &e) {
+    return app.exit(e);
   }
-  g_storage=argv[1];
-    
-  ComboAddress sendaddr(argv[2], 29601);
-  int hours = argc > 3 ? atoi(argv[3]) : 4;
+
+  if(doVERSION) {
+    showVersion(program, g_gitHash);
+    exit(0);
+  }
+
+  signal(SIGPIPE, SIG_IGN);
+  
+  ComboAddress sendaddr(localAddress, 29601);
+
   cout<<"Listening on "<<sendaddr.toStringWithPort()<<", backlog "<<hours<<" hours, storage: "<<g_storage<<endl;
   Socket sender(sendaddr.sin4.sin_family, SOCK_STREAM);
   SSetsockopt(sender, SOL_SOCKET, SO_REUSEADDR, 1 );

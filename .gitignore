@@ -18,6 +18,9 @@ beidou.txt
 galileo.txt
 glo-ops.txt
 gps-ops.txt
+# - git version internals
+githash.h
+
 #
 *.csv
 # Prerequisites

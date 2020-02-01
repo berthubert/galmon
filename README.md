@@ -13,6 +13,19 @@ most high-end receiver, which does all bands, all the time, is the Ublox
 F9P, several of us use the
 [ArdusimpleRTK2B](https://www.ardusimple.com/simplertk2b/) board.
 
+An annotated presentation about our project aimed at GNSS professionals can
+be found [here](https://berthub.eu/galileo/The%20galmon.eu%20project.pdf). 
+
+> NOTE: One of our programs is called 'ubxtool'. Sadly, we did not do our
+> research, and there is another '[ubxtool](https://gpsd.io/ubxtool.html)' already, part of
+> [gpsd](https://gpsd.io). You might have ended up on our page by mistake.
+> Sorry!
+
+To deliver data to the project, please read
+[The Galmon GNSS Monitoring Project](https://berthub.eu/articles/posts/galmon-project/)
+and consult the rules outlined in [the operator
+guidelines](https://github.com/ahupowerdns/galmon/blob/master/Operator.md).
+
 Highlights
 ----------
 
@@ -35,7 +48,8 @@ Highlights
 
 Data is made available as JSON, as a user-friendly website and as a
 time-series database. This time-series database is easily mated to the
-industry standard Matplotlib/Pandas/Jupyter combination. 
+industry standard Matplotlib/Pandas/Jupyter combination (details 
+[here](https://github.com/ahupowerdns/galmon/blob/master/influxdb.md).
 
 There is also tooling to extract raw frames/strings/words from specific
 timeframes.
@@ -64,7 +78,7 @@ receiver-only tools.
 To build everything, including the webserver, try:
 
 ```
-apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev \ 
+apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev \
 libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev
 git clone https://github.com/ahupowerdns/galmon.git --recursive
 cd galmon
@@ -88,10 +102,10 @@ git clone https://github.com/ahupowerdns/galmon.git --recursive
 docker build -t galmon --build-arg MAKE_FLAGS=-j2 .
 ```
 
-To run a container with a shell in there:
+To run a container with a shell in there (this will also expose a port so you can view the UI too and assumes a ublox GPS device too - you may need to tweak as necessary):
 
 ```
-docker run -it --rm galmon
+docker run -it --rm --device=/dev/ttyACM0 -p 10000:10000 galmon
 ```
 
 Build `ubxtool` in Docker
@@ -116,7 +130,7 @@ Running
 -------
 
 Once compiled, run for example `./ubxtool --wait --port /dev/ttyACM0
---station 1 --stdout | ./navparse 127.0.0.1:10000 html null`
+--station 1 --stdout --galileo | ./navparse --bind [::1]:10000`
 
 Next up, browse to http://[::1]:10000 (or try http://localhost:10000/ and
 you should be in business. ubxtool changes (non-permanently) the
@@ -137,13 +151,13 @@ the `--ubxport <id>` option using one of the following numeric IDs:
 To see what is going on, try:
 
 ```
-./ubxtool --wait --port /dev/ttyACM0 --station 1 --stdout | ./navdump
+./ubxtool --wait --port /dev/ttyACM0 --station 1 --stdout --galileo | ./navdump
 ```
 
 To distribute data to a remote `navrecv`, use:
 
 ```
-./ubxtool --wait --port /dev/ttyACM0 --station 255 --dest 127.0.0.1
+./ubxtool --wait --port /dev/ttyACM0 --galileo --station 255 --dest 127.0.0.1
 ```
 
 This will send protobuf to 127.0.0.1:29603. You can add as many destinations
@@ -169,39 +183,61 @@ Tooling:
 
 Linux Systemd
 -------------
-
-This is very much a first stab. Do the following at root.
+First make sure 'ubxtool' has been compiled (run: make ubxtool). Then, as
+root:
 ```
-mkdir /run/ubxtool
 mkdir /usr/local/ubxtool
-cp ubxtool.sh /usr/local/ubxtool/
-chmod +x /usr/local/ubxtool/ubxtool.sh
-cp ubxtool /usr/local/ubxtool/
-cp ubxtool.service /etc/systemd/system/ubxtool.service
-touch /usr/local/ubxtool/destination
-touch /usr/local/ubxtool/station
+cp ubxtool ubxtool.sh /usr/local/ubxtool/
+cp ubxtool.service /etc/systemd/system/
 ```
-Then edit /usr/local/ubxtool/destination with an IP address collected from Bert.
-Then edit /usr/local/ubxtool/station with a station number collected from Bert.
 
-The start up the service.
+Then collect the server IP address (SERVER-IP) and a station number
+(STATION-NUMBER) as described in [Operator.md], and run:
+
 ```
-sudo systemctl enable ubxtool
-sudo systemctl start ubxtool
+echo SERVER-IP > /usr/local/ubxtool/destination
+echo STATION-NUMBER > /usr/local/ubxtool/station
 ```
-This will be cleaned up and better packaged sometime soon.
+
+Then start up the service (as root):
+```
+systemctl enable ubxtool
+systemctl start ubxtool
+```
+
+To check if it is all working, do 'service ubxtool status'.
+
+> NOTE!  If you don't use one of the AliExpress or Navilock devices, it may
+> be that your U-blox is not connected to the USB-port of the U-blox chip
+> but to the UART1 or UART2 port.  If so, you'll need to edit the script so
+> it finds your USB-to-serial adapter.  At the very least you'll have to
+> update the DEVICE line.  You'll likely also have to add --ubxport 1 at the
+> end, and likely also the baudrate (-b) and/or --rtscts=0.
+
+To change the default constellations, create a file called
+/usr/local/ubxtool/constellations and set your favorites. To set all four
+constellations (which only F9-receivers support), do as root:
+
+```
+echo --gps --glonass --beidou --galileo > /usr/local/ubxtool/constellations
+```
+
+And then 'service ubxtool restart'.
 
 Distributed setup
 -----------------
-Run `navrecv :: ./storage` to receive frames on port 29603 of ::, aka all your IPv6 addresses (and IPv4 too on Linux).
-This allows anyone to send you frames, so be aware.
+Run `navrecv -b :: --storage ./storage` to receive frames on port 29603 of
+::, aka all your IPv6 addresses (and IPv4 too on Linux).  This allows anyone
+to send you frames, so be aware.
 
-Next up, run `navnexus ./storage ::`, which will serve your recorded data from port 29601. It will merge messages
-coming in from all sources and serve them in time order.
+Next up, run `navnexus --storage ./storage -b ::`, which will serve your
+recorded data from port 29601.  It will merge messages coming in from all
+sources and serve them in time order.
 
-Finally, you can do `nv 127.0.0.1 29601 | ./navdump`, which will give you all messages over the past 24 hours, and stream you more.
-This also works for `navparse` for the pretty website and influx storage, `nc 127.0.0.1 29601 | ./navparse 127.0.0.0:10000 html galileo`,
+Finally, you can do `nc 127.0.0.1 29601 | ./navdump`, which will give you all messages over the past 24 hours, and stream you more.
+This also works for `navparse` for the pretty website and influx storage, `nc 127.0.0.1 29601 | ./navparse --influxdb=galileo`,
 if you have an influxdb running on localhost with a galileo database in there.
+The default URL is http://127.0.0.1:29599/ 
 
 Internals
 ---------
@@ -236,8 +272,21 @@ Data sources
 ------------
 The software can interpret SP3 files, good sources:
 
- * http://navigation-office.esa.int/products/gnss-products/
+ * ESA/ESOC: http://navigation-office.esa.int/products/gnss-products/ - pick the
+   relevant GPS week number, and then a series (.sp3 extension):
+   * ESU = ultra rapid, 2-8h delay, only GPS and GLONASS
+   * ESR = rapid, 2-26h delay, only GPS and GLONASS
+   * ESM = finals, 6-13d delay, GPS, GLONASS, Galileo, BeiDou, QZSS
+   * File format is esXWWWWD.sp3 - where X is U, R or M, WWWW is the
+   (non-wrapping) GPS week number and D is day of week, Sunday is 0.
+   * Further description: http://navigation-office.esa.int/GNSS_based_products.html
+ * GFZ Potsdam: ftp://ftp.gfz-potsdam.de/GNSS/products/mgnss
+   * The GBM series covers GPS, GLONASS, Galileo, BeiDou, QZSS and appears
+     to have less of a delay than the ESA ESM series.
+   * GBU = ultra rapid, still a few days delay, but much more recent.
 
+Uncompress and concatenate all downloaded files into 'all.sp3' and run
+'navdump' on collected protobuf, and it will output 'sp3.csv' with fit data.
 
 Big TODO
 --------
@@ -264,6 +313,8 @@ In alphabetical order:
  * Brazil
  * Holland (Nootdorp, Hilversum, etc)
  * India (New Delhi area)
+ * Israel (Jerusalem)
+ * Italy (Rome)
  * New Zealand (Auckland area)
  * Rusia (Moscow area)
  * Singapore
@@ -271,13 +322,14 @@ In alphabetical order:
  * Spain
  * Tonga 
  * USA
+   * Alaska (Anchorage)
    * California (Santa Cruz, Los Angeles area, etc)
    * Massachusetts (Boston area)
  * Uruguay
  
 Additional sites are welcome (and encouraged) as the more data receiving sites that exist, then more accurate data and absolute coverage of each constellation can be had.
 
-The galmon project is very grateful to all it's volunteering receiving stations.
+The galmon project is very grateful to all its volunteering receiving stations.
 
 ubxtool
 -------

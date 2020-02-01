@@ -147,8 +147,92 @@ std::string humanTime(time_t t, uint32_t nanoseconds)
   gmtime_r(&t, &tm);
 
   char buffer[80];
-  std::string fmt = "%a, %d %b %Y %H:%M:"+fmt::sprintf("%06.04f", tm.tm_sec + nanoseconds/1000000000.0) +" %z";
+  std::string fmt = "%a, %d %b %Y %H:%M:"+fmt::sprintf("%07.04f", tm.tm_sec + nanoseconds/1000000000.0) +" %z";
   
   strftime(buffer, sizeof(buffer), fmt.c_str(), &tm);
   return buffer;
 }
+
+// truncate to x digits precision, see testrunner.cc for details
+double truncPrec(double in, unsigned int digits)
+{
+  double partial = in - trunc(in);
+  int factor=1;
+  for(; digits ; --digits)
+    factor *= 10;
+  return trunc(in) + round(partial * factor) / factor;
+}
+
+
+// GLONASS URA/SISA
+string humanFt(uint8_t ft)
+{
+  static const char* ret[]={"100 cm", "200 cm", "250 cm", "400 cm", "500 cm", "7 m", "10 m", "12 m", "14 m", "16 m", "32 m", "64 m", "128 m", "256 m", "512 m", "NONE"};
+  if(ft < 16)
+    return ret[ft];
+  return "???";
+}
+
+// GLONASS URA/SISA
+double numFt(uint8_t ft)
+{
+  static const double ret[]={1, 2, 2.5, 4, 5, 7, 10,12,14,16,32,64,128,256,512,-1};
+  if(ft < 16)
+    return ret[ft];
+  return -1;
+}
+
+
+// Galileo SISA
+string humanSisa(uint8_t sisa)
+{
+  unsigned int sval = sisa;
+  if(sisa < 50)
+    return std::to_string(sval)+" cm";
+  if(sisa < 75)
+    return std::to_string(50 + 2* (sval-50))+" cm";
+  if(sisa < 100)
+    return std::to_string(100 + 4*(sval-75))+" cm";
+  if(sisa < 125)
+    return std::to_string(200 + 16*(sval-100))+" cm";
+  if(sisa < 255)
+    return "SPARE";
+  return "NO SISA AVAILABLE";
+}
+
+// Galileo SISA
+double numSisa(uint8_t sisa)
+{
+  unsigned int sval = sisa;
+  if(sisa < 50)
+    return sisa/100.0;
+  if(sisa < 75)
+    return (50 + 2* (sval-50))/100.0;
+  if(sisa < 100)
+    return (100 + 4*(sval-75))/100.0;
+  if(sisa < 125)
+    return (200 + 16*(sval-100))/100.0;
+  return -1;
+}
+
+
+// GPS/BeiDou URA
+string humanUra(uint8_t ura)
+{
+  if(ura < 6)
+    return fmt::sprintf("%d cm", (int)(100*pow(2.0, 1.0+1.0*ura/2.0)));
+  else if(ura < 15)
+    return fmt::sprintf("%d m", (int)(pow(2, ura-2)));
+  return "NO URA AVAILABLE";
+}
+
+// GPS/BeiDou URA
+double numUra(uint8_t ura)
+{
+  if(ura < 6)
+    return pow(2.0, 1.0+1.0*ura/2.0);
+  else if(ura < 15)
+    return pow(2, ura-2);
+  return -1;
+}
+

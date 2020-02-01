@@ -4,3 +4,4 @@
 [submodule "ext/sgp4"]
 	path = ext/sgp4
 	url = https://github.com/dnwrnr/sgp4.git
+	ignore = untracked

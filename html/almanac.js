@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "best-tle", "best-tle-dist", "best-tle-norad", "best-tle-int-desig", "eph-ecefX", "eph-ecefY", "eph-ecefZ", "tle-ecefX", "tle-ecefY", "tle-ecefZ", "eph-latitude", "eph-longitude", "tle-latitude", "tle-longitude", "tle-eciX", "tle-eciY", "tle-eciZ", "t0e", "t"];    
+    var columns = ["sv", "best-tle", "best-tle-dist", "best-tle-norad", "best-tle-int-desig", "eph-ecefX", "eph-ecefY", "eph-ecefZ", "tle-ecefX", "tle-ecefY", "tle-ecefZ", "eph-latitude", "eph-longitude", "tle-latitude", "tle-longitude", "tle-eciX", "tle-eciY", "tle-eciZ", "t0e", "t", "E", "M0"];    
     
     // append the header row
     thead.append("tr")

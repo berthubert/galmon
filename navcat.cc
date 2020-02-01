@@ -16,8 +16,15 @@
 #include <dirent.h>
 #include <inttypes.h>
 #include "navmon.hh"
+#include "githash.h"
+#include "CLI/CLI.hpp"
+#include "version.hh"
+
+static char program[]="navcat";
 
 using namespace std;
+
+extern const char* g_gitHash;
 
 void unixDie(const std::string& str)
 {
@@ -98,57 +105,62 @@ static size_t writen2(int fd, const void *buf, size_t count)
 
 void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
 {
-  pair<uint64_t, uint64_t> start = {startTime, 0};
+  timespec start;
+  start.tv_sec = startTime;
+  start.tv_nsec = 0;
 
   // so we have a ton of files, and internally these are not ordered
   map<string,uint32_t> fpos;
-  vector<NavMonMessage> nmms;
+  vector<pair<timespec,string> > rnmms;
   for(;;) {
     auto srcs = getSources(dir);
-    nmms.clear();
+    rnmms.clear();
     for(const auto& src: srcs) {
-      string fname = getPath(dir, start.first, src);
-      int fd = open(fname.c_str(), O_RDONLY);
-      if(fd < 0)
+      string fname = getPath(dir, start.tv_sec, src);
+      FILE* fp = fopen(fname.c_str(), "r");
+      if(!fp)
         continue;
       uint32_t offset= fpos[fname];
-      if(lseek(fd, offset, SEEK_SET) < 0) {
+      if(fseek(fp, offset, SEEK_SET) < 0) {
         cerr<<"Error seeking: "<<strerror(errno) <<endl;
-        close(fd);
+        fclose(fp);
         continue;
       }
       cerr <<"Seeked to position "<<fpos[fname]<<" of "<<fname<<endl;
-      NavMonMessage nmm;
 
       uint32_t looked=0;
-      while(getNMM(fd, nmm, offset)) {
+      string msg;
+      struct timespec ts;
+      while(getRawNMM(fp, ts, msg, offset)) {
         // don't drop data that is only 5 seconds too old
-        if(make_pair(nmm.localutcseconds() + 5, nmm.localutcnanoseconds()) >= start) {
-          nmms.push_back(nmm);
+        if(make_pair(ts.tv_sec + 5, ts.tv_nsec) >= make_pair(start.tv_sec, start.tv_nsec)) {
+          rnmms.push_back({ts, msg});
         }
         ++looked;
       }
-      cerr<<"Harvested "<<nmms.size()<<" events out of "<<looked<<endl;
+      cerr<<"Harvested "<<rnmms.size()<<" events out of "<<looked<<endl;
       fpos[fname]=offset;
-      close(fd);
+      fclose(fp);
     }
-    sort(nmms.begin(), nmms.end(), [](const auto& a, const auto& b)
+
+    sort(rnmms.begin(), rnmms.end(), [](const auto& a, const auto& b)
          {
-           return make_pair(a.localutcseconds(), b.localutcnanoseconds()) <
-             make_pair(b.localutcseconds(), b.localutcnanoseconds());
+           return std::tie(a.first.tv_sec, a.first.tv_nsec)
+                < std::tie(b.first.tv_sec, b.first.tv_nsec);
          });
 
-    for(const auto& nmm: nmms) {
-      std::string out;
-      nmm.SerializeToString(&out);
+    for(const auto& nmm: rnmms) {
+      if(nmm.first.tv_sec > stopTime)
+        break;
       std::string buf="bert";
-      uint16_t len = htons(out.size());
+      uint16_t len = htons(nmm.second.size());
       buf.append((char*)(&len), 2);
-      buf+=out;
+      buf += nmm.second;
+      //fwrite(buf.c_str(), 1, buf.size(), stdout);
       writen2(1, buf.c_str(), buf.size());
     }
-    if(3600 + start.first - (start.first%3600) < stopTime)
-      start.first = 3600 + start.first - (start.first%3600);
+    if(3600 + start.tv_sec - (start.tv_sec%3600) < stopTime)
+      start.tv_sec = 3600 + start.tv_sec - (start.tv_sec%3600);
     else {
       break;
     }
@@ -158,6 +170,23 @@ void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
 
 int main(int argc, char** argv)
 {
+  bool doVERSION{false};
+
+  CLI::App app(program);
+
+  app.add_flag("--version", doVERSION, "show program version and copyright");
+
+  try {
+    app.parse(argc, argv);
+  } catch(const CLI::Error &e) {
+    return app.exit(e);
+  }
+
+  if(doVERSION) {
+    showVersion(program, g_gitHash);
+    exit(0);
+  }
+
   signal(SIGPIPE, SIG_IGN);
   if(argc < 3) {
     cout<<"Syntax: navcat storage start stop"<<endl;

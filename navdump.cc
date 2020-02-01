@@ -24,9 +24,16 @@
 #include "navmon.hh"
 #include "tle.hh"
 #include "sp3.hh"
-
+#include "ubx.hh"
 #include <unistd.h>
+#include "githash.h"
+#include "version.hh"
+
+static char program[]="navdump";
+
 using namespace std;
+
+extern const char* g_gitHash;
 
 Point g_ourpos;
 
@@ -145,12 +152,88 @@ struct SVFilter
   
 };
 
+struct FixStat
+{
+  double iTow{-1};
+  
+  struct SatStat
+  {
+    double bestrange1{-1}; // corrected for clock
+    double bestrange5{-1}; // corrected for clock
+    double doppler1{-1}; // corrected for clock
+    double doppler5{-1}; // corrected for clock
+    double radvel{-1};
+    double ephrange{-1};
+    GalileoMessage ephemeris;
+  };
+
+  map<pair<int,int>, SatStat> sats;
+};
+
+double g_rcvoffset;
+void emitFixState(int src, double iTow, FixStat& fs, int n)
+{
+  cout<<"\nFix state for source "<<src<<", have "<<fs.sats.size()<<" satellites, n="<<n<<endl;
+  //  for(double dt = -0.2; dt < 0.2; dt+=0.0001)
+  double dt=0;
+  double offset=0;
+  {
+
+    int count=0;
+    for(const auto& s : fs.sats) {
+      if(s.first.second==14 || s.first.second==18)
+        continue;
+
+      Point sat;
+      double E=getCoordinates(iTow, s.second.ephemeris, &sat);
+      if(getElevationDeg(sat, g_ourpos) < 20)
+        continue;
+      /*
+      Point sat;
+      auto [toffset, trend] = s.second.ephemeris.getAtomicOffset(iTow +dt);
+      (void)trend;
+
+      getCoordinates(iTow + toffset/1000000000.0 + dt, s.second.ephemeris, &sat);
+      double range = Vector(g_ourpos, sat).length();
+
+      getCoordinates(iTow + range/299792458.0 + toffset/1000000000.0 + dt, s.second.ephemeris, &sat);
+      range = Vector(g_ourpos, sat).length();
+      */
+      double range = s.second.ephrange;
+      if(s.second.bestrange1 != -1) {
+        offset += s.second.bestrange1 - range;
+        count++;
+      }
+      if(s.second.bestrange5 != -1) {
+        offset += s.second.bestrange5 - range;
+        count++;
+      }
+    }
+    if(!count) {
+      fs.sats.clear();
+      return;
+    }
+    
+    cout<< " dt "<<dt<<" err "<<offset << " " << count << " avg " << offset/count<< " "<<offset/count/3e5<<"ms"<<endl;
+    offset/=count; 
+  }
+  
+  for(const auto& s : fs.sats) {
+    Point sat;
+    double E=getCoordinates(iTow, s.second.ephemeris, &sat);
+    cout<<""<<s.first.first<<","<<s.first.second<<": "<<s.second.bestrange1-offset<<" "<<s.second.bestrange5-offset<<" " << s.second.ephrange<<", delta1 " << (s.second.bestrange1-offset-s.second.ephrange)<<", delta5 "<< (s.second.bestrange5-offset-s.second.ephrange)<<" dd "<< s.second.bestrange1 - s.second.bestrange5 <<" t0e " << s.second.ephemeris.getT0e()<< " elev " << getElevationDeg(sat, g_ourpos) << " E " << E<< " clock " << s.second.ephemeris.getAtomicOffset(iTow).first/1000000<<"ms doppler1 "<<s.second.doppler1 << " doppler5 " <<s.second.doppler5<<" radvel " <<s.second.radvel<< " frac " << (s.second.bestrange1-offset-s.second.ephrange)/s.second.radvel;
+    cout<< " fixed "<<((s.second.bestrange1 - offset-s.second.ephrange) + (s.second.ephrange/299792458.0) * s.second.radvel)<< " BGD-ns "<<ldexp(s.second.ephemeris.BGDE1E5b,-32)*1000000000<< endl;
+  }
+
+  fs.sats.clear();
+}
+
 int main(int argc, char** argv)
 try
 {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-  CLI::App app("navdump");
+  CLI::App app(program);
 
   
   TLERepo tles;
@@ -167,22 +250,34 @@ try
   }
   */
   vector<string> svpairs;
+  vector<int> stations;
   bool doReceptionData{false};
   bool doRFData{true};
   bool doObserverPosition{false};
+  bool doVERSION{false};
   app.add_option("--svs", svpairs, "Listen to specified svs. '0' = gps, '2' = Galileo, '2,1' is E01");
+  app.add_option("--stations", stations, "Listen to specified stations.");
   app.add_option("--positions,-p", doObserverPosition, "Print out observer positions (or not)");
   app.add_option("--rfdata,-r", doRFData, "Print out RF data (or not)");
+  app.add_flag("--version", doVERSION, "show program version and copyright");
     
   try {
     app.parse(argc, argv);
   } catch(const CLI::Error &e) {
     return app.exit(e);
   }
+  if(doVERSION) {
+    showVersion(program, g_gitHash);
+    exit(0);
+  }
   SVFilter svfilter;
   for(const auto& svp : svpairs) {
     svfilter.addFilter(svp);
   }
+
+  set<int> statset;
+  for(const auto& i : stations)
+    statset.insert(i);
   
   ofstream almanac("almanac.txt");
   ofstream iodstream("iodstream.csv");
@@ -194,7 +289,13 @@ try
   ofstream sp3csv;
 
   sp3csv.open ("sp3.csv", std::ofstream::out | std::ofstream::app);
-  sp3csv<<"timestamp gnssid sv ephAge sp3X sp3Y sp3Z ephX ephY ephZ  sp3Clock ephClock distance clockDelta"<<endl;
+
+  sp3csv<<"timestamp gnssid sv ephAge sp3X sp3Y sp3Z ephX ephY ephZ  sp3Clock ephClock distance along clockDelta E speed"<<endl;
+
+  ofstream loccsv;
+  loccsv.open ("jeff.csv", std::ofstream::out | std::ofstream::app);
+  //loccsv<<"timestamp lat lon altitude accuracy\n";
+  
   
   for(;;) {
     char bert[4];
@@ -203,10 +304,11 @@ try
       cerr<<"EOF, res = "<<res<<endl;
       break;
     }
+    
+    // I am so sorry
     if(bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
       cerr<<"Bad magic"<<endl;
     }
-  
     
     uint16_t len;
     if(readn2(0, &len, 2) != 2)
@@ -219,6 +321,9 @@ try
     NavMonMessage nmm;
     nmm.ParseFromString(string(buffer, len));
 
+    if(!statset.empty() && !statset.count(nmm.sourceid()))
+      continue;
+    
     //    if(nmm.type() == NavMonMessage::ReceptionDataType)
     //      continue;
 
@@ -231,7 +336,7 @@ try
       cout<< "imptow "<<imptow-2<<" ";
     };
     
-
+    static map<int,GalileoMessage> galEphemeris;
     if(nmm.type() == NavMonMessage::ReceptionDataType) {
       if(doReceptionData) {
         etstamp();
@@ -272,6 +377,7 @@ try
         //              2^-34       2^-46
         cout <<" iodnav "<<gm.iodnav <<" af0 "<<gm.af0 <<" af1 "<<gm.af1 <<", scaled: "<<ldexp(1.0*gm.af0, 19-34)<<", "<<ldexp(1.0*gm.af1, 38-46);
         if(tow && oldgm4s.count(nmm.gi().gnsssv()) && oldgm4s[nmm.gi().gnsssv()].iodnav != gm.iodnav) {
+          
           auto& oldgm4 = oldgm4s[nmm.gi().gnsssv()];
           auto oldOffset = oldgm4.getAtomicOffset(tow);
           auto newOffset = gm.getAtomicOffset(tow);
@@ -285,6 +391,7 @@ try
            gmwtypes[{sv,3}].iodnav == gmwtypes[{sv,4}].iodnav) {
           cout <<" have complete ephemeris at " << gm.iodnav;
 
+          galEphemeris[sv] = gm;
 
           int start = utcFromGST(gm.wn, gm.tow);
           
@@ -295,9 +402,16 @@ try
             if(!haveSeen.count({sv, bestSP3->t})) {
               haveSeen.insert({sv, bestSP3->t});
               Point newPoint;
-              getCoordinates(gm.tow + (bestSP3->t - start), gm, &newPoint);
+              double E=getCoordinates(gm.tow + (bestSP3->t - start), gm, &newPoint, false);
               Point sp3Point(bestSP3->x, bestSP3->y, bestSP3->z);
               Vector dist(newPoint, sp3Point);
+
+              Vector nspeed;
+              getSpeed(gm.tow + (bestSP3->t - start), gm, &nspeed);
+              Vector speed = nspeed;
+              nspeed.norm();
+              double along = nspeed.inner(dist);
+              
               cout<<"\nsp3 "<<(bestSP3->t - start)<<" E"<<sv<<" "<<humanTime(bestSP3->t)<<" (" << newPoint.x/1000.0 <<", "<<newPoint.y/1000.0<<", "<<newPoint.z/1000.0<< ") (" <<
                 (bestSP3->x/1000.0) <<", " << (bestSP3->y/1000.0) <<", " << (bestSP3->z/1000.0) << ") "<<bestSP3->clockBias << " " << gm.getAtomicOffset(gm.tow + (bestSP3->t-start)).first<< " " << dist.length()<< " ";
               cout << (bestSP3->clockBias - gm.getAtomicOffset(gm.tow + (bestSP3->t-start)).first);
@@ -305,8 +419,8 @@ try
               cout << endl;
               
               sp3csv <<std::fixed<< bestSP3->t << " 2 "<< sv <<" " << ephAge(gm.tow+(bestSP3->t - start), gm.getT0e()) <<" "<<bestSP3->x<<" " << bestSP3->y<<" " <<bestSP3->z <<" " << newPoint.x<<" " <<newPoint.y <<" " <<newPoint.z << " " <<bestSP3->clockBias <<" ";
-              sp3csv << gm.getAtomicOffset(gm.tow + (bestSP3->t-start)).first<<" " << dist.length() <<" ";
-              sp3csv << (bestSP3->clockBias - gm.getAtomicOffset(gm.tow + (bestSP3->t-start)).first) << endl;
+              sp3csv << gm.getAtomicOffset(gm.tow + (bestSP3->t-start)).first<<" " << dist.length() <<" " << along <<" ";
+              sp3csv << (bestSP3->clockBias - gm.getAtomicOffset(gm.tow + (bestSP3->t-start)).first) << " " << E << " " << speed.length()<<endl;
             }
             
           }
@@ -419,11 +533,11 @@ try
       if(frame == 1) {
         static map<int, GPSState> oldgs1s;
         gpswn = gs.wn;
-        cout << "gpshealth = "<<(int)gs.gpshealth<<", wn "<<gs.wn << " t0c "<<gs.t0c;
+        cout << "gpshealth = "<<(int)gs.gpshealth<<", wn "<<gs.wn << " t0c "<<gs.t0c << " af0 " << gs.af0 << " af1 " << gs.af1 <<" af2 " << gs.af2;
         if(auto iter = oldgs1s.find(sv); iter != oldgs1s.end() && iter->second.t0c != gs.t0c) {
           auto oldOffset = getGPSAtomicOffset(gs.tow, iter->second);
           auto newOffset = getGPSAtomicOffset(gs.tow, gs);
-          cout<<"  Timejump: "<<oldOffset.first - newOffset.first<<" after "<<(getT0c(gs) - getT0c(iter->second) )<<" seconds, old t0c "<<iter->second.t0c;
+          cout<<"  Timejump: "<<oldOffset.first - newOffset.first<<" after "<< ephAge(getT0c(gs), getT0c(iter->second) )<<" seconds, old t0c "<<iter->second.t0c;
         }
         oldgs1s[sv] = gs;
       }
@@ -469,7 +583,8 @@ try
           cout<<" norad " <<match.norad <<" int-desig " << match.internat;
           cout<<" 2nd-match "<<second.name << " dist "<<second.distance/1000<<" km t0e "<<gs.gpsalma.getT0e() << " t " <<nmm.localutcseconds();
         }
-
+        if(page == 18)
+          cout << " dtLS " << (int)gs.dtLS <<" dtLSF "<< (int)gs.dtLSF;
       }
       else if(frame == 5) {
         if(gs.gpsalma.sv <= 24) {
@@ -555,6 +670,9 @@ try
           cout<<" hea"<<(20+n)<<" " << getbitu(&cond[0], beidouBitconv(51+n*9), 9) << " ("<<beidouHealth(getbitu(&cond[0], beidouBitconv(51+n*9), 9))<<")";
         cout<<" WNa "<<getbitu(&cond[0], beidouBitconv(190), 8)<<" t0a "<<getbitu(&cond[0], beidouBitconv(198), 8);
       }
+      else if(bm.fraid == 5 && pageno==10) {
+        cout <<" dTLS "<< (int)bm.deltaTLS;
+      }
       else if(bm.fraid == 5 && pageno==24) {
         int AmID= getbitu(&cond[0], beidouBitconv(216), 2);
         cout<<" AmID "<< AmID;
@@ -621,6 +739,7 @@ try
       cout<<endl;
     }
     else if(nmm.type() == NavMonMessage::ObserverPositionType) {
+      g_ourpos = Point(nmm.op().x(), nmm.op().y(), nmm.op().z());
       if(!doObserverPosition)
         continue;
       etstamp();
@@ -630,16 +749,25 @@ try
       cout<<", WGS84 lon "<< 180*std::get<1>(latlonh)/M_PI
 	  <<" lat "<< 180*std::get<0>(latlonh)/M_PI
 	  <<" elev "<< std::get<2>(latlonh) << " acc "<<nmm.op().acc()<<" m "<<endl;
-      g_ourpos = Point(nmm.op().x(), nmm.op().y(), nmm.op().z());
+
+      loccsv<<std::fixed<<nmm.localutcseconds()+nmm.localutcnanoseconds()/1000000000.0<<" "<<180*std::get<1>(latlonh)/M_PI<<" "<<
+        180*std::get<0>(latlonh)/M_PI<<" "<<std::get<2>(latlonh)<<" "<<nmm.op().acc()<<"\n";
+
     }
     else if(nmm.type() == NavMonMessage::RFDataType) {
       if(!doRFData)
         continue;
+      
+      if(!svfilter.check(nmm.rfd().gnssid(), nmm.rfd().gnsssv(), nmm.gi().sigid()))
+        continue;
+
+      
       etstamp();
-      cout<<"RFdata for "<<nmm.rfd().gnssid()<<","<<nmm.rfd().gnsssv()<<","<<(nmm.rfd().has_sigid() ? nmm.rfd().sigid() : 0) <<": ";
+      cout<<std::fixed<<"RFdata for "<<nmm.rfd().gnssid()<<","<<nmm.rfd().gnsssv()<<","<<(nmm.rfd().has_sigid() ? nmm.rfd().sigid() : 0) <<": ";
       cout<<" doppler-hz " << nmm.rfd().doppler();
-      cout<<" carrier-phase " << nmm.rfd().carrierphase();
       cout<<" pseudo-range " << nmm.rfd().pseudorange();
+      cout<<" carrier-phase " << nmm.rfd().carrierphase();
+      cout<<" rcv-tow "<<nmm.rfd().rcvtow();
       cout<<" pr-std " << nmm.rfd().prstd();
       cout<<" dop-std " << nmm.rfd().dostd();
       cout<<" cp-std " << nmm.rfd().cpstd();
@@ -647,8 +775,212 @@ try
       if(nmm.rfd().has_cno()) {
         cout<<" cno-db " <<nmm.rfd().cno();
       }
+      if(nmm.rfd().has_prvalid()) {
+        cout<<" prvalid " <<nmm.rfd().prvalid();
+      }
+      if(nmm.rfd().has_cpvalid()) {
+        cout<<" cpvalid " <<nmm.rfd().cpvalid();
+      }
+      if(nmm.rfd().has_clkreset()) {
+        cout<<" clkreset " <<nmm.rfd().clkreset();
+      }
+
+        
+      static map<int,FixStat> fixes;
+      
+      if(nmm.rfd().gnssid()==2 && galEphemeris.count(nmm.rfd().gnsssv())) { // galileo
+        const auto& eph = galEphemeris[nmm.rfd().gnsssv()];
+        Point sat;
+        auto [offset, trend] = eph.getAtomicOffset(round(nmm.rfd().rcvtow()));
+        (void)trend;
+
+        static int n;
+        double E=getCoordinates(nmm.rfd().rcvtow(), eph, &sat);
+
+        double range = Vector(g_ourpos, sat).length();
+
+        double origrange = range;
+        E=getCoordinates(nmm.rfd().rcvtow() - range/299792458.0, eph, &sat);
+        range = Vector(g_ourpos, sat).length();
+        cout << " d "<<origrange-range;
+        origrange=range;
+        /*
+        E=getCoordinates(nmm.rfd().rcvtow() + range/299792458.0 + offset/1000000000.0 - 0.018, eph, &sat);
+        range = Vector(g_ourpos, sat).length();
+        cout << " d "<< 10000.0*(origrange-range);
+        origrange=range;
+        */
+
+        constexpr double omegaE = 2*M_PI /86164.091 ;
+        /*
+        double theta = -(2*M_PI*range / 299792458.0) /86164.091; // sidereal day
+        
+        Point rot;
+        rot.x = sat.x * cos(theta) - sat.y * sin(theta);
+        rot.y = sat.x * sin(theta) + sat.y * cos(theta);
+        rot.z = sat.z;
+        double oldrange=range;
+        range = Vector(g_ourpos, rot).length(); // second try
+        cout<<" rot-shift "<<oldrange-range <<" abs-move "<<Vector(rot, sat).length();
+        */
+        double rotcor = omegaE * (sat.x*g_ourpos.y - sat.y * g_ourpos.x) / 299792458.0;
+        cout<<" rot-shift "<<rotcor;
+        range += rotcor;
+        
+        double bestrange = nmm.rfd().pseudorange();
+        double gap = range - bestrange;
+        cout <<" pseudo-gap " << gap/1000.0;
+
+        constexpr double speedOfLightPerNS = 299792458.0 / 1000000000.0;
+        bestrange += speedOfLightPerNS * offset;
+
+        // Δtr=F e A1/2 sin(E)
+        constexpr double F = 1000000000.0*-4.442807309e-10; // "in ns"
+        double dtr = F * eph.getE() * eph.getSqrtA() * sin(E);
+        
+        bestrange -= speedOfLightPerNS * dtr;
+        
+        cout<<" relcor "<<speedOfLightPerNS * dtr;
+
+        // multi-freq adjustment is done in emitFixState
+        
+        cout<<" clockcor "<< offset/1000000.0 << "ms gap " << gap/1000.0;
+
+        if(fixes[nmm.sourceid()].iTow != nmm.rfd().rcvtow()) {
+          emitFixState(nmm.sourceid(), nmm.rfd().rcvtow(), fixes[nmm.sourceid()], n);
+          fixes[nmm.sourceid()].iTow = nmm.rfd().rcvtow();
+          n++;
+        }
+        auto& satstat=fixes[nmm.sourceid()].sats[{(int)nmm.rfd().gnssid(), (int)nmm.rfd().gnsssv()}];
+        satstat.ephrange = range;
+        auto dop = doDoppler(nmm.rfd().rcvtow(), g_ourpos, eph, 1575420000);
+        satstat.radvel = dop.radvel;
+        if(nmm.rfd().sigid()==1) {
+          satstat.bestrange1 = bestrange;
+          satstat.doppler1 = nmm.rfd().doppler();
+        }
+        else if(nmm.rfd().sigid()==5) {
+          satstat.bestrange5 = bestrange;
+          satstat.doppler5 = nmm.rfd().doppler();
+        }
+        satstat.ephemeris = eph;
+
+      }
+      
       cout<<endl;
       
+    }
+    else if(nmm.type() == NavMonMessage::ObserverDetailsType) {
+      etstamp();
+      cout<<"vendor "<<nmm.od().vendor()<<" hwversion " <<nmm.od().hwversion()<<" modules "<<nmm.od().modules()<<" swversion "<<nmm.od().swversion();
+      cout<<" serial "<<nmm.od().serialno();
+      if(nmm.od().has_owner())
+        cout<<" owner "<<nmm.od().owner();
+      if(nmm.od().has_clockoffsetdriftns())
+        cout<<" drift "<<nmm.od().clockoffsetdriftns();
+      if(nmm.od().has_clockaccuracyns())
+        cout<<" clock-accuracy "<<nmm.od().clockaccuracyns();
+      
+      cout<<endl;
+    }
+    else if(nmm.type() == NavMonMessage::UbloxJammingStatsType) {
+      etstamp();
+      cout<<"noisePerMS "<<nmm.ujs().noiseperms() << " agcCnt "<<
+        nmm.ujs().agccnt()<<" flags "<<nmm.ujs().flags()<<" jamind "<<
+        nmm.ujs().jamind()<<endl;
+    }
+    else if(nmm.type() == NavMonMessage::DebuggingType) {
+
+      auto res = parseTrkMeas(basic_string<uint8_t>((const uint8_t*)nmm.dm().payload().c_str(), nmm.dm().payload().size()));
+      if(res.empty())
+        continue;
+      etstamp();
+      uint64_t maxt=0;
+      for(const auto& sv : res) {
+        if(sv.gnss != 2) continue;
+        if(sv.tr > maxt)
+          maxt = sv.tr;
+      }
+
+      double ttag = round( (ldexp(1.0*maxt, -32)/1000.0 + 0.08) / 0.1) * 0.1;
+      
+      double rtow = round(ldexp(1.0*maxt, -32) /1000.0); // this was the rounded tow of transmission
+      sort(res.begin(), res.end(), [&](const auto& a, const auto& b) {
+          double elevA=0, elevB=0;
+          if(galEphemeris.count(a.sv)) {
+            const auto& eph = galEphemeris[a.sv];
+            Point sat;
+            getCoordinates(rtow, eph, &sat);
+            elevA=getElevationDeg(sat, g_ourpos);
+          }
+          if(galEphemeris.count(b.sv)) {
+            const auto& eph = galEphemeris[b.sv];
+            Point sat;
+            getCoordinates(rtow, eph, &sat);
+            elevB=getElevationDeg(sat, g_ourpos);
+          }
+          return elevB < elevA;
+
+        });
+      
+
+      
+      double toffsetms=0;
+      bool first = true;
+      for(const auto sv : res) {
+        if(sv.gnss != 2) continue;
+        if(!galEphemeris.count(sv.sv)) 
+          continue;
+
+        const auto& eph = galEphemeris[sv.sv];
+
+        double clockoffms =  eph.getAtomicOffset(rtow).first/1000000.0;
+        
+        Point sat;
+        
+        double E=getCoordinates(rtow - clockoffms/1000.0, eph, &sat, sv.sv != 14);
+        double range = Vector(g_ourpos, sat).length();
+        getCoordinates(rtow - clockoffms/1000.0 - range/299792458.0, eph, &sat);
+        range = Vector(g_ourpos, sat).length();
+        
+        double trmsec = ldexp(maxt - sv.tr, -32) + clockoffms;
+
+        constexpr double omegaE = 2*M_PI /86164.091 ;
+        double rotcor = omegaE * (sat.x*g_ourpos.y - sat.y * g_ourpos.x) / 299792458.0;
+        range += rotcor;
+
+        double bgdcor = 299792458.0 *ldexp(eph.BGDE1E5b,-32);
+        range -= bgdcor;
+
+
+        constexpr double speedOfLightPerNS = 299792458.0 / 1000000000.0;
+        // Δtr=F e A1/2 sin(E)
+        constexpr double F = 1000000000.0*-4.442807309e-10; // "in ns"
+        double dtr = F * eph.getE() * eph.getSqrtA() * sin(E);
+        double relcor = speedOfLightPerNS * dtr;
+        range -= relcor; 
+
+        
+        double predTrmsec =  range / 299792.4580;
+        
+        if(first) {
+          toffsetms = trmsec - predTrmsec;
+          first = false;
+          cout<<"Set toffsetms to "<< toffsetms << " for tow "<<rtow<<" ttag " << ttag << " raw " << (ldexp(1.0*maxt, -32) /1000.0) << endl;
+        }
+
+        trmsec -= toffsetms;
+        cout<<std::fixed<<"gnssid "<< sv.gnss<<" sv "<<sv.sv <<": doppler "<<sv.dopplerHz <<" range-ms " << range / 299792.4580;
+        cout << " actual-ms " <<  trmsec << " delta " << ((range / 299792.4580 - trmsec))<< " delta-m " << 299792.4580*((range / 299792.4580 - trmsec));
+
+        cout<<" rotcor "<< rotcor;
+        cout<<" relcor "<<relcor;
+        cout<<" elev " << getElevationDeg(sat, g_ourpos);
+        cout<<" bgd-m " << bgdcor;
+        cout<<" clockoff-ms " << clockoffms << endl;
+        
+      }
+      cout<<endl;
     }
     else {
       etstamp();

@@ -4,8 +4,15 @@
 #include "navmon.hh"
 #include "fmt/format.h"
 #include "fmt/printf.h"
+#include "githash.h"
+#include "CLI/CLI.hpp"
+#include "version.hh"
+
+static char program[]="reporter";
 
 using namespace std;
+
+extern const char* g_gitHash;
 
 /*
   Goal: generate statistics from influxdb.
@@ -40,16 +47,33 @@ int main(int argc, char **argv)
 {
   MiniCurl mc;
   MiniCurl::MiniCurlHeaders mch;
-  string dbname("galileo3");
+  string dbname("galileo");
 
   string url="http://127.0.0.1:8086/query?db="+dbname+"&epoch=s&q=";
   string period="time > now() - 1w";
   int sigid=1;
-  if(argc == 2)
-    period = "time > now() - "+string(argv[1]);
-  if(argc == 3) {
+  bool doVERSION{false};
+
+  CLI::App app(program);
+  string periodarg("1d");
+  app.add_flag("--version", doVERSION, "show program version and copyright");
+  app.add_option("--period,-p", periodarg, "period over which to report (1h, 1w)");
+  try {
+    app.parse(argc, argv);
+  } catch(const CLI::Error &e) {
+    return app.exit(e);
+  }
+
+  if(doVERSION) {
+    showVersion(program, g_gitHash);
+    exit(0);
+  }
+  
+  period = "time > now() - "+periodarg;
+  /*  if(argc == 3) {
     period = "time > '"+string(argv[1]) +"' and time <= '" + string(argv[2])+"'"; 
   }
+  */
   auto res = mc.getURL(url + mc.urlEncode("select distinct(value) from sisa where "+period+" and sigid='"+to_string(sigid)+"' group by gnssid,sv,sigid,time(10m)"));
 
 

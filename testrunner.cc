@@ -2,6 +2,7 @@
 
 #include "ext/doctest.h"
 #include "ephemeris.hh"
+#include "navmon.hh"
 
 TEST_CASE("testing ephemeris age") {
     CHECK(ephAge(0,0) == 0);
@@ -34,5 +35,17 @@ TEST_CASE("sp3") {
   CHECK(e.gnss == 0);
   CHECK(e.sv == 2);
   CHECK(e.clockBias == 1000.0 * -306.607761);
+  
+}
+
+TEST_CASE("truncation") {
+  CHECK(truncPrec(123.0, 0) == 123.0);
+  CHECK(truncPrec(123.123, 1) == 123.1);
+  CHECK(truncPrec(123.123, 2) == 123.12);
+  CHECK(truncPrec(123.123, 3) == 123.123);
+  CHECK(truncPrec(123.191, 1) == 123.2);
+  CHECK(truncPrec(123.191, 2) == 123.19);
+  CHECK(truncPrec(123.999, 0) == 124.0);
+  
   
 }

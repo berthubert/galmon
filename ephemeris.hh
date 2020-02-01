@@ -1,13 +1,25 @@
 #pragma once
 #include "minivec.hh"
 #include <iostream>
+#include <tuple>
+
 // lat, lon, height (rad, rad, meters)
 std::tuple<double, double, double> ecefToWGS84(double x, double y, double z);
 
-int ephAge(int tow, int t0e);
+// lat, lon, height (deg, deg, meters)
+inline std::tuple<double, double, double> ecefToWGS84Deg(double x, double y, double z)
+{
+  auto ret = ecefToWGS84(x, y, z);
+  std::get<0>(ret) /= (M_PI / 180);
+  std::get<1>(ret) /= (M_PI / 180);
+  return ret;
+}
+
+
+double ephAge(double tow, int t0e);
 
 template<typename T>
-void getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
+double getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
 {
   using namespace std;
   // here goes
@@ -71,7 +83,7 @@ void getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
   double A3 = pow(sqrtA, 6.0);
 
   double n0 = sqrt(mu/A3);
-  double tk = ephAge(tow, t0e); // in seconds, should do ephAge
+  double tk = ephAge(tow, t0e); 
 
   double n = n0 + deltan;
   if(!quiet)
@@ -83,10 +95,11 @@ void getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
   double E = M;
   double newE;
   for(int k =0 ; k < 10; ++k) {
-    if(!quiet)
-      cerr<<"k "<<k<<" M = "<<M<<", E = "<< E << endl;
     newE = M + e * sin(E);
-    if(fabs(E-newE) < 0.00001) {
+    if(!quiet)
+      cerr<<"k "<<k<<" M = "<<M<<", E = "<< E << ", delta: "<< (E-newE) << endl;
+
+    if(fabs(E-newE) < 0.0000001) {
       E = newE;
       break;
     }
@@ -106,19 +119,28 @@ void getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
                         ((cos(E) - e)/ (1-e*cos(E)))
                         );
     
-    double nu2 = atan(   (sqrt(1-e*e) * sin(E)) /
+    double nu2A = atan(   (sqrt(1-e*e) * sin(E)) /
                        (cos(E) - e)
                      );
 
+
+    double nu2B = atan2(   (sqrt(1-e*e) * sin(E)) ,
+                       (cos(E) - e)
+                     );
+
+    
     double nu3 = 2* atan( sqrt((1+e)/(1-e)) * tan(E/2));
-    cerr << "e: "<<e<<", M: "<< M<<endl;
+    cerr << "e: "<<e<<", M: "<< M<<", E: "<< E<<endl;
     cerr <<"         nu sis: "<<nu1<< " / +pi = " << nu1 +M_PI << endl;
-    cerr <<"         nu ?: "<<nu2<< " / +pi = "  << nu2 +M_PI << endl;
-    cerr <<"         nu fourier/esa: "<<nu2<< " + " << corr <<" = " << nu2 + corr<<endl;
+    cerr <<"         nu ?: "<<nu2A<< " / +pi = "  << nu2A +M_PI << endl;
+    cerr <<"         nu ?: "<<nu2B<< " / +pi = "  << nu2B +M_PI << endl;
+    cerr <<"*        nu fourier/esa: "<<nu2<< " + " << corr <<" = " << nu2 + corr<<" | "<< std::fixed<<nu2+corr-nu1<<endl;
     cerr <<"         nu wikipedia: "<<nu3<< " / +pi = " <<nu3 +M_PI << endl;
   }
-  
-  double nu = nu2 + corr;
+  double nu = atan2(   (sqrt(1-e*e) * sin(E)) ,
+                         (cos(E) - e)
+                     );
+
 
   // https://en.wikipedia.org/wiki/True_anomaly is good
   
@@ -134,7 +156,7 @@ void getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
 
   double u = psi + deltau;
 
-  double r = A * (1- e * cos(E)) + deltar;
+  double r = A * (1 - e * cos(E)) + deltar;
 
   double xprime = r*cos(u), yprime = r*sin(u);
   if(!quiet) {
@@ -153,7 +175,7 @@ void getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
     Vector radius(core, *p);
     cerr << radius.length() << " calculated r "<<endl;
   }
-  
+  return E;
 }
 
 struct DopplerData

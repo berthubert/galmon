@@ -31,9 +31,14 @@
 #include "comboaddress.hh"
 #include "swrappers.hh"
 #include "sclasses.hh"
+#include "githash.h"
+#include "version.hh"
+
+static char program[]="ubxtool";
 
 bool doDEBUG{false};
 bool doLOGFILE{false};
+bool doVERSION{false};
 
 struct timespec g_gnssutc;
 uint16_t g_galwn;
@@ -43,6 +48,7 @@ using namespace std;
 uint16_t g_srcid{0};
 int g_fixtype{-1};
 double g_speed{-1};
+extern const char* g_gitHash;
 
 static int getBaudrate(int baud)
 {
@@ -232,9 +238,11 @@ UBXMessage sendAndWaitForUBX(int fd, int seconds, basic_string_view<uint8_t> msg
       if(n==1)
         throw;
       cerr<<"Retransmit"<<endl;
-          
     }
   }
+  // we actually never get here, but if you remove this line, we get a warning
+  // and people can't stop nagging us about the warning..
+  return waitForUBX(fd, seconds, ubxClass, ubxType);
 }
 
 
@@ -399,14 +407,23 @@ void NMMSender::Destination::emitNMM(const NavMonMessage& nmm)
 }
 
 
+bool version9 = false;
 void enableUBXMessageOnPort(int fd, uint8_t ubxClass, uint8_t ubxType, uint8_t port, uint8_t rate=1)
 {
   for(int n=0 ; n < 5; ++n) {
     try {
-      basic_string<uint8_t> payload({ubxClass, ubxType, 0, 0, 0, 0, 0, 0});
-      if(port > 6)
-        throw std::runtime_error("Port number out of range (>6)");
-     payload[2+ port]=rate;
+      basic_string<uint8_t> payload;
+      if(version9) {
+        payload= basic_string<uint8_t>({ubxClass, ubxType, rate});
+      }
+      else {
+        if(port > 6)
+          throw std::runtime_error("Port number out of range (>6)");
+
+        payload.assign({ubxClass, ubxType, 0, 0, 0, 0, 0, 0});
+        payload[2+ port]=rate;
+      }
+
 
      auto msg = buildUbxMessage(0x06, 0x01, payload);
       if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, 0x01))
@@ -519,9 +536,10 @@ int initFD(const char* fname, bool doRTSCTS)
 // ubxtool device srcid
 int main(int argc, char** argv)
 {
+  time_t starttime=time(0);
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-  CLI::App app("ubxtool");
+  CLI::App app(program);
     
 
   bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true}, doReset{false}, doWait{true}, doRTSCTS{true}, doSBAS{false};
@@ -537,6 +555,8 @@ int main(int argc, char** argv)
   int ubxport=3;
   int baudrate=115200;
   unsigned int fuzzPositionMeters=0;
+  string owner;
+  string remark;
 
   app.add_option("--destination,-d", destinations, "Send output to this IPv4/v6 address");
   app.add_flag("--wait", doWait, "Wait a bit, do not try to read init messages");
@@ -548,20 +568,39 @@ int main(int argc, char** argv)
   app.add_flag("--sbas,-s", doSBAS, "Enable SBAS (EGNOS/WAAS/etc) reception");
   app.add_option("--rtscts", doRTSCTS, "Set hardware handshaking");
   app.add_flag("--stdout", doSTDOUT, "Emit output to stdout");
-  app.add_option("--port,-p", portName, "Device or file to read serial from")->required();
+  auto pn = app.add_option("--port,-p", portName, "Device or file to read serial from");
   app.add_option("--station", g_srcid, "Station id");
   app.add_option("--ubxport,-u", ubxport, "UBX port to enable messages on (usb=3)");
   app.add_option("--baud,-b", baudrate, "Baudrate for serial connection");
   app.add_flag("--keep-nmea,-k", doKeepNMEA, "Don't disable NMEA");
   app.add_flag("--fake-fix", doFakeFix, "Inject locally generated fake fix data");
   app.add_option("--fuzz-position,-f", fuzzPositionMeters, "Fuzz position by this many meters");
+  app.add_option("--owner,-o", owner, "Name/handle/nick of owner/operator");
+  app.add_option("--remark", remark, "Remark for this station");
   
+  int surveyMinSeconds = 0;
+  int surveyMinCM = 0;
+  bool doSurveyReset=false;
+  app.add_option("--survey-min-seconds", surveyMinSeconds, "Survey minimally this amount of seconds");
+  app.add_option("--survey-min-cm", surveyMinCM, "Survey until accuracy is better (lower) than this setting");
+  app.add_flag("--survey-reset", doSurveyReset, "Reset the Surveyed-in state");
   app.add_flag("--debug", doDEBUG, "Display debug information");  
   app.add_flag("--logfile", doLOGFILE, "Create logfile");  
+  app.add_flag("--version", doVERSION, "show program version and copyright");
   try {
     app.parse(argc, argv);
   } catch(const CLI::Error &e) {
     return app.exit(e);
+  }
+
+  if(doVERSION) {
+    showVersion(program, g_gitHash);
+    exit(0);
+  }
+
+  if(! *pn) {
+    cerr<<"you must provide the --port"<<endl;
+    exit(1);
   }
 
   g_baudval = getBaudrate(baudrate);
@@ -573,10 +612,15 @@ int main(int argc, char** argv)
   
   int fd = initFD(portName.c_str(), doRTSCTS);
   
-  bool version9 = false;
+
   if(doFakeFix) // hack
     version9 = true;
   bool m8t = false;
+
+  string hwversion;
+  string swversion;
+  string mods;
+  string serialno;
   
   if(!g_fromFile) {
     bool doInit = true;
@@ -614,21 +658,40 @@ int main(int argc, char** argv)
 
       if (doDEBUG) { cerr<<humanTimeNow()<<" Sending version query"<<endl; }
       UBXMessage um1=sendAndWaitForUBX(fd, 1, msg, 0x0a, 0x04); // ask for version
-      cerr<<humanTimeNow()<<" swVersion: "<<um1.getPayload().c_str()<<endl;
-      cerr<<humanTimeNow()<<" hwVersion: "<<um1.getPayload().c_str()+30<<endl;
-      
+      swversion = (const char*)um1.getPayload().c_str();
+      hwversion = (const char*)um1.getPayload().c_str()+30;
+      cerr<<humanTimeNow()<<" swVersion: "<<swversion<<endl;
+      cerr<<humanTimeNow()<<" hwVersion: "<<hwversion<<endl;
+
       for(unsigned int n=0; 40+30*n < um1.getPayload().size(); ++n) {
-        cerr<<humanTimeNow()<<" Extended info: "<<um1.getPayload().c_str() + 40 +30*n<<endl;
-        if(um1.getPayload().find((const uint8_t*)"F9") != string::npos)
+        string line = (const char*)um1.getPayload().c_str() + 40 +30*n;
+        cerr<<humanTimeNow()<<" Extended info: "<<line <<endl;
+        
+        if(line.find("F9") != string::npos)
           version9=true;
 
-        if(um1.getPayload().find((const uint8_t*)"M8T") != string::npos)
+        if(line.find("M8T") != string::npos) {
           m8t=true;
+        }
 
+        if(line.find("MOD=") != string::npos)
+          mods += line.substr(4);
+        
         // timing: MOD=NEO-M8T-0
         
       }
-
+      if (doDEBUG && m8t) { cerr<<humanTimeNow()<<" Detected timing module"<<endl; }
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Sending serial number query"<<endl; }
+      msg = buildUbxMessage(0x27, 0x03, {});
+      um1=sendAndWaitForUBX(fd, 1, msg, 0x27, 0x03); // ask for serial
+      serialno = fmt::sprintf("%02x%02x%02x%02x%02x",
+                              um1.getPayload()[4],
+                              um1.getPayload()[5],
+                              um1.getPayload()[6],
+                              um1.getPayload()[7],
+                              um1.getPayload()[8]);
+      
+      cerr<<humanTimeNow()<<" Serial number "<< serialno <<endl;
 
       if(version9)
         cerr<<humanTimeNow()<<" Detected version U-Blox 9"<<endl;
@@ -699,12 +762,8 @@ int main(int argc, char** argv)
               0x25,0x00,0x31,0x10, doGlonass,
               0x18,0x00,0x31,0x10, doGlonass,
               0x1a,0x00,0x31,0x10, doGlonass
-              
-
-
               });
 
-        
         if (doDEBUG) { cerr<<humanTimeNow()<<" Sending F9P GNSS setting, GPS: "<<doGPS<<", Galileo: "<<doGalileo<<", BeiDou: "<<doBeidou<<", GLONASS: "<<doGlonass<<", SBAS: "<<doSBAS<<endl; }
         
         if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, 0x8a)) { // GNSS setting, F9 stylee
@@ -714,8 +773,101 @@ int main(int argc, char** argv)
           cerr<<humanTimeNow()<<" Got nack on F9P GNSS setting"<<endl;
           exit(-1);
         }
-      }
+        /* VALSET
+        0x20 91 02 32 = 
+        */
 
+        msg = buildUbxMessage(0x06, 0x8a, {0x00, 0x01, 0x00, 0x00,
+              0x07, 0x00, 0x91, 0x20, 1,
+              0x32, 0x02, 0x91, 0x20, 1});
+        if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, 0x8a)) { // msg cfg F9P
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on F9P UART1 setting"<<endl; }
+        }
+        else {
+          cerr<<humanTimeNow()<<" Got nack on F9P UART1 setting"<<endl;
+          exit(-1);
+        }
+      }
+      if(m8t) {
+        cerr<<humanTimeNow()<<" Sending TMODE2 status query"<<endl;
+        msg = buildUbxMessage(0x06, 0x3d, {});      
+        um1=sendAndWaitForUBX(fd, 1, msg, 0x06, 0x3d); // query TMODE2
+        auto tmodepayload = um1.getPayload();
+        cerr<<humanTimeNow()<<" TMODE2 status, mode " << (int)tmodepayload[0] << endl;
+
+        try {
+          if(waitForUBXAckNack(fd, 2, 0x06, 0x3d)) {
+            if (doDEBUG) { cerr<<humanTimeNow()<<" Got ACK for our poll of TMODE2"<<endl; }
+          }
+          }catch(...) {
+            cerr<<"Got timeout waiting for ack of poll, no problem"<<endl;
+        }
+      }
+      if(doSurveyReset) {
+          uint8_t cmd = 0x3d;                   //  vers  res   survey ign      
+          auto msg = buildUbxMessage(0x06, cmd, 
+          { 0,0,0,0, // survey-in, res, flag1, flag2
+            0,0,0,0, // x
+            0,0,0,0, // y
+            0,0,0,0, // z
+            0,0,0,0, // fixed position accuracy
+            0,0,0,0,
+            0,0,0,0
+            });
+        cerr<<humanTimeNow()<<" Sending survey-reset commmand"<<endl;
+      
+        if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, cmd)) { 
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on survey-reset"<<endl; }
+        }
+        else {
+          cerr<<humanTimeNow()<<" Got nack on survey-reset"<<endl;
+          exit(-1);
+        }     
+        exit(0);
+      }
+      if(surveyMinSeconds || surveyMinCM) {
+        uint32_t minSecondsVal = surveyMinSeconds;
+        uint32_t minCentimetersVal;
+        if(surveyMinCM==0)
+          minCentimetersVal = 10000000; // 100km
+        else 
+          minCentimetersVal = surveyMinCM * 100;
+        uint8_t* ptrSeconds = (uint8_t*)&minSecondsVal, *ptrCent= (uint8_t*)&minCentimetersVal;
+        uint8_t cmd;
+        std::basic_string<uint8_t> msg;
+        if(version9) {        
+          cmd = 0x8a;
+          msg = buildUbxMessage(0x06, cmd, {0x00, 0x01, 0x00, 0x00,
+              0x01,0x00,0x03,0x20, 1, // survey in mode
+              // min survey time:  
+              0x10,0x00,0x03,0x40, ptrSeconds[0], ptrSeconds[1], ptrSeconds[2], ptrSeconds[3], 
+              0x11,0x00,0x03,0x40, ptrCent[0], ptrCent[1], ptrCent[2], ptrCent[3]
+              });
+        }
+        else {
+          minCentimetersVal /= 10;
+          cmd = 0x3d;                   
+          msg = buildUbxMessage(0x06, cmd, 
+          { 1,0,0,0, // survey-in, res, flag1, flag2
+            0,0,0,0, // x
+            0,0,0,0, // y
+            0,0,0,0, // z
+            0,0,0,0, // fixed position accuracy
+            ptrSeconds[0], ptrSeconds[1], ptrSeconds[2], ptrSeconds[3], 
+            ptrCent[0], ptrCent[1], ptrCent[2], ptrCent[3]
+            });
+        }
+    
+        cerr<<humanTimeNow()<<" Sending survey-in commmand"<<endl;
+      
+        if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, cmd)) { 
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on survey-in"<<endl; }
+        }
+        else {
+          cerr<<humanTimeNow()<<" Got nack on survey-in"<<endl;
+          exit(-1);
+        }
+      }
       if(doSBAS) {
         //                                 "on" "*.*"  ign   
         msg = buildUbxMessage(0x06, 0x16, {0x01, 0x07, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00}); // enable SBAS
@@ -732,7 +884,23 @@ int main(int argc, char** argv)
       if(!doKeepNMEA) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Disabling NMEA"<<endl; }
         
-        msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x01,0x00,0x00,0x00,0x00,0x00});
+        if(ubxport == 1 || ubxport == 2) {
+          /* Ublox UART[1] or UART2 port, so encode baudrate and serial settings */
+          msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,
+            0xC0 /* 8 bit */,
+            0x08 /* No parity */,
+            0x00,0x00,
+            (unsigned char)((baudrate) & 0xFF),
+            (unsigned char)((baudrate>>8) & 0xFF),
+            (unsigned char)((baudrate>>16) & 0xFF),
+            (unsigned char)((baudrate>>24) & 0xFF),
+            0x03,0x00,0x01,0x00,
+            0x00,0x00,0x00,0x00
+          });
+        }
+        else {
+          msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x01,0x00,0x00,0x00,0x00,0x00});
+        }
         if(sendAndWaitForUBXAckNack(fd, 10, msg, 0x06, 0x00)) { // disable NMEA
           if (doDEBUG) { cerr<<humanTimeNow()<<" NMEA disabled"<<endl; }
         }
@@ -761,15 +929,34 @@ int main(int argc, char** argv)
       
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RLM"<<endl; } // SAR
       enableUBXMessageOnPort(fd, 0x02, 0x59, ubxport); // UBX-RXM-RLM
+
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-MON-HW"<<endl; } // SAR
+      enableUBXMessageOnPort(fd, 0x0A, 0x09, ubxport, 16); // UBX-MON-HW
+
       
+      if(version9) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-SVIN"<<endl; } // Survey-in results
+        enableUBXMessageOnPort(fd, 0x01, 0x3b, ubxport, 2); 
+      }
+      else if(m8t) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-TIM-SVIN"<<endl; } // Survey-in results
+        enableUBXMessageOnPort(fd, 0x0d, 0x04, ubxport, 2);       
+      }
+
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RAWX"<<endl; } // RF doppler
       enableUBXMessageOnPort(fd, 0x02, 0x15, ubxport, 8); // RXM-RAWX
 
-      if(!version9 && !m8t) {
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling debugging data"<<endl; } // RF doppler
-        enableUBXMessageOnPort(fd, 0x03, 0x10, ubxport, 1);
-      }
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-CLOCK"<<endl; } // clock details
+      enableUBXMessageOnPort(fd, 0x01, 0x22, ubxport, 16); // UBX-NAV-CLOCK
+
       
+      if(!version9 && !m8t && !fuzzPositionMeters) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling debugging data"<<endl; } // RF doppler
+        enableUBXMessageOnPort(fd, 0x03, 0x10, ubxport, 4);
+      }
+      else
+        enableUBXMessageOnPort(fd, 0x03, 0x10, ubxport, 0);
+        
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-SFRBX"<<endl; } // raw navigation frames
       enableUBXMessageOnPort(fd, 0x02, 0x13, ubxport); // SFRBX
       
@@ -779,10 +966,10 @@ int main(int argc, char** argv)
       if(version9)  {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-SIG"<<endl; }  // satellite reception details
         enableUBXMessageOnPort(fd, 0x01, 0x43, ubxport, 8); // NAV-SIG
-
+        /*
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-MEASX"<<endl; }  // satellite reception details
         enableUBXMessageOnPort(fd, 0x02, 0x14, ubxport, 1); // RXM-MEASX
-
+        */
       }
       else {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-SAT"<<endl; }  // satellite reception details
@@ -903,7 +1090,6 @@ int main(int argc, char** argv)
           nmm.mutable_op()->set_z(5001904.9952);
           nmm.mutable_op()->set_acc(3.14);
           ns.emitNMM( nmm);
-          
         }
       }
       
@@ -1223,7 +1409,7 @@ int main(int argc, char** argv)
             if (doDEBUG) { cerr<<humanTimeNow()<<" SBAS "<<id.second<<" frame, numwords: "<<(int)payload[4]<<", version: "<<(int)payload[6]<<", totsize "<<payload.size()<<endl; }
 
             auto sbas = getSBASFromSFRBXMsg(payload);
-            cerr<<"Preamble: "<<(int)sbas[0]<<", type "<<getbitu(&sbas[0], 8, 6)<<endl;
+            if (doDEBUG) { cerr<<"SBAS Preamble: "<<(int)sbas[0]<<", type "<<getbitu(&sbas[0], 8, 6)<<endl; }
 
           }
           else
@@ -1259,13 +1445,16 @@ int main(int argc, char** argv)
           nmm.mutable_rd()->set_el(el);
           nmm.mutable_rd()->set_azi(azi);
           nmm.mutable_rd()->set_prres(*((int16_t*)(payload.c_str()+ 14 +12*n)) *0.1);
-          /*
+
           uint32_t status;
           memcpy(&status, &payload[16+12*n], 4);
+          nmm.mutable_rd()->set_qi(status & 7);
+          nmm.mutable_rd()->set_used(status & 8);
+
+          /*
           if (doDEBUG) {
             cerr<<humanTimeNow()<<" "<<gnssid<<","<<sv<<":";
-            if(status & (1<<3))
-              cerr<<" used";
+            cerr<<" used " << ((status & 8) == 8);
             cerr<< " qualityind "<<(status & 7);
             cerr<<" db "<<db<<" el "<< el;
             cerr<<" health " << (status & (1<<5));
@@ -1284,9 +1473,12 @@ int main(int argc, char** argv)
         for(unsigned int n = 0 ; n < payload[5]; ++n) {
           int gnssid = payload[8+16*n];
           int sv = payload[9+16*n];
+          int qi = payload[15+16*n];
+          uint16_t sigflags;
+          memcpy(&sigflags, &payload[18+16*n], 2);
           int sigid = 0;
 
-          if(version9) {
+          if(version9) { // we only use this on version9 right now tho
             sigid = payload[10+16*n];
             if(gnssid == 2 && sigid ==6)  // they separate out I and Q, but the rest of UBX doesn't
               sigid = 5;                  // so map it back
@@ -1312,12 +1504,54 @@ int main(int argc, char** argv)
           nmm.mutable_rd()->set_sigid(sigid);
           nmm.mutable_rd()->set_el(0);
           nmm.mutable_rd()->set_azi(0);
+          nmm.mutable_rd()->set_qi(qi);
+          nmm.mutable_rd()->set_used(sigflags & 8);
+          
           
           ns.emitNMM( nmm);
         }
       }
       else if(msg.getClass() == 1 && msg.getType() == 0x30) { // UBX-NAV-SVINFO
         
+      }
+      else if(msg.getClass() == 1 && msg.getType() == 0x22) { // UBX-NAV-CLOCK
+        struct NavClock
+        {
+          uint32_t iTowMS;
+          int32_t clkBNS;
+          int32_t clkDNS;
+          uint32_t tAcc;
+          uint32_t fAcc;
+        } nc;
+        memcpy(&nc, &payload[0], sizeof(nc));
+//        cerr<<"Clock offset "<< nc.clkBNS<<" nanoseconds, drift "<< nc.clkDNS<<" nanoseconds/second, accuracy " << nc.tAcc<<" ns, frequency accuracy "<<nc.fAcc << " ps/s"<<endl;
+  //      cerr<<"hwversion "<<hwversion<<" swversion "<< swversion <<" mods "<< mods <<" serialno "<<serialno<<endl;
+
+
+        NavMonMessage nmm;
+        
+        nmm.set_sourceid(g_srcid);
+        nmm.set_localutcseconds(g_gnssutc.tv_sec);
+        nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
+        
+        nmm.set_type(NavMonMessage::ObserverDetailsType);
+        nmm.mutable_od()->set_vendor("Ublox");
+        nmm.mutable_od()->set_hwversion(hwversion);
+        nmm.mutable_od()->set_swversion(swversion);
+        nmm.mutable_od()->set_serialno(serialno);
+        nmm.mutable_od()->set_modules(mods);
+        nmm.mutable_od()->set_clockoffsetns(nc.clkBNS);
+        nmm.mutable_od()->set_clockoffsetdriftns(nc.clkDNS);
+        nmm.mutable_od()->set_clockaccuracyns(nc.tAcc);
+        nmm.mutable_od()->set_freqaccuracyps(nc.fAcc);
+
+        nmm.mutable_od()->set_owner(owner);
+        nmm.mutable_od()->set_remark(remark);
+        nmm.mutable_od()->set_recvgithash(g_gitHash);
+        nmm.mutable_od()->set_uptime(time(0) - starttime);
+        
+        
+        ns.emitNMM( nmm);
       }
       else if(msg.getClass() == 0x02 && msg.getType() == 0x14) { // UBX-RXM-MEASX
 
@@ -1384,6 +1618,105 @@ int main(int argc, char** argv)
         nmm.mutable_dm()->set_type(0); 
         nmm.mutable_dm()->set_payload(string((char*)&payload[0], payload.size())); 
         ns.emitNMM( nmm);
+      }
+      else if(msg.getClass() == 0x01 && msg.getType() == 0x3B) { // UBX-NAV-SVIN
+        struct NavSin
+        {
+          uint8_t ver;
+          uint8_t res[3];
+          uint32_t iTow;
+          uint32_t dur;
+          int32_t meanXCM, meanYCM, meanZCM;
+          int8_t meanXHP, meanYHP, meanZHP;
+          uint8_t res2;
+          int32_t meanAcc;
+          int32_t obs;
+          int8_t valid;
+          int8_t active;
+          uint8_t res3[2];
+        } __attribute__((packed));
+        NavSin NS;
+        static NavSin lastNS;
+        
+        if(payload.size() != sizeof(NS)) {
+          cerr<<"Wrong NAV-SVIN message size, skipping"<<endl;
+          continue;
+        }
+        memcpy(&NS, payload.c_str(), sizeof(NS));
+        NS.res[0] = NS.res[1] = NS.res[2] = 0;
+        NS.res2=0;
+        NS.res3[0] = NS.res3[1] = 0;
+        NS.iTow = 0;
+        if(memcmp(&NS, &lastNS, sizeof(NS))) {
+          cerr<<humanTimeNow()<<" NAV-SVIN ver "<<(int)NS.ver<< " valid "<< (int)NS.valid<<" active " << (int)NS.active<<" duration "<<NS.dur<<"s meanAcc " <<NS.meanAcc /100<< "cm obs "<<NS.obs<<" ";
+          cerr<<std::fixed<<" ("<<NS.meanXCM + 0.01*NS.meanXHP<<", "<<NS.meanYCM  + 0.01*NS.meanYHP<<", "<<NS.meanZCM  + 0.01*NS.meanZHP<<")";
+          
+          auto latlonh = ecefToWGS84Deg((NS.meanXCM +0.01*NS.meanXHP)/100.0, 
+                                        (NS.meanYCM +0.01*NS.meanYHP)/100.0, 
+                                        (NS.meanZCM +0.01*NS.meanZHP)/100.0);
+          cerr<<" lat "<< get<0>(latlonh)<<" lon "<< get<1>(latlonh) << " h " << get<2>(latlonh) << endl;
+        }
+        lastNS = NS;
+      }      
+      else if(msg.getClass() == 0x0d && msg.getType() == 0x04) { // UBX-TIM-SVIN
+        struct TimSin
+        {
+          uint32_t dur;
+          int32_t meanXCM, meanYCM, meanZCM;
+          uint32_t meanVar;
+          uint32_t obs;
+          int8_t valid;
+          int8_t active;
+          uint8_t res3[2];
+        } __attribute__((packed));
+        TimSin TS;
+        static TimSin lastTS;
+        
+        if(payload.size() != sizeof(TS)) {
+          cerr<<"Wrong NAV-SVIN message size, skipping"<<endl;
+          continue;
+        }
+        memcpy(&TS, payload.c_str(), sizeof(TS));
+        TS.res3[0] = TS.res3[1] = 0;
+        if(memcmp(&TS, &lastTS, sizeof(TS))) {
+          cerr<<humanTimeNow()<<" TIM-SVIN valid "<< (int)TS.valid<<" active " << (int)TS.active<<" duration "<<TS.dur<<"s meanAcc " <<sqrt(TS.meanVar)/10<< "cm obs "<<TS.obs<<" ";
+          cerr<<std::fixed<<"("<<TS.meanXCM <<", "<<TS.meanYCM <<", "<<TS.meanZCM<<")"<<endl;
+        }
+        lastTS = TS;
+      }
+      else if(msg.getClass() == 0x0a && msg.getType() == 0x09) { // UBX-MON-HW
+        struct MonHW {
+          uint32_t pinSel, pinBank, pinDir, pinVal;
+
+          uint16_t noisePerMS;
+          uint16_t agcCnt;
+
+          uint8_t aStatus;
+          uint8_t aPower;
+          uint8_t flags;
+          uint8_t res1;
+          
+          uint32_t usedMask;
+          
+          uint8_t VP[17];
+          uint8_t jamInd;
+          uint16_t res2;
+          uint32_t pinIrq, pullH, pullL;
+        } __attribute__((packed));
+        MonHW mhw;
+        memcpy(&mhw, payload.c_str(), sizeof(MonHW));
+        //        cerr << "agcCnt "<< mhw.agcCnt <<" jamind " << (unsigned int) mhw.jamInd <<" flags "<< (unsigned int)mhw.flags << endl;
+        NavMonMessage nmm;
+        nmm.set_sourceid(g_srcid);
+        nmm.set_localutcseconds(g_gnssutc.tv_sec);
+        nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
+        
+        nmm.set_type(NavMonMessage::UbloxJammingStatsType);
+        nmm.mutable_ujs()->set_noiseperms(mhw.noisePerMS);
+        nmm.mutable_ujs()->set_agccnt(mhw.agcCnt);
+        nmm.mutable_ujs()->set_flags(mhw.flags);
+        nmm.mutable_ujs()->set_jamind(mhw.jamInd);
+        ns.emitNMM(nmm);
       }
       else 
         if (doDEBUG) { cerr<<humanTimeNow()<<" Unknown UBX message of class "<<(int) msg.getClass() <<" and type "<< (int) msg.getType()<< " of "<<payload.size()<<" bytes"<<endl; }

@@ -15,7 +15,7 @@ function makeTable(str, arr)
         enter().
         append("tr");
 
-    var columns= ["id1", "value1", "id2", "value2"];
+    var columns= ["id1", "value1", "id2", "value2", "src", "db", "delta_hz_corr", "qi", "prres", "elev", "used"];
     
     // append the header row
     thead.append("tr")
@@ -71,17 +71,35 @@ function update()
     
     function ready(error, results) {
         var arr=[];
+        let recvs;
         Object.keys(results[0]).forEach(function(e) {
+            if(e=="recvs") {
+                recvs=results[0][e];
+                return;
+            }
             arr.push({id: e, value: results[0][e]});
         });
 
         var newarr=[];
         for(var n=0 ; n < arr.length; n+=2) {
+            
             if(n + 1 < arr.length)
                 newarr.push({id1: arr[n].id, value1: arr[n].value, id2: arr[n+1].id, value2: arr[n+1].value});
             else
                 newarr.push({id1: arr[n].id, value1: arr[n].value, id2: "", value2: ""});
         }
+
+        Object.keys(recvs).forEach(function(e) {
+            if(recvs[e]["last-seen-s"] < 60) 
+                newarr.push({id1:"", value1:"", id2:"", value2:"",
+                             src: e,
+                             db: recvs[e].db,
+                             qi: recvs[e].qi,
+                             prres: recvs[e].prres.toFixed(1),
+                             elev: recvs[e].elev,
+                             used: recvs[e].used
+                            });
+        });
         makeTable("#galileo", newarr, results[0]);
     };
       
