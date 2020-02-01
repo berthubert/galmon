@@ -30,7 +30,7 @@ H2OPP=ext/powerblog/h2o-pp.o
 SIMPLESOCKETS=ext/powerblog/ext/simplesocket/swrappers.o ext/powerblog/ext/simplesocket/sclasses.o  ext/powerblog/ext/simplesocket/comboaddress.o 
 
 clean:
-	rm -f *~ *.o *.d ext/*/*.o $(PROGRAMS) ubxtool.nodeps* navmon.pb.h navmon.pb.cc $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) $(H2OPP) $(SIMPLESOCKETS)
+	rm -f *~ *.o *.d ext/*/*.o $(PROGRAMS) ubxtool.nodeps ubxtool.static navmon.pb.h navmon.pb.cc $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) $(H2OPP) $(SIMPLESOCKETS)
 	rm -f ext/fmt-5.2.1/src/format.o
 
 decrypt: decrypt.o bits.o ext/fmt-5.2.1/src/format.o
@@ -73,6 +73,9 @@ UBXTOOL_DEPS = navmon.pb.o ubxtool.o ubx.o bits.o ext/fmt-5.2.1/src/format.o gal
 
 ubxtool: $(UBXTOOL_DEPS)
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -lprotobuf -pthread
+# Static build with musl on alpine and clang
+ubxtool.static: $(UBXTOOL_DEPS)
+	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -lprotobuf -pthread -lstdc++ -static
 # Static linking of `glibc` is non-trivial, so glibc is kept dynamically linked
 ubxtool.nodeps: $(UBXTOOL_DEPS)
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib /usr/lib/*-linux-*/libprotobuf.a -pthread -static-libgcc -static-libstdc++

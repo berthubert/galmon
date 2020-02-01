@@ -115,7 +115,7 @@ To build a minimal `ubxtool` docker image:
 
 ```
 git clone https://github.com/ahupowerdns/galmon.git --recursive
-./build-ubxtool native
+./build-ubxtool
 ```
 
 It may also cross-compile a binary and an image for a Raspberry Pi:
@@ -123,7 +123,7 @@ It may also cross-compile a binary and an image for a Raspberry Pi:
 ```
 git clone https://github.com/ahupowerdns/galmon.git --recursive
 docker run -it --rm --privileged multiarch/qemu-user-static:register --reset
-./build-ubxtool armhf
+./build-ubxtool armv6l
 ```
 
 Running
