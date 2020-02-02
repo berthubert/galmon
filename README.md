@@ -92,22 +92,29 @@ library installed. If you get an error about 'wslay', do the following, and run 
 echo WSLAY=-lwslay > Makefile.local
 ```
 
-Build in Docker
----------------
+Running in Docker
+-----------------
 
-To build it in Docker:
+We publish official Docker images for galmon on
+[docker hub](https://hub.docker.com/r/faucet/faucet) for multiple architectures.
 
-```
-git clone https://github.com/ahupowerdns/galmon.git --recursive
-docker build -t galmon --build-arg MAKE_FLAGS=-j2 .
-```
-
-To run a container with a shell in there (this will also expose a port so you can view the UI too and assumes a ublox GPS device too - you may need to tweak as necessary):
+To run a container with a shell in there (this will also expose a port so you
+can view the UI too and assumes a ublox GPS device too -
+you may need to tweak as necessary):
 
 ```
-docker run -it --rm --device=/dev/ttyACM0 -p 10000:10000 galmon
+docker run -it --rm --device=/dev/ttyACM0 -p 10000:10000 galmon/galmon
 ```
 
+Running a daemonized docker container reporting data to a remote server
+might look like:
+
+```
+docker run -d --restart=always --device=/dev/ttyACM0 --name=galmon galmon/galmon /galmon/ubxtool --wait --port /dev/ttyACM0 --gps --galileo --glonass --destination [server] --station [station-id] --owner [owner]
+```
+
+To make your docker container update automatically you could use a tool such as
+[watchtower](https://containrrr.github.io/watchtower/).
 
 Running
 -------
