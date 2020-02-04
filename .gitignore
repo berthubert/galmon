@@ -18,7 +18,6 @@ glo-ops.txt
 gps-ops.txt
 # - git version internals
 githash.h
-
 #
 *.csv
 # Prerequisites

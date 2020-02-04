@@ -171,11 +171,11 @@ void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
 int main(int argc, char** argv)
 {
   bool doVERSION{false};
-
+  /*
   CLI::App app(program);
 
   app.add_flag("--version", doVERSION, "show program version and copyright");
-
+  app.allow_extras(true); // allow bare positional parameters
   try {
     app.parse(argc, argv);
   } catch(const CLI::Error &e) {
@@ -186,7 +186,7 @@ int main(int argc, char** argv)
     showVersion(program, g_gitHash);
     exit(0);
   }
-
+  */
   signal(SIGPIPE, SIG_IGN);
   if(argc < 3) {
     cout<<"Syntax: navcat storage start stop"<<endl;

@@ -80,21 +80,7 @@ struct GNSSReceiver
 };
 
 
-int g_dtLS{18}, g_dtLSBeidou{4};
-uint64_t utcFromGST(int wn, int tow)
-{
-  return (935280000 + wn * 7*86400 + tow - g_dtLS); 
-}
 
-double utcFromGST(int wn, double tow)
-{
-  return (935280000.0 + wn * 7*86400 + tow - g_dtLS); 
-}
-
-double utcFromGPS(int wn, double tow)
-{
-  return (315964800 + wn * 7*86400 + tow - g_dtLS); 
-}
 
 
 void SVIOD::addGalileoWord(std::basic_string_view<uint8_t> page)
@@ -312,28 +298,6 @@ std::string humanTime(int gnssid, int wn, int tow)
   char buffer[80];
   strftime(buffer, sizeof(buffer), "%a, %d %b %Y %T %z", &tm);
   return buffer;
-}
-char getGNSSChar(int id)
-{
-  if(id==0)
-    return 'G';
-  if(id==2)
-    return 'E';
-  if(id==3)
-    return 'C';
-  if(id==6)
-    return 'R';
-  else
-    return '0'+id;
-}
-
-std::string makeSatIDName(const SatID& satid)
-{
-  return fmt::sprintf("%c%02d@%d", getGNSSChar(satid.gnss), satid.sv, satid.sigid);
-}
-std::string makeSatPartialName(const SatID& satid)
-{
-  return fmt::sprintf("%c%02d", getGNSSChar(satid.gnss), satid.sv);
 }
 
 std::optional<double> getHzCorrection(time_t now, int src, unsigned int gnssid, unsigned int sigid, const svstats_t& svstats)
@@ -1388,6 +1352,7 @@ try
       g_gpsalmakeeper.set(g_gpsalma);
       lastWebSync = time(0);
     }
+
     char bert[6];
     if(fread(bert, 1, 6, stdin) != 6 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
       cerr<<"EOF or bad magic"<<endl;
@@ -1404,6 +1369,55 @@ try
     
     NavMonMessage nmm;
     nmm.ParseFromString(string(buffer, len));
+    /*
+    static time_t lastCovSyncHour;
+    if(nmm.localutcseconds() / 1800 > (unsigned int)lastCovSyncHour) {
+      lastCovSyncHour = nmm.localutcseconds() / 1800;
+      int tow;
+      static int totexceeds, totcells;
+      try {
+        tow=latestTow(2, g_svstats);
+        vector<Point> sats;
+        for(const auto &g : g_galileoalma) {
+          Point sat;
+          getCoordinates(tow, g.second, &sat);
+          
+          if(g.first < 0)
+            continue;
+          SatID id{2,(uint32_t)g.first,1};
+          const auto& svstat = g_svstats[id];
+          if(svstat.completeIOD() && svstat.liveIOD().sisa == 255) {
+            continue;
+          }
+          if(svstat.e1bhs || svstat.e1bdvs)
+            continue;
+          sats.push_back(sat);
+        }
+        
+        auto cov = emitCoverage(sats);
+        int exceeds=0, cells=0;
+        for(const auto& latvect : cov) {
+          for(const auto& longpair : latvect.second) {
+            cells++;
+            if(get<4>(longpair) >= 6.0)
+              exceeds++;
+            //            else
+            //cout<<get<6>(longpair) << endl;
+          }
+        }
+        totexceeds += exceeds;
+        totcells += cells;
+        fmt::printf("At %s, %.2f%% (%d) of %d cells exceeded PDOP 6 for 5 degrees horizon (%d sats), running %.2f%%\n", humanTime(nmm.localutcseconds()), 100.0*exceeds/cells, exceeds, cells, sats.size(), 100.0*totexceeds/totcells);
+      }
+      catch(std::exception&e) {
+        cout<<"Error with coverage: "<<e.what()<<endl;
+      }
+
+    }
+    */
+    
+
+    
     if(nmm.type() == NavMonMessage::ReceptionDataType) {
       int gnssid = nmm.rd().gnssid();
       int sv = nmm.rd().gnsssv();
