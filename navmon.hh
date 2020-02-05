@@ -70,3 +70,5 @@ extern int g_dtLS, g_dtLSBeidou;
 uint64_t utcFromGST(int wn, int tow);
 double utcFromGST(int wn, double tow);
 double utcFromGPS(int wn, double tow);
+
+std::string makeHexDump(const std::string& str);

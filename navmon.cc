@@ -294,3 +294,16 @@ double utcFromGPS(int wn, double tow)
 {
   return (315964800 + wn * 7*86400 + tow - g_dtLS); 
 }
+
+string makeHexDump(const string& str)
+{
+  char tmp[5];
+  string ret;
+  ret.reserve((int)(str.size()*2.2));
+
+  for(string::size_type n=0;n<str.size();++n) {
+    snprintf(tmp, sizeof(tmp), "%02x ", (unsigned char)str[n]);
+    ret+=tmp;
+  }
+  return ret;
+}
