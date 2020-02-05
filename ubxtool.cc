@@ -709,19 +709,21 @@ int main(int argc, char** argv)
       for(unsigned int n=0; 40+30*n < um1.getPayload().size(); ++n) {
         string line = (const char*)um1.getPayload().c_str() + 40 +30*n;
         cerr<<humanTimeNow()<<" Extended info: "<<line <<endl;
-        
-        if(line.find("F9") != string::npos)
-          version9=true;
-
-        if(line.find("M8T") != string::npos) {
-          m8t=true;
-        }
 
         if(line.find("MOD=") != string::npos)
           mods += line.substr(4);
-        
-        // timing: MOD=NEO-M8T-0
-        
+      }
+
+      if(mods.find("F9") != string::npos) {
+        /* F9 supports dual-frequency */
+        cerr<<humanTimeNow()<<" Detected version U-Blox F9"<<endl;
+        version9=true;
+      }
+
+      if(mods.find("M8T") != string::npos) {
+        /* Timing modules can be surveyed in */
+        cerr<<humanTimeNow()<<" Detected timing module"<<endl;
+        m8t=true;
       }
 
       if(mods.find("M9") != string::npos) {
@@ -742,8 +744,6 @@ int main(int argc, char** argv)
       
       cerr<<humanTimeNow()<<" Serial number "<< serialno <<endl;
 
-      if(version9)
-        cerr<<humanTimeNow()<<" Detected version U-Blox 9"<<endl;
       usleep(50000);
       if (doDEBUG) { cerr<<humanTimeNow()<<" Sending GNSS query"<<endl; }
       msg = buildUbxMessage(0x06, 0x3e, {});
