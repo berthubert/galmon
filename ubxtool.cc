@@ -10,6 +10,8 @@
 #include <strings.h>
 #include <stdlib.h>
 #include <string>
+#include <algorithm>
+#include <random>
 #include <stdint.h>
 #include "ubx.hh"
 #include "navmon.hh"
@@ -345,7 +347,10 @@ public:
           throw NameError();
         }
           
-        random_shuffle(addrs.begin(), addrs.end());
+        std::random_device rng;
+        std::mt19937 urng(rng());
+        std::shuffle(addrs.begin(), addrs.end(), urng);
+
         for(auto& addr: addrs)  {
           if(!addr.sin4.sin_port)
             addr.sin4.sin_port = ntohs(29603);
