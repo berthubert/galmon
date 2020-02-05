@@ -906,7 +906,7 @@ int main(int argc, char** argv)
         }
       }
       if(doSBAS) {
-        //                                 "on" "*.*"  ign   
+        //                                 "on" "*.*"  ign   scanmode--------------------
         msg = buildUbxMessage(0x06, 0x16, {0x01, 0x07, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00}); // enable SBAS
 
         if(sendAndWaitForUBXAckNack(fd, 10, msg, 0x06, 0x16)) { // enable SBAS
@@ -1032,7 +1032,6 @@ int main(int argc, char** argv)
 
   int curCycleTOW{-1}; // means invalid
   ns.launch();
-  
   
   cerr<<humanTimeNow()<<" Entering main loop"<<endl;
   for(;;) {
@@ -1437,11 +1436,23 @@ int main(int argc, char** argv)
             }
           }
           else if(id.first == 1) {// SBAS
-            if (doDEBUG) { cerr<<humanTimeNow()<<" SBAS "<<id.second<<" frame, numwords: "<<(int)payload[4]<<", version: "<<(int)payload[6]<<", totsize "<<payload.size()<<endl; }
+            /*            if (doDEBUG) {
+              cerr<<humanTimeNow()<<" SBAS "<<id.second<<" frame, numwords: "<<(int)payload[4]<<", version: "<<(int)payload[6]<<", ";
+            }
+            */
 
             auto sbas = getSBASFromSFRBXMsg(payload);
-            if (doDEBUG) { cerr<<"SBAS Preamble: "<<(int)sbas[0]<<", type "<<getbitu(&sbas[0], 8, 6)<<endl; }
 
+            NavMonMessage nmm;
+            nmm.set_localutcseconds(g_gnssutc.tv_sec);  
+            nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
+            nmm.set_sourceid(g_srcid);
+            nmm.set_type(NavMonMessage::SBASMessageType);
+            nmm.mutable_sbm()->set_gnssid(id.first);
+            nmm.mutable_sbm()->set_gnsssv(id.second);
+            nmm.mutable_sbm()->set_contents(string((char*)sbas.c_str(), sbas.size()));
+            
+            ns.emitNMM( nmm);
           }
           else
             ; //            if (doDEBUG) { cerr<<humanTimeNow()<<" SFRBX from unsupported GNSSID/sigid combination "<<id.first<<", sv "<<id.second<<", sigid "<<sigid<<", "<<payload.size()<<" bytes"<<endl; }
