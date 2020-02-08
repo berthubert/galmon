@@ -22,9 +22,10 @@ RUN set -ex && \
     apt-get -y clean && \
     :
 
+ARG NCPU=1
 ADD . /galmon/
 WORKDIR /galmon
-RUN make ubxtool.nodeps
+RUN make -j$NCPU ubxtool.nodeps
 
 FROM busybox:glibc
 COPY --from=build-env /galmon/ubxtool.nodeps /opt/ubxtool

@@ -24,9 +24,10 @@ RUN set -ex && \
     && \
     :
 
+ARG NCPU=1
 ADD . /galmon/
 WORKDIR /galmon/
-RUN CXX=clang make ubxtool.static
+RUN CXX=clang make -j$NCPU ubxtool.static
 
 FROM scratch
 COPY --from=build-env /galmon/ubxtool.static /opt/ubxtool

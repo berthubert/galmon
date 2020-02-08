@@ -14,6 +14,7 @@
 set -e
 
 this_mach=$(uname --machine)
+ncpu=$(grep -c ^processor /proc/cpuinfo)
 
 if [ "$this_mach" != "x86_64" ]; then
     echo "$0: build was tested on x86_64, not on this <$this_mach>" 1>&2
@@ -82,7 +83,7 @@ tag="${mach}-${libc}"
 sed -e "s,^FROM ${from} AS ,FROM ${to} AS ," \
     -e "s,^FROM busybox:glibc,FROM ${busybox}/busybox:glibc," \
     Dockerfile.ubxtool.${libc} \
-    | docker build -f - --tag ubxtool:${tag} .
+    | docker build -f - --build-arg=NCPU=${ncpu} --tag ubxtool:${tag} .
 
 cntr=$(docker create ubxtool:${tag})
 docker cp ${cntr}:/opt/ubxtool bin/ubxtool.${tag}
