@@ -1,0 +1,19 @@
+name: static ubxtool binaries
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        mach: [i686, x86_64, armv6l, armv7l, aarch64]
+    steps:
+    - uses: actions/checkout@v2
+    - name: submodules
+      run: git submodule update --init --recursive --depth=1
+    - name: build-ubxtool
+      run: ./build-ubxtool ${{ matrix.mach }} static
+    - uses: actions/upload-artifact@v1
+      with:
+        name: ubxtool
+        path: bin
