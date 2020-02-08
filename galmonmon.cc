@@ -42,10 +42,22 @@ class StateKeeper
 public:
   typedef std::variant<bool, double, string> var_t;
   void setBoolNames(string_view name, string_view offName, string_view onName);
-  std::optional<string> reportState(string_view thing, string_view name, var_t state, time_t now=0);
+  std::optional<string> reportState(string_view thing, string_view name, var_t state, const std::string& state_text="");
   std::optional<string> getState(string_view thing, string_view name);
+
+
   std::optional<string> getPrevState(string_view thing, string_view name);  
 
+  struct State
+  {
+    var_t state;
+    time_t since;
+    string text;
+  };
+
+  std::optional<State> getFullState(string_view thing, string_view name);
+  std::optional<State> getPrevFullState(string_view thing, string_view name);
+  
 private:
   struct Names
   {
@@ -53,11 +65,6 @@ private:
   };
   map<string, Names> names;
 
-  struct State
-  {
-    var_t state;
-    time_t since;
-  };
 
   struct ThingState
   {
@@ -99,6 +106,15 @@ std::optional<string> StateKeeper::getState(string_view thing, string_view name)
   return std::optional<string>();
 }
 
+std::optional<StateKeeper::State> StateKeeper::getFullState(string_view thing, string_view name)
+{
+  if(states.count((string)thing) && states[(string)thing].count((string) name) && states[(string)thing][(string)name].live) {
+    return states[(string)thing][(string)name].live;
+  }
+  return std::optional<StateKeeper::State>();
+}
+
+
 std::optional<string> StateKeeper::getPrevState(string_view thing, string_view name)
 {
   if(states.count((string)thing) && states[(string)thing].count((string) name) && states[(string)thing][(string)name].prev) {
@@ -107,26 +123,34 @@ std::optional<string> StateKeeper::getPrevState(string_view thing, string_view n
   return std::optional<string>();
 }
 
+std::optional<StateKeeper::State> StateKeeper::getPrevFullState(string_view thing, string_view name)
+{
+  if(states.count((string)thing) && states[(string)thing].count((string) name) && states[(string)thing][(string)name].prev) {
+    return states[(string)thing][(string)name].prev;
+  }
+  return std::optional<StateKeeper::State>();
+}
 
-std::optional<string> StateKeeper::reportState(string_view thing, string_view name, var_t newstate, time_t now)
+
+std::optional<string> StateKeeper::reportState(string_view thing, string_view name, var_t newstate, const std::string& state_text)
 {
   auto& state = states[(string)thing][(string)name];
   std::optional<string> ret;
   
-  if(!now)
-    now = time(0);
+  time_t now = time(0);
   
   if(!state.live) {  // we had no state yet
-    state.live = State{newstate, now};
+    state.live = State{newstate, now, state_text};
     state.provisional.reset(); // for good measure
     return ret;
   }
   else if(state.live->state == newstate) {  // confirmation of current state
+    state.live->text = state_text; // update text perhaps
     state.provisional.reset();
     return ret;
   }
   else if(!state.provisional) {             // new provisional state
-    state.provisional = State{newstate, now};
+    state.provisional = State{newstate, now, state_text};
     return ret;
   }
   else {                                         
@@ -178,6 +202,9 @@ int main(int argc, char **argv)
   CLI::App app(program);
 
   app.add_flag("--version", doVERSION, "show program version and copyright");
+  app.add_option("--url,-u", url, "URL of navparse process to retrieve status from");
+  bool doTweet{false};
+  app.add_flag("--tweet,-t", doTweet, "Actually send out tweets");
 
   try {
     app.parse(argc, argv);
@@ -191,14 +218,15 @@ int main(int argc, char **argv)
   }
 
   g_sk.setBoolNames("health", "healthy", "unhealthy");
-  g_sk.setBoolNames("eph-too-old", "ephemeris fresh", "ephemeris too old");
+  g_sk.setBoolNames("eph-too-old", "ephemeris fresh", "ephemeris aged");
   g_sk.setBoolNames("silent", "observed", "not observed");
 
   std::variant<bool, string> tst;
 
   auto observers = nlohmann::json::parse(mc.getURL(url+"observers.json"));
 
-  sendTweet("Galmonmon " +string(g_gitHash)+ " started, " + std::to_string(observers.size()) +" observers seen");
+  
+  //  sendTweet("Galmonmon " +string(g_gitHash)+ " started, " + std::to_string(observers.size()) +" observers seen");
   cout<<("Galmonmon " +string(g_gitHash)+ " started, " + std::to_string(observers.size()) +" observers seen")<<endl;
 
   string meh="🤔";
@@ -261,9 +289,9 @@ int main(int argc, char **argv)
         auto healthchange = g_sk.reportState(fullName, "health", sv["healthissue"]!=0);
         std::optional<string> tooOldChange;
         if(gnssid == 2)
-          tooOldChange = g_sk.reportState(fullName, "eph-too-old", sv["eph-age-m"] > 120);
+          tooOldChange = g_sk.reportState(fullName, "eph-too-old", sv["eph-age-m"] > 180, fmt::sprintf("%.2f", (double)sv["eph-age-m"]));
         else 
-          tooOldChange = g_sk.reportState(fullName, "eph-too-old", sv["eph-age-m"] > 140);
+          tooOldChange = g_sk.reportState(fullName, "eph-too-old", sv["eph-age-m"] > 140, fmt::sprintf("%.2f", (double)sv["eph-age-m"]));
       
         auto seenChange = g_sk.reportState(fullName, "silent", notseen);
 
@@ -302,7 +330,7 @@ int main(int argc, char **argv)
           out<< *healthchange<<" ";
         if(tooOldChange) {
           out<< "Ephemeris age: "<<*tooOldChange<<", new value: "<< fmt::sprintf("%.02f", (double)sv["eph-age-m"])<<" minutes, old: ";
-          out<< *g_sk.getPrevState(fullName, "eph-too-old");
+          out<< g_sk.getPrevFullState(fullName, "eph-too-old")->text <<" minutes";
         }
         if(seenChange)
           out<< *seenChange<<" ";
@@ -347,8 +375,9 @@ int main(int argc, char **argv)
           tweet += " " + fullName +": ";
           tweet += out.str();
 
-          
-          sendTweet(tweet);
+
+          if(doTweet)
+            sendTweet(tweet);
           if(first)
             cout<<"\n";
           first=false;

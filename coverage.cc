@@ -68,11 +68,20 @@ xDOP getDOP(Point& us, vector<Point> sats)
   return ret;
 };
 
+// in covmap:
+// 0
+// lon,
+// 1           2            3
+// numsats5, numsats10, numsats20
+// 4       5        6
+// pdop5, pdop10, pdop20
+// hdop5, hdop10, hdop10
+// vdop5, vdop10, vdop20
 covmap_t emitCoverage(const vector<Point>& sats)
 {
   covmap_t ret;
-  ofstream cmap("covmap.csv");
-  cmap<<"latitude longitude count5 count10 count20"<<endl;
+  //  ofstream cmap("covmap.csv");
+  //  cmap<<"latitude longitude count5 count10 count20"<<endl;
   double R = 6371000;
   for(double latitude = 90 ; latitude > -90; latitude-=2) {  // north-south
     double phi = M_PI* latitude / 180;

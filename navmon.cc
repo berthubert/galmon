@@ -141,13 +141,32 @@ std::string humanTime(time_t t)
   return buffer;
 }
 
+std::string humanTimeShort(time_t t)
+{
+  static bool set_tz = false;
+  struct tm tm={0};
+  gmtime_r(&t, &tm);
+
+  if (!set_tz) {
+    setenv("TZ", "UTC", 1); // We think in UTC.
+    tzset();
+    set_tz = true;
+  }
+
+  char buffer[80];
+  strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M", &tm);
+  // strftime(buffer, sizeof(buffer), "%F %T ", &tm);
+  return buffer;
+}
+
+
 std::string humanTime(time_t t, uint32_t nanoseconds)
 {
   struct tm tm={0};
   gmtime_r(&t, &tm);
 
   char buffer[80];
-  std::string fmt = "%a, %d %b %Y %H:%M:"+fmt::sprintf("%07.04f", tm.tm_sec + nanoseconds/1000000000.0) +" %z";
+  std::string fmt = "%a, %d %b %Y %H:%M:"+fmt::sprintf("%07.4f", tm.tm_sec + nanoseconds/1000000000.0) +" %z";
   
   strftime(buffer, sizeof(buffer), fmt.c_str(), &tm);
   return buffer;
@@ -236,3 +255,55 @@ double numUra(uint8_t ura)
   return -1;
 }
 
+char getGNSSChar(int id)
+{
+  if(id==0)
+    return 'G';
+  if(id==2)
+    return 'E';
+  if(id==3)
+    return 'C';
+  if(id==6)
+    return 'R';
+  else
+    return '0'+id;
+}
+
+std::string makeSatIDName(const SatID& satid)
+{
+  return fmt::sprintf("%c%02d@%d", getGNSSChar(satid.gnss), satid.sv, satid.sigid);
+}
+std::string makeSatPartialName(const SatID& satid)
+{
+  return fmt::sprintf("%c%02d", getGNSSChar(satid.gnss), satid.sv);
+}
+
+
+int g_dtLS{18}, g_dtLSBeidou{4};
+uint64_t utcFromGST(int wn, int tow)
+{
+  return (935280000 + wn * 7*86400 + tow - g_dtLS); 
+}
+
+double utcFromGST(int wn, double tow)
+{
+  return (935280000.0 + wn * 7*86400 + tow - g_dtLS); 
+}
+
+double utcFromGPS(int wn, double tow)
+{
+  return (315964800 + wn * 7*86400 + tow - g_dtLS); 
+}
+
+string makeHexDump(const string& str)
+{
+  char tmp[5];
+  string ret;
+  ret.reserve((int)(str.size()*2.2));
+
+  for(string::size_type n=0;n<str.size();++n) {
+    snprintf(tmp, sizeof(tmp), "%02x ", (unsigned char)str[n]);
+    ret+=tmp;
+  }
+  return ret;
+}

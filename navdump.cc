@@ -28,6 +28,7 @@
 #include <unistd.h>
 #include "githash.h"
 #include "version.hh"
+#include "rinex.hh"
 
 static char program[]="navdump";
 
@@ -81,15 +82,6 @@ string beidouHealth(int in)
   return ret;
 }
 
-double utcFromGPS(int wn, double tow)
-{
-  return (315964800 + wn * 7*86400 + tow - 18); 
-}
-
-static double utcFromGST(int wn, double tow)
-{
-  return (935280000.0 + wn * 7*86400 + tow - 18);  
-}
 
 // GALILEO ONLY!!
 template<typename T>
@@ -295,7 +287,8 @@ try
   ofstream loccsv;
   loccsv.open ("jeff.csv", std::ofstream::out | std::ofstream::app);
   //loccsv<<"timestamp lat lon altitude accuracy\n";
-  
+
+  //  RINEXNavWriter rnw("test.rnx");
   
   for(;;) {
     char bert[4];
@@ -392,8 +385,13 @@ try
           cout <<" have complete ephemeris at " << gm.iodnav;
 
           galEphemeris[sv] = gm;
-
-          int start = utcFromGST(gm.wn, gm.tow);
+          SatID sid;
+          sid.gnss=2;
+          sid.sv = sv;
+          sid.sigid=1;
+          
+          
+          int start = utcFromGST(gm.wn, (int)gm.tow);
           
           SP3Entry e{2, sv, start};
           auto bestSP3 = lower_bound(g_sp3s.begin(), g_sp3s.end(), e, sp3Order);
@@ -429,6 +427,8 @@ try
           if(!oldEph[sv].sqrtA)
             oldEph[sv] = gm;
           else if(oldEph[sv].iodnav != gm.iodnav) {
+            //            rnw.emitEphemeris(sid, gm);
+
             cout<<" disco! "<< oldEph[sv].iodnav << " - > "<<gm.iodnav <<", "<< (gm.getT0e() - oldEph[sv].getT0e())/3600.0 <<" hours-jump insta-age "<<ephAge(gm.tow, gm.getT0e())/3600.0<<" hours";
             Point oldPoint, newPoint;
             getCoordinates(gm.tow, oldEph[sv], &oldPoint);

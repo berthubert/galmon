@@ -10,6 +10,8 @@
 #include <strings.h>
 #include <stdlib.h>
 #include <string>
+#include <algorithm>
+#include <random>
 #include <stdint.h>
 #include "ubx.hh"
 #include "navmon.hh"
@@ -298,7 +300,7 @@ class NMMSender
   struct Destination
   {
     int fd{-1};
-    ComboAddress dst{"0.0.0.0:0"};
+    std::string dst;
     std::string fname;
 
     deque<string> queue;
@@ -313,7 +315,7 @@ public:
     d->fd = fd;
     d_dests.push_back(std::move(d));
   }
-  void addDestination(const ComboAddress& dest)
+  void addDestination(const std::string& dest)
   {
     auto d = std::make_unique<Destination>();
     d->dst = dest;
@@ -323,7 +325,7 @@ public:
   void launch()
   {
     for(auto& d : d_dests) {
-      if(d->dst.sin4.sin_port != 0) {
+      if(!d->dst.empty()) {
         thread t(&NMMSender::sendTCPThread, this, d.get());
         t.detach();
       }
@@ -332,49 +334,76 @@ public:
   
   void sendTCPThread(Destination* d)
   {
+    struct NameError{};
     for(;;) {
+      ComboAddress chosen;
       try {
-        Socket s(d->dst.sin4.sin_family, SOCK_STREAM);
-        SocketCommunicator sc(s);
-        sc.setTimeout(3);
-        sc.connect(d->dst);
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Connected to "<<d->dst.toStringWithPort()<<endl; }
+        vector<ComboAddress> addrs;
         for(;;) {
-          std::string msg;
-          {
-            std::lock_guard<std::mutex> mut(d->mut);
-            if(!d->queue.empty()) {
-              msg = d->queue.front();
+          addrs=resolveName(d->dst, true, true);
+          if(!addrs.empty())
+            break;
+          
+          cerr<<humanTimeNow()<<" Unable to resolve "<<d->dst<<", sleeping and trying again later"<<endl;
+          throw NameError();
+        }
+          
+        std::random_device rng;
+        std::mt19937 urng(rng());
+        std::shuffle(addrs.begin(), addrs.end(), urng);
+
+        for(auto& addr: addrs)  {
+          if(!addr.sin4.sin_port)
+            addr.sin4.sin_port = ntohs(29603);
+          chosen=addr;
+          Socket s(addr.sin4.sin_family, SOCK_STREAM);
+          SocketCommunicator sc(s);
+          sc.setTimeout(3);
+          sc.connect(addr);
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Connected to "<<d->dst<<" on "<<addr.toStringWithPort()<<endl; }
+          for(;;) {
+            std::string msg;
+            {
+              std::lock_guard<std::mutex> mut(d->mut);
+              if(!d->queue.empty()) {
+                msg = d->queue.front();
+              }
             }
+            if(!msg.empty()) {
+              sc.writen(msg);
+              std::lock_guard<std::mutex> mut(d->mut);
+              d->queue.pop_front();
+            }
+            else usleep(100000);
           }
-          if(!msg.empty()) {
-            sc.writen(msg);
-            std::lock_guard<std::mutex> mut(d->mut);
-            d->queue.pop_front();
-          }
-          else usleep(100000);
         }
       }
-      catch(std::exception& e) {
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Sending thread for "<<d->dst.toStringWithPort()<<" had error: "<<e.what()<<endl; }
+      catch(NameError&) {
         {
           std::lock_guard<std::mutex> mut(d->mut);
-          if (doDEBUG) { cerr<<humanTimeNow()<<" There are now "<<d->queue.size()<<" messages queued for "<<d->dst.toStringWithPort()<<endl; }
+          if (doDEBUG) { cerr<<humanTimeNow()<<" There are now "<<d->queue.size()<<" messages queued for "<<d->dst<<endl; }
+        }
+        sleep(30);
+      }
+      catch(std::exception& e) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Sending thread for "<<d->dst<<" via "<<chosen.toStringWithPort()<<" had error: "<<e.what()<<endl; }
+        {
+          std::lock_guard<std::mutex> mut(d->mut);
+          if (doDEBUG) { cerr<<humanTimeNow()<<" There are now "<<d->queue.size()<<" messages queued for "<<d->dst<<endl; }
         }
         sleep(1);
       }
       catch(...) {
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Sending thread for "<<d->dst.toStringWithPort()<<" had error"; }
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Sending thread for "<<d->dst <<" via "<<chosen.toStringWithPort()<<" had error"; }
         {
           std::lock_guard<std::mutex> mut(d->mut);
-          if (doDEBUG) { cerr<<"There are now "<<d->queue.size()<<" messages queued for "<<d->dst.toStringWithPort()<<endl; }
+          if (doDEBUG) { cerr<<"There are now "<<d->queue.size()<<" messages queued for "<<d->dst<<" via "<<chosen.toStringWithPort()<<endl; }
         }
         sleep(1);
       }
     }
-    
   }
-  
+
   void emitNMM(const NavMonMessage& nmm);
 
 private:
@@ -399,7 +428,7 @@ void NMMSender::Destination::emitNMM(const NavMonMessage& nmm)
   msg.append((char*)&len, 2);
   msg.append(out);
 
-  if(dst.sin4.sin_port) {
+  if(!dst.empty()) {
     std::lock_guard<std::mutex> l(mut);
     queue.push_back(msg);
   }
@@ -610,6 +639,19 @@ int main(int argc, char** argv)
     cerr<<"Enable at least one of --gps, --galileo, --glonass, --beidou"<<endl;
     return EXIT_FAILURE;
   }
+
+  signal(SIGPIPE, SIG_IGN);
+  NMMSender ns;
+  for(const auto& s : destinations) {
+    auto res=resolveName(s, true, true);
+    if(res.empty()) {
+      cerr<<"Unable to resolve '"<<s<<"' as destination for data, exiting"<<endl;
+      exit(EXIT_FAILURE);
+    }
+    ns.addDestination(s); // ComboAddress(s, 29603));
+  }
+  if(doSTDOUT)
+    ns.addDestination(1);
   
   int fd = initFD(portName.c_str(), doRTSCTS);
   
@@ -870,7 +912,7 @@ int main(int argc, char** argv)
         }
       }
       if(doSBAS) {
-        //                                 "on" "*.*"  ign   
+        //                                 "on" "*.*"  ign   scanmode--------------------
         msg = buildUbxMessage(0x06, 0x16, {0x01, 0x07, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00}); // enable SBAS
 
         if(sendAndWaitForUBXAckNack(fd, 10, msg, 0x06, 0x16)) { // enable SBAS
@@ -995,14 +1037,7 @@ int main(int argc, char** argv)
   */
 
   int curCycleTOW{-1}; // means invalid
-  signal(SIGPIPE, SIG_IGN);
-  NMMSender ns;
-  for(const auto& s : destinations)
-    ns.addDestination(ComboAddress(s, 29603));
-  if(doSTDOUT)
-    ns.addDestination(1);
   ns.launch();
-  
   
   cerr<<humanTimeNow()<<" Entering main loop"<<endl;
   for(;;) {
@@ -1407,11 +1442,23 @@ int main(int argc, char** argv)
             }
           }
           else if(id.first == 1) {// SBAS
-            if (doDEBUG) { cerr<<humanTimeNow()<<" SBAS "<<id.second<<" frame, numwords: "<<(int)payload[4]<<", version: "<<(int)payload[6]<<", totsize "<<payload.size()<<endl; }
+            /*            if (doDEBUG) {
+              cerr<<humanTimeNow()<<" SBAS "<<id.second<<" frame, numwords: "<<(int)payload[4]<<", version: "<<(int)payload[6]<<", ";
+            }
+            */
 
             auto sbas = getSBASFromSFRBXMsg(payload);
-            if (doDEBUG) { cerr<<"SBAS Preamble: "<<(int)sbas[0]<<", type "<<getbitu(&sbas[0], 8, 6)<<endl; }
 
+            NavMonMessage nmm;
+            nmm.set_localutcseconds(g_gnssutc.tv_sec);  
+            nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
+            nmm.set_sourceid(g_srcid);
+            nmm.set_type(NavMonMessage::SBASMessageType);
+            nmm.mutable_sbm()->set_gnssid(id.first);
+            nmm.mutable_sbm()->set_gnsssv(id.second);
+            nmm.mutable_sbm()->set_contents(string((char*)sbas.c_str(), sbas.size()));
+            
+            ns.emitNMM( nmm);
           }
           else
             ; //            if (doDEBUG) { cerr<<humanTimeNow()<<" SFRBX from unsupported GNSSID/sigid combination "<<id.first<<", sv "<<id.second<<", sigid "<<sigid<<", "<<payload.size()<<" bytes"<<endl; }

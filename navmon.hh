@@ -13,6 +13,7 @@ size_t readn2(int fd, void* buffer, size_t len);
 size_t readn2Timeout(int fd, void* buffer, size_t len, double* timeout);
 std::string humanTimeNow();
 std::string humanTime(time_t t);
+std::string humanTimeShort(time_t t);
 std::string humanTime(time_t t, uint32_t nanoseconds);
 struct SatID
 {
@@ -61,3 +62,13 @@ double numUra(uint8_t ura);
 
 
 
+char getGNSSChar(int id);
+std::string makeSatIDName(const SatID& satid);
+std::string makeSatPartialName(const SatID& satid);
+
+extern int g_dtLS, g_dtLSBeidou;
+uint64_t utcFromGST(int wn, int tow);
+double utcFromGST(int wn, double tow);
+double utcFromGPS(int wn, double tow);
+
+std::string makeHexDump(const std::string& str);
