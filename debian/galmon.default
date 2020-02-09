@@ -22,7 +22,7 @@
 #
 # uBlox M8-series and Aliexpress Specials support ( (gps AND galileo) AND ( beidou OR glonass) ) with optional SBAS.
 #
-DAEMON_OPTS="--owner 'OWNER' --remark 'REMARK' --gps --galileo --station 65000 --destination ::1"
+DAEMON_OPTS="--owner 'OWNER' --remark 'REMARK' --gps --galileo --sbas --station 65000 --destination ::1"
 #DAEMON_OPTS="--owner 'OWNER' --remark 'REMARK' --gps --galileo --beidou --sbas --station 65000 --destination ::1"
 #DAEMON_OPTS="--owner 'OWNER' --remark 'REMARK' --gps --galileo --glonass --sbas --station 65000 --destination ::1"
 #
