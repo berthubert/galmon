@@ -3,13 +3,14 @@
 # This package is free software: /usr/share/common-licenses/GPL-3
 #
 # INSTRUCTIONS:
+#   (Pre-condition: "dmesg | tail" reports your GPS device appears on /dev/ttyACM0.)
 #   Copy this file from /etc/default/galmon to /etc/default/ubxtool-ttyACM0
 #   Please choose your constellations, update the owner and remark, and set your station and destination (ipv6 supported)
 #   After customization, start the daemon: 
 #     systemctl enable --now ubxtool@ttyACM0 && journalctl -fu ubxtool
 #   If you want, enable automatic upgrades at boot and every three days following:
 #     systemctl enable --now galmon-upgrade.timer
-# 
+#   If you have several devices, enable multiple services with their unique device names.
 #
 # FOR HELP:
 #   Review the Operator.md file: https://github.com/ahupowerdns/galmon/blob/master/Operator.md

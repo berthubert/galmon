@@ -20,17 +20,20 @@ apt-key adv --fetch-keys https://ota.bike/public-package-signing-keys/86E7F51C04
 ```
 
 Update your package list and install galmon. Then create a configuration file and start the daemon.
+If you have a typical device using the onboard USB at /dev/ttyACM0, drop the directory element
+and refer to ttyACM0 in both the default variable file and the unit name.
 ```sh
 apt-get update && apt-get install -y galmon
 cp /etc/default/galmon /etc/default/ubxtool-ttyACM0
 systemctl enable --now ubxtool@ttyACM0
 ```
 
-Alternate or multiple devices just repeats that:
+Alternate or multiple devices just repeats that, updating the device name:
 ```sh
 cp /etc/default/galmon /etc/default/ubxtool-ttyACM3
 systemctl enable --now ubxtool@ttyACM3
 ```
+Both the ubxtool-ttyXYZn file and /dev/ttyXYZn device must exist for the unit file conditions to pass.
 
 ### Automatic Updates
 
@@ -44,7 +47,7 @@ systemctl enable --now galmon-upgrade.timer
 
 You can perform an immediate update by hand:
 ```sh
-apt-get update && apt-get -y upgrade galmon && systemctl restart ubxtool@*
+apt-get update && apt-get -y install galmon && systemctl restart ubxtool@*
 ```
 
 ## Reference Information

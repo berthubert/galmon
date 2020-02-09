@@ -54,12 +54,12 @@ install: $(PROGRAMS) help2man
 	mkdir -p $(DESTDIR)$(prefix)$(htdocs)/galmon
 	cp -a html $(DESTDIR)$(prefix)$(htdocs)/galmon/
 
-install-debian:
+download-debian-package:
 	apt-key adv --fetch-keys https://ota.bike/public-package-signing-keys/86E7F51C04FBAAB0.asc
 	echo "deb https://ota.bike/debian/ buster main" > /etc/apt/sources.list.d/galmon.list
 	apt-get update && apt-get install -y galmon
 
-install-raspbian:
+download-raspbian-package:
 	apt-key adv --fetch-keys https://ota.bike/public-package-signing-keys/86E7F51C04FBAAB0.asc
 	echo "deb https://ota.bike/raspbian/ buster main" > /etc/apt/sources.list.d/galmon.list
 	apt-get update && apt-get install -y galmon
