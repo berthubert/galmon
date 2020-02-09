@@ -4,8 +4,15 @@
 #include "navmon.hh"
 #include "fmt/format.h"
 #include "fmt/printf.h"
+#include "githash.h"
+#include "CLI/CLI.hpp"
+#include "version.hh"
+
+static char program[]="reporter";
 
 using namespace std;
+
+extern const char* g_gitHash;
 
 /*
   Goal: generate statistics from influxdb.
@@ -40,17 +47,43 @@ int main(int argc, char **argv)
 {
   MiniCurl mc;
   MiniCurl::MiniCurlHeaders mch;
-  string dbname("galileo");
+  string influxDBName("galileo");
 
-  string url="http://127.0.0.1:8086/query?db="+dbname+"&epoch=s&q=";
+
   string period="time > now() - 1w";
   int sigid=1;
-  if(argc == 2)
-    period = "time > now() - "+string(argv[1]);
-  if(argc == 3) {
-    period = "time > '"+string(argv[1]) +"' and time <= '" + string(argv[2])+"'"; 
+  bool doVERSION{false};
+
+  CLI::App app(program);
+  string periodarg("1d");
+  string beginarg, endarg;
+  app.add_flag("--version", doVERSION, "show program version and copyright");
+  app.add_option("--period,-p", periodarg, "period over which to report (1h, 1w)");
+  app.add_option("--begin,-b", beginarg, "Beginning");
+  app.add_option("--end,-e", endarg, "End");
+  app.add_option("--influxdb", influxDBName, "Name of influxdb database");
+  try {
+    app.parse(argc, argv);
+  } catch(const CLI::Error &e) {
+    return app.exit(e);
   }
+
+  if(doVERSION) {
+    showVersion(program, g_gitHash);
+    exit(0);
+  }
+
+  if(beginarg.empty() && endarg.empty()) 
+    period = "time > now() - "+periodarg;
+  else {
+    period = "time > '"+ beginarg +"' and time <= '" + endarg +"'";
+    cout<<"Period: "<<period<<endl;
+  }
+
+  string url="http://127.0.0.1:8086/query?db="+influxDBName+"&epoch=s&q=";
+  
   auto res = mc.getURL(url + mc.urlEncode("select distinct(value) from sisa where "+period+" and sigid='"+to_string(sigid)+"' group by gnssid,sv,sigid,time(10m)"));
+
 
 
   auto j = nlohmann::json::parse(res);
@@ -68,7 +101,7 @@ int main(int argc, char **argv)
   }
 
   
-  res = mc.getURL(url + mc.urlEncode("select distinct(value) from e1bhs where "+period+" and sigid='"+to_string(sigid)+"' group by gnssid,sv,sigid,time(10m)"));
+  res = mc.getURL(url + mc.urlEncode("select distinct(e1bhs) from galhealth where "+period+" and sigid='"+to_string(sigid)+"' group by gnssid,sv,sigid,time(10m)"));
   j = nlohmann::json::parse(res);
   
   for(const auto& sv : j["results"][0]["series"]) {

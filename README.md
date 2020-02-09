@@ -13,6 +13,9 @@ most high-end receiver, which does all bands, all the time, is the Ublox
 F9P, several of us use the
 [ArdusimpleRTK2B](https://www.ardusimple.com/simplertk2b/) board.
 
+An annotated presentation about our project aimed at GNSS professionals can
+be found [here](https://berthub.eu/galileo/The%20galmon.eu%20project.pdf). 
+
 > NOTE: One of our programs is called 'ubxtool'. Sadly, we did not do our
 > research, and there is another '[ubxtool](https://gpsd.io/ubxtool.html)' already, part of
 > [gpsd](https://gpsd.io). You might have ended up on our page by mistake.
@@ -46,8 +49,7 @@ Highlights
 Data is made available as JSON, as a user-friendly website and as a
 time-series database. This time-series database is easily mated to the
 industry standard Matplotlib/Pandas/Jupyter combination (details 
-[here]((https://github.com/ahupowerdns/galmon/blob/master/influxdb.md)).
-
+[here](https://github.com/ahupowerdns/galmon/blob/master/influxdb.md).
 
 There is also tooling to extract raw frames/strings/words from specific
 timeframes.
@@ -76,7 +78,7 @@ receiver-only tools.
 To build everything, including the webserver, try:
 
 ```
-apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev \ 
+apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev \
 libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev
 git clone https://github.com/ahupowerdns/galmon.git --recursive
 cd galmon
@@ -111,7 +113,7 @@ Running
 -------
 
 Once compiled, run for example `./ubxtool --wait --port /dev/ttyACM0
---station 1 --stdout --galileo | ./navparse 127.0.0.1:10000 html null`
+--station 1 --stdout --galileo | ./navparse --bind [::1]:10000`
 
 Next up, browse to http://[::1]:10000 (or try http://localhost:10000/ and
 you should be in business. ubxtool changes (non-permanently) the
@@ -207,15 +209,18 @@ And then 'service ubxtool restart'.
 
 Distributed setup
 -----------------
-Run `navrecv :: ./storage` to receive frames on port 29603 of ::, aka all your IPv6 addresses (and IPv4 too on Linux).
-This allows anyone to send you frames, so be aware.
+Run `navrecv -b :: --storage ./storage` to receive frames on port 29603 of
+::, aka all your IPv6 addresses (and IPv4 too on Linux).  This allows anyone
+to send you frames, so be aware.
 
-Next up, run `navnexus ./storage ::`, which will serve your recorded data from port 29601. It will merge messages
-coming in from all sources and serve them in time order.
+Next up, run `navnexus --storage ./storage -b ::`, which will serve your
+recorded data from port 29601.  It will merge messages coming in from all
+sources and serve them in time order.
 
 Finally, you can do `nc 127.0.0.1 29601 | ./navdump`, which will give you all messages over the past 24 hours, and stream you more.
-This also works for `navparse` for the pretty website and influx storage, `nc 127.0.0.1 29601 | ./navparse 127.0.0.0:10000 html galileo`,
+This also works for `navparse` for the pretty website and influx storage, `nc 127.0.0.1 29601 | ./navparse --influxdb=galileo`,
 if you have an influxdb running on localhost with a galileo database in there.
+The default URL is http://127.0.0.1:29599/ 
 
 Internals
 ---------

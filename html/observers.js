@@ -20,7 +20,7 @@ function makeTable(str, arr)
         enter().
         append("tr");
 
-    var columns= ["id", "last-seen", "latitude", "longitude", "owner", "remark",  "vendor", "serialno", "hwversion", "swversion", "mods", "githash", "uptime", "clockdriftns", "clockacc", "freqacc", "h", "acc", "satellites"];
+    var columns= ["id", "last-seen", "latitude", "longitude", "owner", "remark", "serialno", "hwversion", "swversion", "mods", "githash", "uptime", "clockdriftns", "clockacc", "freqacc", "h", "acc", "satellites"];
     
     // append the header row
     thead.append("tr")
@@ -51,10 +51,8 @@ function makeTable(str, arr)
                    
                 }
                 else if(column == "satellites") {
-                    ret.value = "<small>";
-                    Object.keys(row["svs"]).forEach(function(d) {ret.value = ret.value +" " + d; });
-                    ret.value += "</small>";
-                    ret.align = "left";
+                    ret.value = 0;
+                    Object.keys(row["svs"]).forEach(function(d) {ret.value = ret.value +1 });
                 }
                 else {
                     ret.value = escapeHTML(row[column]);

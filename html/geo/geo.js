@@ -16,6 +16,13 @@ var projectionChoices = [
 
 var projectionChoice = 0;
 
+var constellation_state = {G: true, E: true, C: true, I: false, J: false, R: true};
+var coverage_map_state = true;
+var observer_map_state = true;
+var display_all_state = false;
+var globe_rotate = {lambda: 0.0, phi: 0.0};
+var globe_rotate_center = {lambda: 0.0, phi: 0.0};
+
 //
 //
 //
@@ -732,9 +739,6 @@ function read_world()
 	}
 }
 
-var globe_rotate = {lambda: 0.0, phi: 0.0};
-var globe_rotate_center = {lambda: 0.0, phi: 0.0};
-
 function set_rotate_from_tz()
 {
 	var offset = new Date().getTimezoneOffset();	// in minutes from UTC
@@ -746,17 +750,117 @@ function set_rotate_from_tz()
 	globe_rotate.phi = globe_rotate_center.phi;
 }
 
+function load_settings()
+{
+	if(typeof(Storage) !== "undefined")
+	{
+		var storage_constellations = localStorage.getItem("geo-settings-constellations");
+		if(storage_constellations != null)
+		{
+			try
+			{
+				constellation_state = JSON.parse(storage_constellations);
+				/* Set Menubar checkboxes */
+				for(const constellation in constellation_state)
+				{
+					if(document.getElementById('constellation-' + constellation))
+					{
+						document.getElementById('constellation-' + constellation).childNodes[1].checked = constellation_state[constellation];
+					}
+				}
+			}
+			catch(e)
+			{
+				console.log("Error parsing storage_constellations!",e);
+			}
+		}
+
+		var storage_map = localStorage.getItem("geo-settings-map");
+		if(storage_map != null)
+		{
+			try
+			{
+				var _map_settings = JSON.parse(storage_map);
+				coverage_map_state = _map_settings["coverage"];
+				observer_map_state = _map_settings["observer"];
+				display_all_state = _map_settings["display_all"];
+				/* Set Menubar checkboxes */
+				document.getElementById("coverage_map").childNodes[1].checked = coverage_map_state;
+				document.getElementById("observer_map").childNodes[1].checked = observer_map_state;
+				document.getElementById("display_all").childNodes[1].checked = display_all_state;
+			}
+			catch(e)
+			{
+				console.log("Error parsing storage_map!",e);
+			}
+		}
+
+		var storage_globe = localStorage.getItem("geo-settings-globe");
+		if(storage_globe != null)
+		{
+			try
+			{
+				var _globe_settings = JSON.parse(storage_globe);
+				globe_rotate = _globe_settings["rotate"];
+				globe_rotate_center = _globe_settings["rotate_center"];
+			}
+			catch(e)
+			{
+				console.log("Error parsing storage_globe!",e);
+			}
+		}
+
+		var storage_projection = localStorage.getItem("geo-settings-projection");
+		if(storage_projection != null)
+		{
+			try
+			{
+				projectionChoice = JSON.parse(storage_projection);
+			}
+			catch(e)
+			{
+				console.log("Error parsing storage_projection!",e);
+			}
+		}
+
+		/* Save defaults even if we didn't load anything */
+		save_settings();
+	}
+}
+
+function save_settings()
+{
+	if(typeof(Storage) !== "undefined")
+	{
+		localStorage.setItem("geo-settings-constellations", JSON.stringify(constellation_state));
+
+		var _map_settings = {
+			"coverage": coverage_map_state,
+			"observer": observer_map_state,
+			"display_all": display_all_state
+		};
+		localStorage.setItem("geo-settings-map", JSON.stringify(_map_settings));
+
+		var _globe_settings = {
+			"rotate": globe_rotate,
+			"rotate_center": globe_rotate_center
+		};
+		localStorage.setItem("geo-settings-globe", JSON.stringify(_globe_settings));
+
+		localStorage.setItem("geo-settings-projection", JSON.stringify(projectionChoice));
+	}
+}
+
 function geo_start()
 {
 	set_rotate_from_tz();
+	load_settings();
 	read_world();
 }
 
 geo_start();
 
 // d3.select("body").onresize = do_redisplay_timer;
-
-var constellation_state = {G: true, E: true, C: true, I: false, J: false, R: true};
 
 function constellation_click(node)
 {
@@ -780,6 +884,7 @@ function constellation_click(node)
 	}
 	d3.selectAll(".radials").remove();
 	display_all_refresh();
+	save_settings();
 }
 
 function constellation_refresh()
@@ -794,9 +899,6 @@ function constellation_refresh()
 	}
 }
 
-var coverage_map_state = true;
-var observer_map_state = true;
-
 function coverage_map_click(node)
 {
 	if (node.childNodes[1].checked) {
@@ -805,6 +907,7 @@ function coverage_map_click(node)
 		coverage_map_state = false;
 	}
 	coverage_map_refresh();
+	save_settings();
 }
 
 function coverage_map_refresh()
@@ -825,6 +928,7 @@ function observer_map_click(node)
 		observer_map_state = false;
 	}
 	observer_map_refresh();
+	save_settings();
 }
 
 function observer_map_refresh()
@@ -837,8 +941,6 @@ function observer_map_refresh()
 	}
 }
 
-var display_all_state = false;
-
 function display_all_click(node)
 {
 	if (node.childNodes[1].checked) {
@@ -847,6 +949,7 @@ function display_all_click(node)
 		display_all_state = false;
 	}
 	display_all_refresh();
+	save_settings();
 }
 
 function display_all_refresh()
@@ -892,6 +995,7 @@ function update_projection_click(node)
 		projectionChoice = 0;
 	// now redraw everything!
 	read_world();
+	save_settings();
 }
 
 function rotate_globe(node)
@@ -911,12 +1015,13 @@ function rotate_globe(node)
         }
 
 	read_world();
+	save_settings();
 }
 
 // JQuery also has a startup 
 
 $(document).ready(function () {
-	$("[id^='constilation']").click(function() { constellation_click(this); });
+	$("[id^='constellation']").click(function() { constellation_click(this); });
 	$('#coverage_map').click(function() { coverage_map_click(this); });
 	$('#observer_map').click(function() { observer_map_click(this); });
 

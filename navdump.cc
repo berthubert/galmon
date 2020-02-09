@@ -26,7 +26,15 @@
 #include "sp3.hh"
 #include "ubx.hh"
 #include <unistd.h>
+#include "githash.h"
+#include "version.hh"
+#include "rinex.hh"
+
+static char program[]="navdump";
+
 using namespace std;
+
+extern const char* g_gitHash;
 
 Point g_ourpos;
 
@@ -74,15 +82,6 @@ string beidouHealth(int in)
   return ret;
 }
 
-double utcFromGPS(int wn, double tow)
-{
-  return (315964800 + wn * 7*86400 + tow - 18); 
-}
-
-static double utcFromGST(int wn, double tow)
-{
-  return (935280000.0 + wn * 7*86400 + tow - 18);  
-}
 
 // GALILEO ONLY!!
 template<typename T>
@@ -226,7 +225,7 @@ try
 {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-  CLI::App app("navdump");
+  CLI::App app(program);
 
   
   TLERepo tles;
@@ -247,15 +246,21 @@ try
   bool doReceptionData{false};
   bool doRFData{true};
   bool doObserverPosition{false};
+  bool doVERSION{false};
   app.add_option("--svs", svpairs, "Listen to specified svs. '0' = gps, '2' = Galileo, '2,1' is E01");
   app.add_option("--stations", stations, "Listen to specified stations.");
   app.add_option("--positions,-p", doObserverPosition, "Print out observer positions (or not)");
   app.add_option("--rfdata,-r", doRFData, "Print out RF data (or not)");
+  app.add_flag("--version", doVERSION, "show program version and copyright");
     
   try {
     app.parse(argc, argv);
   } catch(const CLI::Error &e) {
     return app.exit(e);
+  }
+  if(doVERSION) {
+    showVersion(program, g_gitHash);
+    exit(0);
   }
   SVFilter svfilter;
   for(const auto& svp : svpairs) {
@@ -282,7 +287,8 @@ try
   ofstream loccsv;
   loccsv.open ("jeff.csv", std::ofstream::out | std::ofstream::app);
   //loccsv<<"timestamp lat lon altitude accuracy\n";
-  
+
+  //  RINEXNavWriter rnw("test.rnx");
   
   for(;;) {
     char bert[4];
@@ -379,8 +385,13 @@ try
           cout <<" have complete ephemeris at " << gm.iodnav;
 
           galEphemeris[sv] = gm;
-
-          int start = utcFromGST(gm.wn, gm.tow);
+          SatID sid;
+          sid.gnss=2;
+          sid.sv = sv;
+          sid.sigid=1;
+          
+          
+          int start = utcFromGST(gm.wn, (int)gm.tow);
           
           SP3Entry e{2, sv, start};
           auto bestSP3 = lower_bound(g_sp3s.begin(), g_sp3s.end(), e, sp3Order);
@@ -416,6 +427,8 @@ try
           if(!oldEph[sv].sqrtA)
             oldEph[sv] = gm;
           else if(oldEph[sv].iodnav != gm.iodnav) {
+            //            rnw.emitEphemeris(sid, gm);
+
             cout<<" disco! "<< oldEph[sv].iodnav << " - > "<<gm.iodnav <<", "<< (gm.getT0e() - oldEph[sv].getT0e())/3600.0 <<" hours-jump insta-age "<<ephAge(gm.tow, gm.getT0e())/3600.0<<" hours";
             Point oldPoint, newPoint;
             getCoordinates(gm.tow, oldEph[sv], &oldPoint);
@@ -869,6 +882,12 @@ try
         cout<<" clock-accuracy "<<nmm.od().clockaccuracyns();
       
       cout<<endl;
+    }
+    else if(nmm.type() == NavMonMessage::UbloxJammingStatsType) {
+      etstamp();
+      cout<<"noisePerMS "<<nmm.ujs().noiseperms() << " agcCnt "<<
+        nmm.ujs().agccnt()<<" flags "<<nmm.ujs().flags()<<" jamind "<<
+        nmm.ujs().jamind()<<endl;
     }
     else if(nmm.type() == NavMonMessage::DebuggingType) {
 

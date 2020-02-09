@@ -11,7 +11,15 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include "githash.h"
+#include "CLI/CLI.hpp"
+#include "version.hh"
+
+static char program[]="navrecv";
+
 using namespace std;
+
+extern const char* g_gitHash;
 
 /* Goals in life:
 
@@ -181,14 +189,28 @@ void recvListener(Socket&& s, ComboAddress local)
 
 int main(int argc, char** argv)
 {
-  signal(SIGPIPE, SIG_IGN);
-  if(argc != 3) {
-    cout<<"Syntax: navrecv listen-address storage"<<endl;
-    return EXIT_FAILURE;
-  }
-  g_storagedir=argv[2];
+  bool doVERSION{false};
+
+  CLI::App app(program);
+  string localAddress("127.0.0.1");
+  app.add_flag("--version", doVERSION, "show program version and copyright");
   
-  ComboAddress recvaddr(argv[1], 29603);
+  app.add_option("--bind,-b", localAddress, "Address:port to bind to");
+  app.add_option("--storage,-s", g_storagedir, "Location to store files");  
+  try {
+    app.parse(argc, argv);
+  } catch(const CLI::Error &e) {
+    return app.exit(e);
+  }
+
+  if(doVERSION) {
+    showVersion(program, g_gitHash);
+    exit(0);
+  }
+
+  signal(SIGPIPE, SIG_IGN);
+  
+  ComboAddress recvaddr(localAddress, 29603);
   Socket receiver(recvaddr.sin4.sin_family, SOCK_STREAM, 0);
   SSetsockopt(receiver,SOL_SOCKET, SO_REUSEADDR, 1 );
   

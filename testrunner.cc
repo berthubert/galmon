@@ -38,6 +38,24 @@ TEST_CASE("sp3") {
   
 }
 
+#include "rinex.hh"
+TEST_CASE("rinex") {
+  RINEXReader rinex("./rinex/PTGG00PHL_R_20193500000_01D_MN.rnx.gz");
+  RINEXEntry e;
+  REQUIRE(rinex.get(e));
+  CHECK(e.gnss == 0);
+  CHECK(e.sv == 2 );
+  CHECK(e.sisa==2 ) ;
+
+  REQUIRE(rinex.get(e));
+  CHECK(e.gnss == 0);
+  CHECK(e.sv == 5);
+  CHECK(e.sisa==2.0);
+
+  RINEXNavWriter rnw("test.rnx");
+}
+
+
 TEST_CASE("truncation") {
   CHECK(truncPrec(123.0, 0) == 123.0);
   CHECK(truncPrec(123.123, 1) == 123.1);

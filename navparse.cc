@@ -30,8 +30,15 @@
 #include "navparse.hh"
 #include <fenv.h> 
 #include "influxpush.hh"
+#include "githash.h"
+#include "CLI/CLI.hpp"
+#include "version.hh"
+
+static char program[]="navparse";
 
 using namespace std;
+
+extern const char* g_gitHash;
 
 struct ObserverPosition
 {
@@ -73,55 +80,8 @@ struct GNSSReceiver
 };
 
 
-int g_dtLS{18}, g_dtLSBeidou{4};
-uint64_t utcFromGST(int wn, int tow)
-{
-  return (935280000 + wn * 7*86400 + tow - g_dtLS); 
-}
-
-double utcFromGST(int wn, double tow)
-{
-  return (935280000.0 + wn * 7*86400 + tow - g_dtLS); 
-}
-
-double utcFromGPS(int wn, double tow)
-{
-  return (315964800 + wn * 7*86400 + tow - g_dtLS); 
-}
-
-string humanFt(uint8_t ft)
-{
-  static const char* ret[]={"100 cm", "200 cm", "250 cm", "400 cm", "500 cm", "7 m", "10 m", "12 m", "14 m", "16 m", "32 m", "64 m", "128 m", "256 m", "512 m", "NONE"};
-  if(ft < 16)
-    return ret[ft];
-  return "???";
-}
 
 
-string humanSisa(uint8_t sisa)
-{
-  unsigned int sval = sisa;
-  if(sisa < 50)
-    return std::to_string(sval)+" cm";
-  if(sisa < 75)
-    return std::to_string(50 + 2* (sval-50))+" cm";
-  if(sisa < 100)
-    return std::to_string(100 + 4*(sval-75))+" cm";
-  if(sisa < 125)
-    return std::to_string(200 + 16*(sval-100))+" cm";
-  if(sisa < 255)
-    return "SPARE";
-  return "NO SISA AVAILABLE";
-}
-
-string humanUra(uint8_t ura)
-{
-  if(ura < 6)
-    return fmt::sprintf("%d cm", (int)(100*pow(2.0, 1.0+1.0*ura/2.0)));
-  else if(ura < 15)
-    return fmt::sprintf("%d m", (int)(pow(2, ura-2)));
-  return "NO URA AVAILABLE";
-}
 
 void SVIOD::addGalileoWord(std::basic_string_view<uint8_t> page)
 {
@@ -339,28 +299,6 @@ std::string humanTime(int gnssid, int wn, int tow)
   strftime(buffer, sizeof(buffer), "%a, %d %b %Y %T %z", &tm);
   return buffer;
 }
-char getGNSSChar(int id)
-{
-  if(id==0)
-    return 'G';
-  if(id==2)
-    return 'E';
-  if(id==3)
-    return 'C';
-  if(id==6)
-    return 'R';
-  else
-    return '0'+id;
-}
-
-std::string makeSatIDName(const SatID& satid)
-{
-  return fmt::sprintf("%c%02d@%d", getGNSSChar(satid.gnss), satid.sv, satid.sigid);
-}
-std::string makeSatPartialName(const SatID& satid)
-{
-  return fmt::sprintf("%c%02d", getGNSSChar(satid.gnss), satid.sv);
-}
 
 std::optional<double> getHzCorrection(time_t now, int src, unsigned int gnssid, unsigned int sigid, const svstats_t& svstats)
 {
@@ -415,6 +353,29 @@ void addHeaders(h2o_req_t* req)
 int main(int argc, char** argv)
 try
 {
+  bool doVERSION{false};
+
+  CLI::App app(program);
+  string localAddress("127.0.0.1:29599");
+  string htmlDir("./html");
+  string influxDBName("null");
+  
+  app.add_flag("--version", doVERSION, "show program version and copyright");
+  app.add_option("--bind,-b", localAddress, "Address to bind to");
+  app.add_option("--html", htmlDir, "Where to source the HTML & JavaScript");
+  app.add_option("--influxdb", influxDBName, "Name of influxdb database");
+    
+  try {
+    app.parse(argc, argv);
+  } catch(const CLI::Error &e) {
+    return app.exit(e);
+  }
+
+  if(doVERSION) {
+    showVersion(program, g_gitHash);
+    exit(0);
+  }
+
   //  feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW ); 
 
   
@@ -427,7 +388,7 @@ try
 
   
   signal(SIGPIPE, SIG_IGN);
-  InfluxPusher idb(argc > 3 ? argv[3] : "galileo");
+  InfluxPusher idb(influxDBName);
   MiniCurl::init();
   
   H2OWebserver h2s("galmon");
@@ -1134,6 +1095,7 @@ try
 
         if(s.first.gnss == 3) { // beidou
           item["sisa"]=humanUra(s.second.ura);
+          item["sisa-m"]=numUra(s.second.ura);          
           if(s.second.t0eMSB >= 0 && s.second.t0eLSB >=0)
             item["eph-age-m"] = ephAge(s.second.tow, 8.0*((s.second.t0eMSB<<15) + s.second.t0eLSB))/60.0;
 
@@ -1155,8 +1117,10 @@ try
           }
         }
         else if(s.first.gnss == 6) { // glonass
-          if(s.second.glonassMessage.FT < 16)
+          if(s.second.glonassMessage.FT < 16) {
             item["sisa"] = humanFt(s.second.glonassMessage.FT);
+            item["sisa-m"] = numFt(s.second.glonassMessage.FT);
+          }
           item["aode"] = s.second.aode;
           item["iod"] = s.second.glonassMessage.Tb;
 
@@ -1179,10 +1143,13 @@ try
           item["iod"]=s.second.getIOD();
           if(s.first.gnss == 0 || s.first.gnss == 3) {
             item["sisa"]=humanUra(s.second.ura);
+            item["sisa-m"]=truncPrec(numUra(s.second.ura),3);
             //            cout<<"Asked to convert "<<s.second.ura<<" for sv "<<s.first.first<<","<<s.first.second<<endl;
           }
-          else
+          else {
             item["sisa"]=humanSisa(s.second.liveIOD().sisa);
+            item["sisa-m"]=numSisa(s.second.liveIOD().sisa);
+          }
           item["eph-age-m"] = ephAge(s.second.tow, s.second.liveIOD().t0e)/60.0;
           item["af0"] = s.second.liveIOD().af0;
           item["af1"] = s.second.liveIOD().af1;
@@ -1362,9 +1329,9 @@ try
       }
       return ret;
     });
-  h2s.addDirectory("/", argc > 2 ? argv[2] : "./html/");
+  h2s.addDirectory("/", htmlDir);
 
-  const char *address = argc > 1 ? argv[1] : "127.0.0.1:29599";
+  const char *address = localAddress.c_str();
   std::thread ws([&h2s, address]() {
       auto actx = h2s.addContext();
       ComboAddress listenOn(address);
@@ -1385,6 +1352,7 @@ try
       g_gpsalmakeeper.set(g_gpsalma);
       lastWebSync = time(0);
     }
+
     char bert[6];
     if(fread(bert, 1, 6, stdin) != 6 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
       cerr<<"EOF or bad magic"<<endl;
@@ -1401,10 +1369,61 @@ try
     
     NavMonMessage nmm;
     nmm.ParseFromString(string(buffer, len));
+    /*
+    static time_t lastCovSyncHour;
+    if(nmm.localutcseconds() / 1800 > (unsigned int)lastCovSyncHour) {
+      lastCovSyncHour = nmm.localutcseconds() / 1800;
+      int tow;
+      static int totexceeds, totcells;
+      try {
+        tow=latestTow(2, g_svstats);
+        vector<Point> sats;
+        for(const auto &g : g_galileoalma) {
+          Point sat;
+          getCoordinates(tow, g.second, &sat);
+          
+          if(g.first < 0)
+            continue;
+          SatID id{2,(uint32_t)g.first,1};
+          const auto& svstat = g_svstats[id];
+          if(svstat.completeIOD() && svstat.liveIOD().sisa == 255) {
+            continue;
+          }
+          if(svstat.e1bhs || svstat.e1bdvs)
+            continue;
+          sats.push_back(sat);
+        }
+        
+        auto cov = emitCoverage(sats);
+        int exceeds=0, cells=0;
+        for(const auto& latvect : cov) {
+          for(const auto& longpair : latvect.second) {
+            cells++;
+            if(get<4>(longpair) >= 6.0)
+              exceeds++;
+            //            else
+            //cout<<get<6>(longpair) << endl;
+          }
+        }
+        totexceeds += exceeds;
+        totcells += cells;
+        fmt::printf("At %s, %.2f%% (%d) of %d cells exceeded PDOP 6 for 5 degrees horizon (%d sats), running %.2f%%\n", humanTime(nmm.localutcseconds()), 100.0*exceeds/cells, exceeds, cells, sats.size(), 100.0*totexceeds/totcells);
+      }
+      catch(std::exception&e) {
+        cout<<"Error with coverage: "<<e.what()<<endl;
+      }
+
+    }
+    */
+    
+
+    
     if(nmm.type() == NavMonMessage::ReceptionDataType) {
       int gnssid = nmm.rd().gnssid();
       int sv = nmm.rd().gnsssv();
       int sigid = nmm.rd().sigid();
+      if(nmm.sourceid()==14)
+        cerr<<"gnssid: "<<gnssid<<endl;
       if(gnssid==2 && sigid == 0)
         sigid = 1;
       
@@ -1823,6 +1842,23 @@ try
 
       
     }
+    else if(nmm.type() == NavMonMessage::UbloxJammingStatsType) {
+      /*
+      cout<<"noisePerMS "<<nmm.ujs().noiseperms() << " agcCnt "<<
+        nmm.ujs().agccnt()<<" flags "<<nmm.ujs().flags()<<" jamind "<<
+        nmm.ujs().jamind()<<endl;
+      */
+      idb.addValueObserver(nmm.sourceid(), "ubx_jamming", {
+          {"noise_per_ms", nmm.ujs().noiseperms()},
+            {"agccnt", nmm.ujs().agccnt()},
+              {"jamind", nmm.ujs().jamind()},
+                {"flags", nmm.ujs().flags()}
+        }, 
+        nmm.localutcseconds());
+
+      
+    }
+
     else if(nmm.type()== NavMonMessage::DebuggingType) {
       auto ret =  parseTrkMeas(basic_string<uint8_t>((const uint8_t*)nmm.dm().payload().c_str(), nmm.dm().payload().size()));
       for(const auto& tss : ret) {
@@ -2087,7 +2123,7 @@ try
         //        cout<<"Glonass now: "<<humanTime(glotime + 820368000) << " n4 "<<(int)gm.n4<<" NT "<<(int)gm.NT<< " wn "<<svstat.wn <<" tow " <<svstat.tow<<endl;
       }
       else if(strno == 2) {
-        if(svstat.wn > 0 && svstat.tow >= 0)
+        if(svstat.wn > 0)
           idb.addValue(id, "glohealth", {{"Bn", gm.Bn}}, satUTCTime(id));
         if(oldgm.Bn != gm.Bn) {
           cout<<humanTime(id.gnss, svstat.wn, svstat.tow)<<" n4 "<< (int)gm.n4<<" NT " << (int)gm.NT<<" GLONASS R"<<id.sv<<"@"<<id.sigid<<" health changed from  "<<(int)oldgm.Bn <<" to "<< (int)gm.Bn <<endl;
@@ -2097,12 +2133,15 @@ try
       }
       else if(strno == 4) {
         svstat.aode = gm.En * 24;
-        idb.addValue(id, "glo_taun_ns", {{"value", gm.getTaunNS()}}, satUTCTime(id));
-        idb.addValue(id, "ft", {{"value", gm.FT}}, satUTCTime(id));
-        if(oldgm.taun && oldgm.taun != gm.taun) {
-          if(gm.getGloTime() - oldgm.getGloTime()  < 300) {
-            svstat.timeDisco = gm.getTaunNS() - oldgm.getTaunNS();
-            idb.addValue(id, "clock_jump_ns", {{"value", svstat.timeDisco}}, satUTCTime(id));
+        if(svstat.wn > 0) {
+          idb.addValue(id, "glo_taun_ns", {{"value", gm.getTaunNS()}}, satUTCTime(id));
+          idb.addValue(id, "ft", {{"value", gm.FT}}, satUTCTime(id));
+
+          if(oldgm.taun && oldgm.taun != gm.taun) {
+            if(gm.getGloTime() - oldgm.getGloTime()  < 300) {
+              svstat.timeDisco = gm.getTaunNS() - oldgm.getTaunNS();
+              idb.addValue(id, "clock_jump_ns", {{"value", svstat.timeDisco}}, satUTCTime(id));
+            }
           }
         }
         if(gm.x && gm.y && gm.z) {
