@@ -41,6 +41,7 @@ jobs:
         name: ubxtool
 
     - name: sha256sum
+      working-directory: ubxtool
       run: sha256sum ubxtool.*.xz >SHA256SUMS
 
     - uses: actions/create-release@v1
@@ -55,7 +56,7 @@ jobs:
       uses: actions/upload-release-asset@v1
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./ubxtool.i686-static.xz
+        asset_path: ubxtool/ubxtool.i686-static.xz
         asset_name: ubxtool.i686-static.xz
         asset_content_type: application/x-xz
 
@@ -63,7 +64,7 @@ jobs:
       uses: actions/upload-release-asset@v1
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./ubxtool.x86_64-static.xz
+        asset_path: ubxtool/ubxtool.x86_64-static.xz
         asset_name: ubxtool.x86_64-static.xz
         asset_content_type: application/x-xz
 
@@ -71,7 +72,7 @@ jobs:
       uses: actions/upload-release-asset@v1
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./ubxtool.armv6l-static.xz
+        asset_path: ubxtool/ubxtool.armv6l-static.xz
         asset_name: ubxtool.armv6l-static.xz
         asset_content_type: application/x-xz
 
@@ -79,7 +80,7 @@ jobs:
       uses: actions/upload-release-asset@v1
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./ubxtool.armv7l-static.xz
+        asset_path: ubxtool/ubxtool.armv7l-static.xz
         asset_name: ubxtool.armv7l-static.xz
         asset_content_type: application/x-xz
 
@@ -87,7 +88,7 @@ jobs:
       uses: actions/upload-release-asset@v1
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./ubxtool.aarch64-static.xz
+        asset_path: ubxtool/ubxtool.aarch64-static.xz
         asset_name: ubxtool.aarch64-static.xz
         asset_content_type: application/x-xz
 
@@ -96,6 +97,6 @@ jobs:
       uses: actions/upload-release-asset@v1
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./SHA256SUMS
+        asset_path: ubxtool/SHA256SUMS
         asset_name: SHA256SUMS
         asset_content_type: text/plain
