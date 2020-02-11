@@ -27,7 +27,11 @@ RUN set -ex && \
 ARG NCPU=1
 ADD . /galmon/
 WORKDIR /galmon/
-RUN CXX=clang make -j$NCPU ubxtool.static
+# .dockerignore has to be reset to make `git status` happy as docker-build
+# appends a line like ".dockerfile.8a2b17b1408769bf5047" to .dockerignore.
+RUN set -ex && \
+    git checkout HEAD -- .dockerignore && \
+    CXX=clang make -j$NCPU ubxtool.static
 
 FROM scratch
 COPY --from=build-env /galmon/ubxtool.static /opt/ubxtool

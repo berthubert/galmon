@@ -25,7 +25,11 @@ RUN set -ex && \
 ARG NCPU=1
 ADD . /galmon/
 WORKDIR /galmon
-RUN make -j$NCPU ubxtool.nodeps
+# .dockerignore has to be reset to make `git status` happy as docker-build
+# appends a line like ".dockerfile.8a2b17b1408769bf5047" to .dockerignore.
+RUN set -ex && \
+    git checkout HEAD -- .dockerignore && \
+    make -j$NCPU ubxtool.nodeps
 
 FROM busybox:glibc
 COPY --from=build-env /galmon/ubxtool.nodeps /opt/ubxtool
