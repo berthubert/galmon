@@ -28,6 +28,7 @@
 #include <unistd.h>
 #include "githash.h"
 #include "version.hh"
+#include "gpscnav.hh"
 #include "rinex.hh"
 
 static char program[]="navdump";
@@ -602,6 +603,26 @@ try
       }
 
       cout<<"\n";
+    }
+    else if(nmm.type() == NavMonMessage::GPSCnavType) {
+      int sv = nmm.gpsc().gnsssv();
+      int sigid = nmm.gpsc().sigid();
+      if(!svfilter.check(0, sv, sigid))
+        continue;
+      etstamp();
+      static map<int, GPSCNavState> states;
+      auto& state = states[sv];
+      int type = parseGPSCNavMessage(
+                                     std::basic_string<uint8_t>((uint8_t*)nmm.gpsc().contents().c_str(),
+                                                                nmm.gpsc().contents().size()),
+        state);
+    
+      SatID sid{0, (uint32_t)sv, (uint32_t)sigid};
+      cout << "GPS CNAV " << makeSatIDName(sid) <<" tow "<<state.tow<<" type " << type;
+      if(type == 32) {
+        cout <<" delta-ut1 "<< state.getUT1OffsetMS(state.tow).first<<"ms";
+      }
+      cout<<endl;
     }
     else if(nmm.type() == NavMonMessage::BeidouInavTypeD1) {
       int sv = nmm.bid1().gnsssv();
