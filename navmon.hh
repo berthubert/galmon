@@ -66,6 +66,8 @@ char getGNSSChar(int id);
 std::string makeSatIDName(const SatID& satid);
 std::string makeSatPartialName(const SatID& satid);
 
+std::string sbasName(int prn);
+
 extern int g_dtLS, g_dtLSBeidou;
 uint64_t utcFromGST(int wn, int tow);
 double utcFromGST(int wn, double tow);
