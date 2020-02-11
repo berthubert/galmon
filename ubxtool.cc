@@ -922,6 +922,7 @@ int main(int argc, char** argv)
           exit(-1);
         }
       }
+      
        
       if(!doKeepNMEA) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Disabling NMEA"<<endl; }
@@ -1262,7 +1263,7 @@ int main(int argc, char** argv)
             svseen.clear();
           }
           
-          if(id.first == 0 && !sigid) { // can only parse the old stuff
+          if(id.first == 0 && !sigid) { // classic GPS
             NavMonMessage nmm;
             nmm.set_type(NavMonMessage::GPSInavType);
             nmm.set_localutcseconds(g_gnssutc.tv_sec);
@@ -1287,6 +1288,33 @@ int main(int argc, char** argv)
             nmm.mutable_gpsi()->set_contents(string((char*)gpsframe.c_str(), gpsframe.size()));
             ns.emitNMM( nmm);
             continue;
+          }
+          if(id.first == 0 && sigid) { // new GPS
+            auto cnav = getGPSFromSFRBXMsg(payload);
+            static int wn, tow;
+
+            int type = getbitu(&cnav[0], 14, 6);
+            tow = 6 * getbitu(&cnav[0], 20, 17) - 12;
+            
+            if(type == 10) {
+              wn = getbitu(&cnav[0], 38, 13);
+            }
+
+            if(!wn) 
+              continue; // can't file this yet
+            
+            NavMonMessage nmm;
+            nmm.set_type(NavMonMessage::GPSCnavType);
+            nmm.set_localutcseconds(g_gnssutc.tv_sec);
+            nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
+            nmm.set_sourceid(g_srcid);         
+            nmm.mutable_gpsc()->set_gnsswn(wn);   // XXX this sucks
+            nmm.mutable_gpsc()->set_sigid(sigid);
+            nmm.mutable_gpsc()->set_gnsstow(tow); // "with 6 second increments" -- needs to be adjusted
+            nmm.mutable_gpsc()->set_gnssid(id.first);
+            nmm.mutable_gpsc()->set_gnsssv(id.second);
+            nmm.mutable_gpsc()->set_contents(string((char*)cnav.c_str(), cnav.size()));
+            ns.emitNMM( nmm);            
           }
           else if(id.first ==2) { // GALILEO
             auto inav = getInavFromSFRBXMsg(payload);
@@ -1469,8 +1497,8 @@ int main(int argc, char** argv)
 
       }
       else if(msg.getClass() == 1 && msg.getType() == 0x35) { // UBX-NAV-SAT
-        //        if(version9) // we have UBX-NAV-SIG
-        //          continue;
+        if(version9) // we have UBX-NAV-SIG
+          continue;
         //        if (doDEBUG) { cerr<<humanTimeNow()<<" Info for "<<(int) payload[5]<<" svs: \n"; }
         for(unsigned int n = 0 ; n < payload[5]; ++n) {
           int gnssid = payload[8+12*n];
@@ -1529,8 +1557,14 @@ int main(int argc, char** argv)
             sigid = payload[10+16*n];
             if(gnssid == 2 && sigid ==6)  // they separate out I and Q, but the rest of UBX doesn't
               sigid = 5;                  // so map it back
-            if(gnssid == 2 && sigid ==0)  // they separate out I and Q, but the rest of UBX doesn't
-              sigid = 1;                  // so map it back
+            if(gnssid == 2 && sigid ==0)  
+              sigid = 1;
+            if(gnssid ==0) {
+              if(sigid==3)  // L2C is sent as '4' and '3', but the '4' numbers here are bogus
+                sigid=4;    // if we see 3,  use it, and change number to 4 to be consistent
+              else if(sigid != 0) // sigid 0 = 0
+                continue;   // ignore the rest
+            }
           }
           else if(gnssid==2) { // version 8 defaults galileo to E1B
             sigid = 1;
