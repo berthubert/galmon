@@ -26,8 +26,9 @@
 #include "sp3.hh"
 #include "ubx.hh"
 #include <unistd.h>
-#include "githash.h"
+
 #include "version.hh"
+#include "gpscnav.hh"
 #include "rinex.hh"
 
 static char program[]="navdump";
@@ -177,7 +178,7 @@ void emitFixState(int src, double iTow, FixStat& fs, int n)
         continue;
 
       Point sat;
-      double E=getCoordinates(iTow, s.second.ephemeris, &sat);
+      getCoordinates(iTow, s.second.ephemeris, &sat);
       if(getElevationDeg(sat, g_ourpos) < 20)
         continue;
       /*
@@ -251,6 +252,7 @@ try
   app.add_option("--stations", stations, "Listen to specified stations.");
   app.add_option("--positions,-p", doObserverPosition, "Print out observer positions (or not)");
   app.add_option("--rfdata,-r", doRFData, "Print out RF data (or not)");
+  app.add_option("--recdata", doReceptionData, "Print out reception data (or not)");
   app.add_flag("--version", doVERSION, "show program version and copyright");
     
   try {
@@ -333,7 +335,7 @@ try
     if(nmm.type() == NavMonMessage::ReceptionDataType) {
       if(doReceptionData) {
         etstamp();
-        cout<<"receptiondata for "<<nmm.rd().gnssid()<<","<<nmm.rd().gnsssv()<<","<< (nmm.rd().has_sigid() ? nmm.rd().sigid() : 0) <<" db "<<nmm.rd().db()<<" ele "<<nmm.rd().el() <<" azi "<<nmm.rd().azi()<<" prRes "<<nmm.rd().prres() << endl;
+        cout<<"receptiondata for "<<nmm.rd().gnssid()<<","<<nmm.rd().gnsssv()<<","<< (nmm.rd().has_sigid() ? nmm.rd().sigid() : 0) <<" db "<<nmm.rd().db()<<" ele "<<nmm.rd().el() <<" azi "<<nmm.rd().azi()<<" prRes "<<nmm.rd().prres() << " qi " << (nmm.rd().has_qi() ? nmm.rd().qi() : -1) << " used " << (nmm.rd().has_used() ? nmm.rd().used() : -1) << endl;
       }
     }
     else if(nmm.type() == NavMonMessage::GalileoInavType) {
@@ -515,7 +517,6 @@ try
       cout<<endl;      
     }
     else if(nmm.type() == NavMonMessage::GPSInavType) {
-      
       int sv = nmm.gpsi().gnsssv();
 
       if(!svfilter.check(0, sv))
@@ -602,6 +603,26 @@ try
       }
 
       cout<<"\n";
+    }
+    else if(nmm.type() == NavMonMessage::GPSCnavType) {
+      int sv = nmm.gpsc().gnsssv();
+      int sigid = nmm.gpsc().sigid();
+      if(!svfilter.check(0, sv, sigid))
+        continue;
+      etstamp();
+      static map<int, GPSCNavState> states;
+      auto& state = states[sv];
+      int type = parseGPSCNavMessage(
+                                     std::basic_string<uint8_t>((uint8_t*)nmm.gpsc().contents().c_str(),
+                                                                nmm.gpsc().contents().size()),
+        state);
+    
+      SatID sid{0, (uint32_t)sv, (uint32_t)sigid};
+      cout << "GPS CNAV " << makeSatIDName(sid) <<" tow "<<state.tow<<" type " << type;
+      if(type == 32) {
+        cout <<" delta-ut1 "<< state.getUT1OffsetMS(state.tow).first<<"ms";
+      }
+      cout<<endl;
     }
     else if(nmm.type() == NavMonMessage::BeidouInavTypeD1) {
       int sv = nmm.bid1().gnsssv();
@@ -938,7 +959,7 @@ try
         
         Point sat;
         
-        double E=getCoordinates(rtow - clockoffms/1000.0, eph, &sat, sv.sv != 14);
+        double E=getCoordinates(rtow - clockoffms/1000.0, eph, &sat);
         double range = Vector(g_ourpos, sat).length();
         getCoordinates(rtow - clockoffms/1000.0 - range/299792458.0, eph, &sat);
         range = Vector(g_ourpos, sat).length();

@@ -4,7 +4,7 @@
 #include "navmon.hh"
 #include "fmt/format.h"
 #include "fmt/printf.h"
-#include "githash.h"
+
 #include "CLI/CLI.hpp"
 #include "version.hh"
 
@@ -61,6 +61,7 @@ int main(int argc, char **argv)
   app.add_option("--period,-p", periodarg, "period over which to report (1h, 1w)");
   app.add_option("--begin,-b", beginarg, "Beginning");
   app.add_option("--end,-e", endarg, "End");
+  app.add_option("--sigid,-s", sigid, "Signal identifier. 1 or 5 for Galileo.");
   app.add_option("--influxdb", influxDBName, "Name of influxdb database");
   try {
     app.parse(argc, argv);
@@ -117,6 +118,9 @@ int main(int argc, char **argv)
 
   g_stats.erase({2,14,1});
   g_stats.erase({2,18,1});
+  g_stats.erase({2,14,5});
+  g_stats.erase({2,18,5});
+
   //g_stats[{2,11,1}];
   
   unsigned int maxintervals=0;

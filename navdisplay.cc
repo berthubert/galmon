@@ -13,7 +13,7 @@
 #include "navmon.pb.h"
 #include <unistd.h>
 #include "navmon.hh" 
-#include "githash.h"
+
 #include "CLI/CLI.hpp"
 #include "version.hh"
 

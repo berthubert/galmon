@@ -307,3 +307,25 @@ string makeHexDump(const string& str)
   }
   return ret;
 }
+
+std::string sbasName(int prn)
+{
+  string sbas;
+  if(prn == 138 || prn == 131 || prn == 133) {
+    sbas = "WAAS";
+  }
+  else if(prn== 126 || prn == 136 || prn == 123 ) {
+    sbas = "EGNOS";
+  }
+  else if(prn == 140 || prn == 125 || prn == 141) {
+    sbas = "SDCM";
+  }
+  else if(prn == 127 || prn == 128 || prn == 138) {
+    sbas ="GAGAN";
+  }
+  else
+    sbas ="SBAS";
+
+  sbas+=" " + std::to_string(prn);
+  return sbas;
+}

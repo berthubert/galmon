@@ -1,7 +1,7 @@
 #include "SGP4.h"
 #include <string>
 #include <time.h>
-#include "githash.h"
+
 #include "CLI/CLI.hpp"
 #include "version.hh"
 

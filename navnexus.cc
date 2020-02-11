@@ -15,7 +15,7 @@
 #include "storage.hh"
 #include <dirent.h>
 #include <inttypes.h>
-#include "githash.h"
+
 #include "CLI/CLI.hpp"
 #include "version.hh"
 

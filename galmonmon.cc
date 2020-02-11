@@ -6,7 +6,7 @@
 #include "fmt/printf.h"
 #include "ext/powerblog/h2o-pp.hh"
 #include <variant>
-#include "githash.h"
+
 #include "CLI/CLI.hpp"
 #include "version.hh"
 

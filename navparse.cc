@@ -30,8 +30,9 @@
 #include "navparse.hh"
 #include <fenv.h> 
 #include "influxpush.hh"
-#include "githash.h"
+
 #include "CLI/CLI.hpp"
+#include "gpscnav.hh"
 #include "version.hh"
 
 static char program[]="navparse";
@@ -62,6 +63,21 @@ struct ObserverPosition
 };
 std::map<int, ObserverPosition> g_srcpos;
 
+
+struct SBASStatus
+{
+  time_t last_seen{0};
+  time_t last_type_0{0};
+  struct PerRecv
+  {
+    time_t last_seen{0};
+  };
+  map<int, PerRecv> perrecv;
+  
+};
+typedef map<int, SBASStatus> sbas_t;
+sbas_t g_sbas;
+GetterSetter<sbas_t> g_sbaskeeper;
 
 map<int, BeidouAlmanacEntry> g_beidoualma;
 map<int, pair<GlonassMessage, GlonassMessage>> g_glonassalma;
@@ -1070,6 +1086,49 @@ try
       }
       return ret;
     });
+
+  h2s.addHandler("/sbas.json", [](auto handler, auto req) {
+      addHeaders(req);
+      auto svstats = g_statskeeper.get();
+      auto sbas = g_sbaskeeper.get();
+      nlohmann::json ret = nlohmann::json::object();
+      h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_CACHE_CONTROL, 
+                     NULL, H2O_STRLIT("max-age=3"));
+
+      // Access-Control-Allow-Origin
+      h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_ACCESS_CONTROL_ALLOW_ORIGIN, 
+                     NULL, H2O_STRLIT("*"));
+
+      
+      for(const auto& s: sbas) {
+        nlohmann::json item  = nlohmann::json::object();
+        item["last-seen"] = s.second.last_seen;
+        item["last-seen-s"] = time(0) - s.second.last_seen;
+
+        item["last-type-0"] = s.second.last_type_0;
+        item["last-type-0-s"] = time(0) - s.second.last_type_0;
+
+        if(s.second.last_seen - s.second.last_type_0 < 120)
+          item["health"]="DON'T USE";
+        else
+          item["health"]="OK";
+        
+        nlohmann::json perrecv  = nlohmann::json::object();
+        for(const auto& recv : s.second.perrecv) {
+          perrecv[to_string(recv.first)]["last-seen"] = recv.second.last_seen;
+          perrecv[to_string(recv.first)]["last-seen-s"] = time(0) - recv.second.last_seen;
+        }
+        item["perrecv"]=perrecv;
+          
+
+        
+        ret[to_string(s.first)]=item;
+
+
+        
+      }
+      return ret;
+    });
   
   h2s.addHandler("/svs.json", [](auto handler, auto req) {
       addHeaders(req);
@@ -1346,6 +1405,7 @@ try
     static time_t lastWebSync;
     if(lastWebSync != time(0)) {
       g_statskeeper.set(g_svstats);
+      g_sbaskeeper.set(g_sbas);
       g_galileoalmakeeper.set(g_galileoalma);
       g_glonassalmakeeper.set(g_glonassalma);
       g_beidoualmakeeper.set(g_beidoualma);
@@ -1422,8 +1482,6 @@ try
       int gnssid = nmm.rd().gnssid();
       int sv = nmm.rd().gnsssv();
       int sigid = nmm.rd().sigid();
-      if(nmm.sourceid()==14)
-        cerr<<"gnssid: "<<gnssid<<endl;
       if(gnssid==2 && sigid == 0)
         sigid = 1;
       
@@ -1977,6 +2035,22 @@ try
       if(g_svstats[id].wn < 512)
         g_svstats[id].wn += 2048;
     }
+    else if(nmm.type()== NavMonMessage::GPSCnavType) {
+      SatID id{nmm.gpsc().gnssid(), nmm.gpsc().gnsssv(), nmm.gpsc().sigid()};
+      g_svstats[id].perrecv[nmm.sourceid()].t = nmm.localutcseconds();
+      
+      auto& svstat = g_svstats[id];
+
+      GPSCNavState gcns;
+      parseGPSCNavMessage(
+                           std::basic_string<uint8_t>((uint8_t*)nmm.gpsc().contents().c_str(),
+                                                      nmm.gpsc().contents().size()),
+                           gcns);
+      //      cout<<"Got a message from "<<makeSatIDName(id)<<endl;
+      svstat.tow = nmm.gpsc().gnsstow();
+      svstat.wn = nmm.gpsc().gnsswn();                         
+      
+    }
     else if(nmm.type()== NavMonMessage::BeidouInavTypeD1) {
     try {
       SatID id{nmm.bid1().gnssid(), nmm.bid1().gnsssv(), nmm.bid1().sigid()};
@@ -2163,6 +2237,17 @@ try
         }
       }
       //      cout<<"GLONASS R"<<id.second<<" str "<<strno<<endl;
+    }
+    else if(nmm.type() == NavMonMessage::SBASMessageType) {
+      auto& sb = g_sbas[nmm.sbm().gnsssv()];
+      sb.last_seen = nmm.localutcseconds();
+      sb.perrecv[nmm.sourceid()].last_seen = nmm.localutcseconds();
+
+      basic_string<uint8_t> sbas((uint8_t*)nmm.sbm().contents().c_str(), nmm.sbm().contents().length());
+      int type = getbitu(&sbas[0], 8, 6);
+      if(type == 0) { // the don't use message
+        sb.last_type_0 = nmm.localutcseconds();
+      }
     }
     else {
       cout<<"Unknown type "<< (int)nmm.type()<<endl;
