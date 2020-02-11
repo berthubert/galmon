@@ -33,7 +33,7 @@
 #include "comboaddress.hh"
 #include "swrappers.hh"
 #include "sclasses.hh"
-#include "githash.h"
+
 #include "version.hh"
 
 static char program[]="ubxtool";

@@ -26,7 +26,7 @@
 #include "sp3.hh"
 #include "ubx.hh"
 #include <unistd.h>
-#include "githash.h"
+
 #include "version.hh"
 #include "gpscnav.hh"
 #include "rinex.hh"

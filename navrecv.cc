@@ -11,7 +11,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include "githash.h"
+
 #include "CLI/CLI.hpp"
 #include "version.hh"
 

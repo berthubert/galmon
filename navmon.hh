@@ -6,6 +6,9 @@
 #include <tuple>
 #include <mutex>
 
+extern const char* g_gitHash;
+
+
 struct EofException{};
 struct TimeoutError{};
 

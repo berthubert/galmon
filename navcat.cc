@@ -16,7 +16,7 @@
 #include <dirent.h>
 #include <inttypes.h>
 #include "navmon.hh"
-#include "githash.h"
+
 #include "CLI/CLI.hpp"
 #include "version.hh"
 

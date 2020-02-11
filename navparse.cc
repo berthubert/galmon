@@ -30,7 +30,7 @@
 #include "navparse.hh"
 #include <fenv.h> 
 #include "influxpush.hh"
-#include "githash.h"
+
 #include "CLI/CLI.hpp"
 #include "gpscnav.hh"
 #include "version.hh"

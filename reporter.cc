@@ -4,7 +4,7 @@
 #include "navmon.hh"
 #include "fmt/format.h"
 #include "fmt/printf.h"
-#include "githash.h"
+
 #include "CLI/CLI.hpp"
 #include "version.hh"
 
