@@ -48,6 +48,8 @@ jobs:
       id: create_release
       with:
         tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body: GitHub-built release
         draft: false
         prerelease: true
 
