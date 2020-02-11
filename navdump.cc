@@ -177,7 +177,7 @@ void emitFixState(int src, double iTow, FixStat& fs, int n)
         continue;
 
       Point sat;
-      double E=getCoordinates(iTow, s.second.ephemeris, &sat);
+      getCoordinates(iTow, s.second.ephemeris, &sat);
       if(getElevationDeg(sat, g_ourpos) < 20)
         continue;
       /*
@@ -251,6 +251,7 @@ try
   app.add_option("--stations", stations, "Listen to specified stations.");
   app.add_option("--positions,-p", doObserverPosition, "Print out observer positions (or not)");
   app.add_option("--rfdata,-r", doRFData, "Print out RF data (or not)");
+  app.add_option("--recdata", doReceptionData, "Print out reception data (or not)");
   app.add_flag("--version", doVERSION, "show program version and copyright");
     
   try {
@@ -333,7 +334,7 @@ try
     if(nmm.type() == NavMonMessage::ReceptionDataType) {
       if(doReceptionData) {
         etstamp();
-        cout<<"receptiondata for "<<nmm.rd().gnssid()<<","<<nmm.rd().gnsssv()<<","<< (nmm.rd().has_sigid() ? nmm.rd().sigid() : 0) <<" db "<<nmm.rd().db()<<" ele "<<nmm.rd().el() <<" azi "<<nmm.rd().azi()<<" prRes "<<nmm.rd().prres() << endl;
+        cout<<"receptiondata for "<<nmm.rd().gnssid()<<","<<nmm.rd().gnsssv()<<","<< (nmm.rd().has_sigid() ? nmm.rd().sigid() : 0) <<" db "<<nmm.rd().db()<<" ele "<<nmm.rd().el() <<" azi "<<nmm.rd().azi()<<" prRes "<<nmm.rd().prres() << " qi " << (nmm.rd().has_qi() ? nmm.rd().qi() : -1) << " used " << (nmm.rd().has_used() ? nmm.rd().used() : -1) << endl;
       }
     }
     else if(nmm.type() == NavMonMessage::GalileoInavType) {
@@ -515,7 +516,6 @@ try
       cout<<endl;      
     }
     else if(nmm.type() == NavMonMessage::GPSInavType) {
-      
       int sv = nmm.gpsi().gnsssv();
 
       if(!svfilter.check(0, sv))
@@ -938,7 +938,7 @@ try
         
         Point sat;
         
-        double E=getCoordinates(rtow - clockoffms/1000.0, eph, &sat, sv.sv != 14);
+        double E=getCoordinates(rtow - clockoffms/1000.0, eph, &sat);
         double range = Vector(g_ourpos, sat).length();
         getCoordinates(rtow - clockoffms/1000.0 - range/299792458.0, eph, &sat);
         range = Vector(g_ourpos, sat).length();
