@@ -2046,7 +2046,7 @@ try
                            std::basic_string<uint8_t>((uint8_t*)nmm.gpsc().contents().c_str(),
                                                       nmm.gpsc().contents().size()),
                            gcns);
-      cout<<"Got a message from "<<makeSatIDName(id)<<endl;
+      //      cout<<"Got a message from "<<makeSatIDName(id)<<endl;
       svstat.tow = nmm.gpsc().gnsstow();
       svstat.wn = nmm.gpsc().gnsswn();                         
       
