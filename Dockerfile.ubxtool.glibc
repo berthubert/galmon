@@ -1,5 +1,11 @@
 # See `build-ubxtool` script for cross-compilation options.
-FROM ubuntu:bionic AS build-env
+
+# `FROM` needs `ARG`s to be specified before the very first `FROM` instruction.
+# See https://docs.docker.com/engine/reference/builder/#understand-how-arg-and-from-interact
+ARG UBUNTU=ubuntu:
+ARG BUSYBOX=busybox:
+
+FROM ${UBUNTU}bionic AS build-env
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV LC_ALL C.UTF-8
@@ -25,12 +31,8 @@ RUN set -ex && \
 ARG NCPU=1
 ADD . /galmon/
 WORKDIR /galmon
-# .dockerignore has to be reset to make `git status` happy as docker-build
-# appends a line like ".dockerfile.8a2b17b1408769bf5047" to .dockerignore.
-RUN set -ex && \
-    git checkout HEAD -- .dockerignore && \
-    make -j$NCPU ubxtool.nodeps
+RUN make -j$NCPU ubxtool.nodeps
 
-FROM busybox:glibc
+FROM ${BUSYBOX}glibc
 COPY --from=build-env /galmon/ubxtool.nodeps /opt/ubxtool
 ENTRYPOINT ["/opt/ubxtool"]

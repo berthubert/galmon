@@ -62,28 +62,33 @@ esac
 
 case "$libc" in
     static)
-        from="alpine:3.10"
-        to="multiarch/alpine:${alpine}-v3.10"
+        img="--build-arg ALPINE=multiarch/alpine:${alpine}-v"
         ;;
     glibc)
         if [ "$ubuntu" = "*" ]; then
             echo "$0: unsupported combination of machine <$mach> and libc <$libc>" 1>&2
             exit 1
         fi
-        from="ubuntu:bionic"
-        to="multiarch/ubuntu-core:${ubuntu}-bionic"
+        img="--build-arg UBUNTU=multiarch/ubuntu-core:${ubuntu}- --build-arg BUSYBOX=${busybox}/busybox:"
         ;;
     *)
-    echo "$0: unknown libc <$libc>, known are: {static,glibc}" 1>&2
-    exit 1
+        echo "$0: unknown libc <$libc>, known are: {static,glibc}" 1>&2
+        exit 1
 esac
+
+# Base image is set with `ARG` and not with `sed Dockerfile | docker build -f -`
+# as streaming Dockerfile to stdin actually saves it to a file and adds a line
+# like ".dockerfile.8a2b17b1408769bf5047" to .dockerignore. And .dockerignore
+# should not be touched to make reasonable `githash.h`.
 
 tag="${mach}-${libc}"
 
-sed -e "s,^FROM ${from} AS ,FROM ${to} AS ," \
-    -e "s,^FROM busybox:glibc,FROM ${busybox}/busybox:glibc," \
-    Dockerfile.ubxtool.${libc} \
-    | docker build -f - --build-arg=NCPU=${ncpu} --tag ubxtool:${tag} .
+docker build \
+    --build-arg NCPU=${ncpu} \
+    ${img} \
+    -f Dockerfile.ubxtool.${libc} \
+    --tag ubxtool:${tag} \
+    .
 
 cntr=$(docker create ubxtool:${tag})
 docker cp ${cntr}:/opt/ubxtool bin/ubxtool.${tag}
