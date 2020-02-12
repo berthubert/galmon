@@ -71,10 +71,12 @@ bool SP3Reader::get(SP3Entry& entry)
         if(!num) {
           if(token[1]=='G')
             entry.gnss = 0;
-          if(token[1]=='E')
+          else if(token[1]=='E')
             entry.gnss = 2;
-          if(token[1]=='C')
+          else if(token[1]=='C')
             entry.gnss = 3;
+          else
+            continue;
           entry.sv = atoi(token.c_str()+2);
         }
         double val = atof(token.c_str());
