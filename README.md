@@ -140,7 +140,7 @@ To see what is going on, try:
 To distribute data to a remote `navrecv`, use:
 
 ```
-./ubxtool --wait --port /dev/ttyACM0 --galileo --station 255 --dest 127.0.0.1
+./ubxtool --wait --port /dev/ttyACM0 --galileo --station 255 --destination 127.0.0.1
 ```
 
 This will send protobuf to 127.0.0.1:29603. You can add as many destinations
