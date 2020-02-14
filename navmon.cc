@@ -259,12 +259,14 @@ char getGNSSChar(int id)
 {
   if(id==0)
     return 'G';
-  if(id==2)
+  else if(id==2)
     return 'E';
-  if(id==3)
+  else if(id==3)
     return 'C';
-  if(id==6)
+  else if(id==6)
     return 'R';
+  else if(id==255)
+    return '?';
   else
     return '0'+id;
 }
@@ -326,6 +328,6 @@ std::string sbasName(int prn)
   else
     sbas ="SBAS";
 
-  sbas+=" " + std::to_string(prn);
+  sbas+="? " + std::to_string(prn);
   return sbas;
 }
