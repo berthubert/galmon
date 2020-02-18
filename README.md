@@ -174,11 +174,11 @@ cp ubxtool ubxtool.sh /usr/local/ubxtool/
 cp ubxtool.service /etc/systemd/system/
 ```
 
-Then collect the server IP address (SERVER-IP) and a station number
-(STATION-NUMBER) as described in [Operator.md], and run:
+Then please reach out as indicated in [Operator.md] to obtain your
+station ID and the receiver hostname and run:
 
 ```
-echo SERVER-IP > /usr/local/ubxtool/destination
+echo RECEIVER-NAME > /usr/local/ubxtool/destination
 echo STATION-NUMBER > /usr/local/ubxtool/station
 ```
 
