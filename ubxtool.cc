@@ -918,7 +918,7 @@ int main(int argc, char** argv)
           if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on SBAS setting"<<endl; }
         }
         else {
-          if (doDEBUG) { cerr<<humanTimeNow()<<" Got nack on SBAS setting"<<endl; }
+          cerr<<humanTimeNow()<<" Got nack on SBAS setting"<<endl;
           exit(-1);
         }
       }

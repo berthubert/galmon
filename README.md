@@ -140,7 +140,7 @@ To see what is going on, try:
 To distribute data to a remote `navrecv`, use:
 
 ```
-./ubxtool --wait --port /dev/ttyACM0 --galileo --station 255 --dest 127.0.0.1
+./ubxtool --wait --port /dev/ttyACM0 --galileo --station 255 --destination 127.0.0.1
 ```
 
 This will send protobuf to 127.0.0.1:29603. You can add as many destinations
@@ -174,11 +174,11 @@ cp ubxtool ubxtool.sh /usr/local/ubxtool/
 cp ubxtool.service /etc/systemd/system/
 ```
 
-Then collect the server IP address (SERVER-IP) and a station number
-(STATION-NUMBER) as described in [Operator.md], and run:
+Then please reach out as indicated in [Operator.md] to obtain your
+station ID and the receiver hostname and run:
 
 ```
-echo SERVER-IP > /usr/local/ubxtool/destination
+echo RECEIVER-NAME > /usr/local/ubxtool/destination
 echo STATION-NUMBER > /usr/local/ubxtool/station
 ```
 
