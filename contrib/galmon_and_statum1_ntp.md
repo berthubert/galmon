@@ -1,34 +1,34 @@
 # GalMon and Stratum 1 clock with an ArduSimple simpleRTK2B
-Author: [Stijn Jonker](mailto: sjcjonker+gm@sjc.nl)  - Version: 1 
+Author: Stijn Jonker - sjcjonker+gm@sjc.nl - Version: 1 
 
 ## Introduction
-When I started with GalMon I ordered an [ArduSimple simpleRTK2B](https://www.ardusimple.com/product/simplertk2b-basic-starter-kit-ip65/) starter kit. This board contains a [u-blox ZED-F9P](https://www.u-blox.com/en/product/zed-f9p-module) receiver / GGNS module. I joined because I wanted to learn about satellite based location systems and associated items **AND** for my home network/lab to setup a [NTP stratum 1](https://en.wikipedia.org/wiki/Network_Time_Protocol) server. As an accurate time is imported, but also time with all the aspects like timezone, daylight saving, leap seconds and all crazy things is one of the most complex topics to master and not make mistakes when troubleshooting / investigating in my day job which is in the telco area.
+When I decided I wanted to contribute to the GalMon project I ordered an [ArduSimple simpleRTK2B](https://www.ardusimple.com/product/simplertk2b-basic-starter-kit-ip65/) starter kit. This board contains a [u-blox ZED-F9P](https://www.u-blox.com/en/product/zed-f9p-module) receiver / GGNS module. I started to provide data because I wanted to learn about satellite based location systems and associated items (actually still learning...) **AND** I wanted a [NTP stratum 1](https://en.wikipedia.org/wiki/Network_Time_Protocol) server for my home network/lab. As an accurate time is imported, but also time with all the aspects like timezone, daylight saving, leap seconds and all other crazy things time is an extremly complex topic to master and to not make mistakes when troubleshooting / investigating in my day job.
 
-Anyway I got GalMon/ubxtool running quite quickly via the USB port only then to find out  that you cannot run the [gpsd](https://gpsd.gitlab.io/gpsd/index.html) and [Chrony](https://chrony.tuxfamily.org) (a modern NTP daemon)  at the same time in the default setup with the simpleRTK2B by just connecting via the USB interface.
+Anyway I got GalMon/ubxtool running quite quickly via the USB port only then to find out that you cannot run the [gpsd](https://gpsd.gitlab.io/gpsd/index.html) and [chrony](https://chrony.tuxfamily.org) (a modern NTP daemon) at the same time, in the default setup with the simpleRTK2B, just connecting via the USB interface.
 
-So initially I opened a [issue](https://github.com/ahupowerdns/galmon/issues/102) on GalMon to expose an [Pulse Per Second](https://en.wikipedia.org/wiki/Pulse-per-second_signal) (PPS) signal next to an [SHM driver](https://github.com/ahupowerdns/galmon/issues/100) for ntpd / Chrony. The feedback on my issue was that there is also a hardware way. This short write-up is to show how to do this.
+So initially I opened a [issue](https://github.com/ahupowerdns/galmon/issues/102) on GalMon to expose an [Pulse Per Second](https://en.wikipedia.org/wiki/Pulse-per-second_signal) (PPS) signal next to an [SHM driver](https://github.com/ahupowerdns/galmon/issues/100) for ntpd / chrony. The feedback on my issue this wasn't really doable, but also there was a hardware way. This short write-up is to show how I have done just this.
 
-To allow your Raspberry PI to function as an NTP stratum 1 clock its best to have multiple time sources, simply said to keep them in balance and assure the right time is propagated.  Via the [gpsd](https://gpsd.gitlab.io/gpsd/index.html) daemon  together with a PPS signal you achieve high time accuracy within your time synchronisation software. Nowadays most systems use the [NTP protocol](https://en.wikipedia.org/wiki/Network_Time_Protocol) to sync the time and stay accurate. This is often done by ntpd or Chrony, whereby Chrony is an attempt to provide a more accurate and secure version. to ntpd.
+To allow your Raspberry PI to function as an NTP stratum 1 clock its best to have multiple time sources, simply said to keep them in balance and assure the right time is propagated. This to prevent an issue with a single source to throw off the system clock and when acting as a time server all associated clents. Via the [gpsd](https://gpsd.gitlab.io/gpsd/index.html) daemon together with a PPS signal you can achieve high time accuracy within your time synchronisation software, especially when coupled with public NTP servers. Nowadays most systems use the [NTP protocol](https://en.wikipedia.org/wiki/Network_Time_Protocol) to sync the time and stay accurate. This is often done by ntpd or chrony on Linux or \*nix systems, whereby chrony is a more or less recent attempt to provide an alternative, and a more secure alternative, to ntpd.
 
-This writeup shows how to connect the TimePulse PPS and [UART](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver-transmitter) (simply said an serial port) to an Raspberry PI and allow this RPI to run as an stratum 1 NTP source for your home network.
+This writeup shows how to connect the TimePulse PPS and [UART](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver-transmitter) (simply said an serial port) from the simpleRTK2B/u-blox ZED-F9P to an Raspberry PI and allow this RaspberryPI to run as an stratum 1 NTP source for your home network.
 
-::NOTE:::if you still need to order your simpleRTK2B then I'm **guessing** you can connect the simpleRTK2B to the Raspberry PI without soldering.
+::NOTE:::if you still need to order your simpleRTK2B then I'm **guessing** you can connect the simpleRTK2B to the Raspberry PI without soldering when you order the simpleRTK2B with the headers. It might be worth to try.
 
 ## Hardware setup
-The ZED-F9P on the simpleRTK2B contains besides the exposed USB connection also an UART and an TimePulse, when you connect those to the right GPIO connectors on a Raspberry PI you can receive input for gpsd as a serial port and a PPS signal for Chrony.
+The ZED-F9P on the simpleRTK2B provides besides the exposed USB connection also an UART and an TimePulse signal, when you connect those to the right GPIO connectors on a Raspberry PI you can receive input for both gpsd via a serial port and a PPS signal for chrony.
 
-We need to connect some wires to the simpleRTK2B via soldering to connect it to the Raspberry PI GPIO and one wire on the simpleRTK2B board to select the voltage level at 3.3V.
+We need to connect some wires to the simpleRTK2B via soldering to connect it to the Raspberry PI GPIO and one wire on the simpleRTK2B board itself to select the right voltage level (3.3V) between the two devices.
 
 ### simpleRTK2B / Raspberry PI connectors/wires
 - UART1 TX of the ZED-F9P to Raspberry UART TX is shown in green
 - UART1 RX of the ZED-F9P to Raspberry UART RX is shown in yellow
-- GND of the simpleRTK2B to Raspberry GND  is shown in grey
+- GND of the simpleRTK2B to Raspberry GND is shown in grey
 - TimePulsse of the ZED-F9P to Raspberry PCM_CLK is coloured blue
-- The IOREF path on the simpleRTK2B is shown in orange, this selects 3.3V as voltage. Connecting it **wrongly**  to the 5V output could damage your Raspberry PI.
+- The IOREF path on the simpleRTK2B is shown in orange, this selects 3.3V as voltage. Connecting it **wrongly** (to the 5V output or otherwise) could damage your Raspberry PI.
 
 ![Overview of wiring](images/galmon_and_statum1_ntp-WireOverview.png)
 ## Software setup
-Now that the physical hardware part is done, the Raspberry PI itself need to be configured to disable Bluetooth, as the Bluetooth module uses the UART we just connected to.  For this one should edit the config.txt, which can be found in `/boot/config.txt`.
+Now that the physical hardware part is done, the Raspberry PI itself need to be configured to disable Bluetooth, as the Bluetooth module uses the UART we just connected to. For this one should edit the config.txt, which can be found in `/boot/config.txt`.
 
 Under a section [all] there should be the following entries:
 ```
@@ -39,9 +39,9 @@ dtoverlay=disable-bt
 # Enable the pps signal and indicate it's on GPIO PIN 18.
 dtoverlay=pps-gpio,gpiopin=18
 ```
-Now to make sure this is parsed and not overruled  by a later statement, the safest way is to add this to the end of the file.
+Now to make sure this is parsed and not overruled by a later statement, the safest way is to add this to the end of the file.
 
-Next for the module for the pps singal to be loaded, for this edit `/etc/modules` and make sure on a single line there is:
+Next for the module for the pps singal to be loaded, for this edit `/etc/modules` and make sure on there is the following in the file (leave all other items as-is):
 ```
 # Load pps_gpio for the simpleRTK2B TimePulse signal.
 pps_gpio
@@ -50,7 +50,7 @@ pps_gpio
 Then reboot the Raspberry PI; to disable Bluetooth and configure the PPS settings. Once rebooted check if the uart and pps is correctly loaded and working.
 
 ### PPS signal check
-The linux kernel messages can be read from it's ring buffer with dmesg, to find the pps related message run: `dmesg | grep pps` then on my raspberry the output is shown as:
+The linux kernel messages can be read from it's ring buffer with dmesg, to find the pps related message run: `dmesg | grep pps` then on my Raspberry PI the output is shown as:
 ```
 root@raspberrypi:/boot# dmesg | grep pps
 [    4.177390] pps_core: LinuxPPS API ver. 1 registered
@@ -75,7 +75,7 @@ source 0 - assert 1582286569.000001741, sequence: 65590 - clear  0.000000000, se
 ```
 
 ### uart output check via gpsd
-To verify the uart is now enabled and available this can also be done with `dmesg`, you  can use: `dmesg | grep serial` on my Raspberry PI it shows as:
+To verify the uart is now enabled and available this can also be done with `dmesg`, you can use: `dmesg | grep serial` on my Raspberry PI it shows as:
 ```
 root@raspberrypi:/boot# dmesg | grep serial
 [    0.814261] uart-pl011 3f201000.serial: cts_event_workaround enabled
@@ -102,7 +102,7 @@ DEVICES="/dev/ttyAMA0"
 # Other options you want to pass to gpsd
 GPSD_OPTIONS="-n -b"
 ```
-For the `GPSD_OPTIONS` I decided amongst the lines of better safe then sorry to not allow gpsd to configure the u-blox GPS module by specifying `-b` the `-n` option tells gpsd to start getting a fix and sync before any client connects to gpsd, which seems like a nobrainer to me. 
+For the `GPSD_OPTIONS` I decided amongst the lines of better safe then sorry to not allow gpsd to configure the u-blox ZED-F9P module by specifying `-b` the `-n` option tells gpsd to start getting a location fix and as such a accurate time before any client connects to gpsd, which seems like a nobrainer to me.
 
 The next step is to enable and start gpsd on the Raspberry PI via the below command:
 ```
@@ -119,8 +119,8 @@ Most likely there is no fix yet on the GPS module, but you can check the status 
 ```
 ┌───────────────────────────────────────────┐┌─────────────────────────────────┐
 │    Time:       2020-02-21T12:19:21.000Z   ││PRN:   Elev:  Azim:  SNR:  Used: │
-│    Latitude:    52.27193166 N             ││ 124    65    076    00      Y   │
-│    Longitude:    4.61930849 E             ││ 205    12    120    00      N   │
+│    Latitude:    56.27193166 N             ││ 124    65    076    00      Y   │
+│    Longitude:    3.61930849 E             ││ 205    12    120    00      N   │
 │    Altitude:   4.100 m                    ││ 208    06    066    39      N   │
 │    Speed:      0.01 kph                   ││ 210    12    057    34      N   │
 │    Heading:    2.1 deg (mag)              ││ 211    11    023    43      N   │
@@ -136,12 +136,12 @@ Most likely there is no fix yet on the GPS module, but you can check the status 
 └───────────────────────────────────────────┘└─────────────────────────────────┘
 ```
 
-Once you see this cgps output whilst ubxtool is also correctly running  then you have both the GalMon monitoring active and all pieces ready to also run the NTP stratum 1 clock.
+Once you see this `cgps` output whilst `ubxtool` is also correctly running then you have both the GalMon monitoring active and all pieces ready to also run the NTP stratum 1 clock.
 
-## Configuring Chrony daemon
+## Configuring chrony daemon
 As this guide is using chrony, please make sure ntp is removed and chrony is installed by running: `apt delete ntpd` and `apt install chrony` depending ont he state of your Raspberry PI it could be this is already in the correct state.
 
-The chrony daemon is configured via `/etc/chrony/chrony.conf`  the majority of the config can remain as default, then add the following to the file:
+The chrony daemon is configured via `/etc/chrony/chrony.conf` the majority of the config can remain as default, then add the following to the file:
 ```
 # SHM0 is a shared memory driver / connection from gpsd
 refclock SHM 0  delay 0.5 refid NEMA
@@ -188,9 +188,9 @@ Please note the number of network based sources (prefixed with ^) can differ (an
 That's it folks, you now have a Stratum 1 NTP server at your disposal, point the other hosts in your network to this Raspberry PI's IP address or hostname (if you run DNS locally). 
 
 I would recommend to always have more then one time source, so I recommend adding your new server. For chrony or ntpd add a line:
-`server time.dev.sjc.nl prefer` to your `chrony.conf` or `ntp.conf`on those systems they should report it as a Stratum 1 server, see the output of Chrony and ntpd on some of my other servers:
+`server time.dev.sjc.nl prefer` to your `chrony.conf` or `ntp.conf`on those systems they should report it as a Stratum 1 server, see the output of chrony and ntpd on some of my other servers:
 
-**Chrony based output:**
+**chrony based output:**
 ```
 [root@otherlinuxserver1 ~]# chronyc sources -v
 210 Number of sources = 9
@@ -208,6 +208,7 @@ MS Name/IP address         Stratum Poll Reach LastRx Last sample
 ^* 192.0.2.123                   1   9   343   392    -59us[  -78us] +/-  575us
 ---SNIP---
 ```
+Under the "Stratum" you can see an 1 reporting your Raspberry PI is seen as Stratum 1.
 
 **ntpd based output:**
 ```
@@ -217,11 +218,12 @@ root@linuxserver2:~# ntpq -n -c peers
 *192.0.2.123     .PPS.            1 u    3   64    1    0.366    0.224   0.094
 ---SNIP---
 ```
+Under the "st" you can see an 1 reporting your Raspberry PI is seen as Stratum 1.
 
-That's all folks! Good  luck
+***That's all folks! Good luck***
 
 ## Thanks and Links
-First of all thanks to bert@hubertnet.nl or  [@PowerDNS_Bert](https://twitter.com/PowerDNS_Bert)  for setting up GalMon and the rest of the community. Additionally to [amontefusco](https://github.com/amontefusco) for feedback on the issue and his pictures.
+First of all thanks to bert@hubertnet.nl or [@PowerDNS_Bert](https://twitter.com/PowerDNS_Bert) for setting up GalMon and the rest of the community. Additionally to [amontefusco](https://github.com/amontefusco) for feedback on the issue and his pictures.
 
 - amontefusco's page on his setup for NTP with his simpleRTK2B: https://www.montefusco.com/ntpgnss/
 - Raspberry PI page to enable the UART (and disable bluetooth) : https://www.raspberrypi.org/documentation/configuration/uart.md
