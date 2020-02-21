@@ -1,3 +1,5 @@
+# - Local only exclude githash
+githash
 # - created by protoc
 navmon.pb.cc
 navmon.pb.h
