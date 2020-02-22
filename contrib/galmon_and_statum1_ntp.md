@@ -188,7 +188,7 @@ Please note the number of network based sources (prefixed with ^) can differ (an
 
 You now have a Stratum 1 NTP server at your disposal, point the other hosts in your network to this Raspberry PI's IP address or hostname (if you run DNS locally). 
 
-## Using your new time sserver
+## Using your new time server
 I would recommend to always have more then one time source, so I recommend adding your new server to the other hosts in your home network. For chrony or ntpd add a line:
 `server 192.0.2.123 prefer` to your `chrony.conf` or `ntp.conf` on those systems they should report it as a Stratum 1 server, see the output of chrony and ntpd on some of my other servers:
 
