@@ -1,5 +1,6 @@
 # GalMon and Stratum 1 clock with an ArduSimple simpleRTK2B
 Author: Stijn Jonker - sjcjonker+gm@sjc.nl - Version: 1 
+---
 
 ## Introduction
 When I decided I wanted to contribute to the GalMon project I ordered an [ArduSimple simpleRTK2B](https://www.ardusimple.com/product/simplertk2b-basic-starter-kit-ip65/) starter kit. This board contains a [u-blox ZED-F9P](https://www.u-blox.com/en/product/zed-f9p-module) receiver / GGNS module. I started to provide data because I wanted to learn about satellite based location systems and associated items (actually still learning...) **AND** I wanted a [NTP stratum 1](https://en.wikipedia.org/wiki/Network_Time_Protocol) server for my home network/lab. As an accurate time is imported, but also time with all the aspects like timezone, daylight saving, leap seconds and all other crazy things time is an extremly complex topic to master and to not make mistakes when troubleshooting / investigating in my day job.
@@ -185,10 +186,11 @@ MS Name/IP address         Stratum Poll Reach LastRx Last sample
 ```
 Please note the number of network based sources (prefixed with ^) can differ (and obviously I substituted the actual hostnames). Here you see we have 2 local sources, based on # in front of the sources "NEMA" and "PPS" whereby the system is synchronised on the second pulse received presently.
 
-That's it folks, you now have a Stratum 1 NTP server at your disposal, point the other hosts in your network to this Raspberry PI's IP address or hostname (if you run DNS locally). 
+You now have a Stratum 1 NTP server at your disposal, point the other hosts in your network to this Raspberry PI's IP address or hostname (if you run DNS locally). 
 
-I would recommend to always have more then one time source, so I recommend adding your new server. For chrony or ntpd add a line:
-`server time.dev.sjc.nl prefer` to your `chrony.conf` or `ntp.conf`on those systems they should report it as a Stratum 1 server, see the output of chrony and ntpd on some of my other servers:
+## Using your new time sserver
+I would recommend to always have more then one time source, so I recommend adding your new server to the other hosts in your home network. For chrony or ntpd add a line:
+`server 192.0.2.123 prefer` to your `chrony.conf` or `ntp.conf` on those systems they should report it as a Stratum 1 server, see the output of chrony and ntpd on some of my other servers:
 
 **chrony based output:**
 ```
