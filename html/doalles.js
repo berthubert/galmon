@@ -304,7 +304,6 @@ function update()
 
     
     d3.json("global.json", function(d) {
-        console.log(d);
         var str="Galileo-UTC offset: <b>"+d["gst-utc-offset-ns"].toFixed(2)+"</b> ns";
         str += ", Galileo-GPS offset: <b>"+d["gst-gps-offset-ns"].toFixed(2)+"</b> ns";
         str += " , GPS-UTC offset: <b>"+d["gps-utc-offset-ns"].toFixed(2)+" ns</b>";
@@ -316,6 +315,13 @@ function update()
         d3.select('#facts').html(str);
         lastseen = moment(1000*d["last-seen"]);
         d3.select("#freshness").html(lastseen.fromNow());
+
+
+        str = d["total-live-receivers"]+" receivers active, tracking ";
+        str += d["total-live-svs"] + " satellites via " ;
+        str += d["total-live-signals"] + " signals." ;
+        d3.select("#allstats").text(str);
+        
     });
     
     d3.json("svs.json", function(d) {
