@@ -26,6 +26,13 @@ all: navmon.pb.cc $(PROGRAMS)
 
 -include *.d
 
+navmon.pb.h: navmon.proto
+	protoc --cpp_out=./ navmon.proto
+	
+navmon.pb.cc: navmon.proto
+	protoc --cpp_out=./ navmon.proto
+
+
 H2OPP=ext/powerblog/h2o-pp.o
 SIMPLESOCKETS=ext/powerblog/ext/simplesocket/swrappers.o ext/powerblog/ext/simplesocket/sclasses.o  ext/powerblog/ext/simplesocket/comboaddress.o 
 
@@ -69,9 +76,6 @@ tlecatch: tlecatch.o $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) gith
 rinreport: rinreport.o rinex.o githash.o navmon.o ext/fmt-6.1.2/src/format.o  ephemeris.o osen.o
 	$(CXX) -std=gnu++17 $^ -o $@ -lz -pthread
 
-
-navmon.pb.cc: navmon.proto
-	protoc --cpp_out=./ navmon.proto
 
 ubxtool: navmon.pb.o ubxtool.o ubx.o bits.o ext/fmt-6.1.2/src/format.o galileo.o  gps.o beidou.o navmon.o ephemeris.o $(SIMPLESOCKETS) osen.o githash.o
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -lprotobuf -pthread
