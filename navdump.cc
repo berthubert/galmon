@@ -26,7 +26,7 @@
 #include "sp3.hh"
 #include "ubx.hh"
 #include <unistd.h>
-
+#include "sbas.hh"
 #include "version.hh"
 #include "gpscnav.hh"
 #include "rinex.hh"
@@ -37,7 +37,7 @@ using namespace std;
 
 extern const char* g_gitHash;
 
-Point g_ourpos;
+map<int, Point> g_srcpos;
 
 
 vector<SP3Entry> g_sp3s;
@@ -126,19 +126,27 @@ struct SVFilter
     pos = str.find(',', pos+1);
     if(pos != string::npos)
       satid.sigid = atoi(&str[pos+1]);
+    //    cout<<"Add to filter "<<satid.gnss<<", "<< satid.sv <<", "<<satid.sigid;
     d_filter.insert(satid);
   }
   bool check(int gnss, int sv, int sigid=-1)
   {
+    //    cout<<"Check filter "<<gnss<<", "<< sv <<", "<<sigid<<endl;
     if(d_filter.empty())
       return true;
-    if(d_filter.count({gnss,0,-1})) // gnss match
+    if(d_filter.count({gnss,0,-1})) { // gnss match
+      //      cout<<"gnss match"<<endl;
       return true;
-    if(d_filter.count({gnss,sv,-1})) // gnss, sv match
+    }
+    if(d_filter.count({gnss,sv,-1})) {  // gnss, sv match
+      //      cout<<"gnss, sv match"<<endl;
       return true;
-    if(d_filter.count({gnss,sv,sigid})) // gnss, sv match, sigid
+    }
+    if(d_filter.count({gnss,sv,sigid})) { // gnss, sv match, sigid
+      //      cout<<"gnss, sv, sigid,  match"<<endl;
       return true;
-        
+    }
+    //    cout<<"Returning false"<<endl;
     return false;
   }
   set<SatID> d_filter;
@@ -179,7 +187,7 @@ void emitFixState(int src, double iTow, FixStat& fs, int n)
 
       Point sat;
       getCoordinates(iTow, s.second.ephemeris, &sat);
-      if(getElevationDeg(sat, g_ourpos) < 20)
+      if(getElevationDeg(sat, g_srcpos[src]) < 20)
         continue;
       /*
       Point sat;
@@ -187,10 +195,10 @@ void emitFixState(int src, double iTow, FixStat& fs, int n)
       (void)trend;
 
       getCoordinates(iTow + toffset/1000000000.0 + dt, s.second.ephemeris, &sat);
-      double range = Vector(g_ourpos, sat).length();
+      double range = Vector(g_srcpos[nmm.sourceid()], sat).length();
 
       getCoordinates(iTow + range/299792458.0 + toffset/1000000000.0 + dt, s.second.ephemeris, &sat);
-      range = Vector(g_ourpos, sat).length();
+      range = Vector(g_srcpos[nmm.sourceid()], sat).length();
       */
       double range = s.second.ephrange;
       if(s.second.bestrange1 != -1) {
@@ -214,12 +222,13 @@ void emitFixState(int src, double iTow, FixStat& fs, int n)
   for(const auto& s : fs.sats) {
     Point sat;
     double E=getCoordinates(iTow, s.second.ephemeris, &sat);
-    cout<<""<<s.first.first<<","<<s.first.second<<": "<<s.second.bestrange1-offset<<" "<<s.second.bestrange5-offset<<" " << s.second.ephrange<<", delta1 " << (s.second.bestrange1-offset-s.second.ephrange)<<", delta5 "<< (s.second.bestrange5-offset-s.second.ephrange)<<" dd "<< s.second.bestrange1 - s.second.bestrange5 <<" t0e " << s.second.ephemeris.getT0e()<< " elev " << getElevationDeg(sat, g_ourpos) << " E " << E<< " clock " << s.second.ephemeris.getAtomicOffset(iTow).first/1000000<<"ms doppler1 "<<s.second.doppler1 << " doppler5 " <<s.second.doppler5<<" radvel " <<s.second.radvel<< " frac " << (s.second.bestrange1-offset-s.second.ephrange)/s.second.radvel;
+    cout<<""<<s.first.first<<","<<s.first.second<<": "<<s.second.bestrange1-offset<<" "<<s.second.bestrange5-offset<<" " << s.second.ephrange<<", delta1 " << (s.second.bestrange1-offset-s.second.ephrange)<<", delta5 "<< (s.second.bestrange5-offset-s.second.ephrange)<<" dd "<< s.second.bestrange1 - s.second.bestrange5 <<" t0e " << s.second.ephemeris.getT0e()<< " elev " << getElevationDeg(sat, g_srcpos[src]) << " E " << E<< " clock " << s.second.ephemeris.getAtomicOffset(iTow).first/1000000<<"ms doppler1 "<<s.second.doppler1 << " doppler5 " <<s.second.doppler5<<" radvel " <<s.second.radvel<< " frac " << (s.second.bestrange1-offset-s.second.ephrange)/s.second.radvel;
     cout<< " fixed "<<((s.second.bestrange1 - offset-s.second.ephrange) + (s.second.ephrange/299792458.0) * s.second.radvel)<< " BGD-ns "<<ldexp(s.second.ephemeris.BGDE1E5b,-32)*1000000000<< endl;
   }
 
   fs.sats.clear();
 }
+
 
 int main(int argc, char** argv)
 try
@@ -235,13 +244,13 @@ try
   tles.parseFile("glo-ops.txt");
   tles.parseFile("gps-ops.txt");
   tles.parseFile("beidou.txt");
-  /*
-  readSP3s("all.sp3");
+
+  //  readSP3s("all.sp3");
   if(!g_sp3s.empty()) {
     //    sort(g_sp3s.begin(), g_sp3s.end(), [](const auto& a, const auto&b) { return a.t < b.t; });
     cout<<"Have "<<g_sp3s.size()<<" sp3 entries"<<endl; //, from "<<humanTime(g_sp3s.begin()->t) <<" to "<< humanTime(g_sp3s.rbegin()->t)<<endl;
   }
-  */
+
   vector<string> svpairs;
   vector<int> stations;
   bool doReceptionData{false};
@@ -277,6 +286,7 @@ try
   ofstream iodstream("iodstream.csv");
   iodstream << "timestamp gnssid sv iodnav t0e age" << endl;
 
+                                                     
   ofstream csv("delta.csv");
   csv <<"timestamp gnssid sv tow tle_distance alma_distance utc_dist x y z vx vy vz rad inclination e iod"<<endl;
 
@@ -286,12 +296,7 @@ try
 
   sp3csv<<"timestamp gnssid sv ephAge sp3X sp3Y sp3Z ephX ephY ephZ  sp3Clock ephClock distance along clockDelta E speed"<<endl;
 
-  ofstream loccsv;
-  loccsv.open ("jeff.csv", std::ofstream::out | std::ofstream::app);
-  //loccsv<<"timestamp lat lon altitude accuracy\n";
-
   //  RINEXNavWriter rnw("test.rnx");
-  
   for(;;) {
     char bert[4];
     int res = readn2(0, bert, 4);
@@ -494,7 +499,7 @@ try
           cout<<" best-tle-match "<<match.name <<" distance "<<match.distance /1000<<" km ";
           cout <<" tle-e "<<match.e <<" eph-e " <<gm.alma1.getE() <<" tle-ran "<<match.ran;
           cout<<" norad " <<match.norad <<" int-desig " << match.internat;
-          cout<<" ele " << getElevationDeg(satpos, g_ourpos) << " azi " << getAzimuthDeg(satpos, g_ourpos);
+          cout<<" ele " << getElevationDeg(satpos, g_srcpos[nmm.sourceid()]) << " azi " << getAzimuthDeg(satpos, g_srcpos[nmm.sourceid()]);
         }
       }
       else if(wtype == 8 && gm.tow - gmwtypes[{sv,7}].tow < 5 && gmwtypes[{sv,7}].alma1.svid && gm.iodalmanac == gmwtypes[{sv,7}].iodalmanac) {
@@ -526,13 +531,16 @@ try
       auto cond = getCondensedGPSMessage(std::basic_string<uint8_t>((uint8_t*)nmm.gpsi().contents().c_str(), nmm.gpsi().contents().size()));
       struct GPSState gs;
       static map<int, GPSState> eph;
+
       static map<int, GPSAlmanac> almas;
       uint8_t page;
       static int gpswn;
-      int frame=parseGPSMessage(cond, gs, &page);
+      int frame=gs.parseGPSMessage(cond, &page);
       cout<<"GPS "<<sv<<"@"<<nmm.gpsi().sigid()<<": "<<gs.tow<<" frame "<<frame<<" ";
+      static map<int, GPSState> oldgs1s;
+      static map<int, GPSState> oldgs2s;
       if(frame == 1) {
-        static map<int, GPSState> oldgs1s;
+
         gpswn = gs.wn;
         cout << "gpshealth = "<<(int)gs.gpshealth<<", wn "<<gs.wn << " t0c "<<gs.t0c << " af0 " << gs.af0 << " af1 " << gs.af1 <<" af2 " << gs.af2;
         if(auto iter = oldgs1s.find(sv); iter != oldgs1s.end() && iter->second.t0c != gs.t0c) {
@@ -543,21 +551,23 @@ try
         oldgs1s[sv] = gs;
       }
       else if(frame == 2) {
-        parseGPSMessage(cond, eph[sv], &page);
-        cout << "t0e = "<<gs.iods.begin()->second.t0e << " " <<ephAge(gs.tow, gs.iods.begin()->second.t0e) << " iod "<<gs.gpsiod;
+        eph[sv].parseGPSMessage(cond, &page);
+        // gs in frame 2 contains t0e, so legit
+        cout << "t0e = "<<gs.getT0e() << " " <<ephAge(gs.tow, gs.getT0e()) << " iod "<<gs.gpsiod;
+        oldgs2s[sv] = gs;
       }
       else if(frame == 3) {
-        parseGPSMessage(cond, eph[sv], &page);
+        eph[sv].parseGPSMessage(cond, &page);
         cout <<"iod "<<gs.gpsiod;
-        if(eph[sv].isComplete(gs.gpsiod)) {
+        if(eph[sv].gpsiod == oldgs2s[sv].gpsiod) {
           Point sat;
-          getCoordinates(gs.tow, eph[sv].iods[gs.gpsiod], &sat);
+          getCoordinates(gs.tow, eph[sv], &sat);
           TLERepo::Match second;
           auto match = tles.getBestMatch(utcFromGPS(gpswn, gs.tow), sat.x, sat.y, sat.z, &second);
           cout<<" best-tle-match "<<match.name <<" dist "<<match.distance /1000<<" km";
           cout<<" norad " <<match.norad <<" int-desig " << match.internat;
           cout<<" 2nd-match "<<second.name << " dist "<<second.distance/1000<<" km t0e "<<gs.gpsalma.getT0e() << " t " <<nmm.localutcseconds();
-          cout<<" ele " << getElevationDeg(sat, g_ourpos) << " azi " << getAzimuthDeg(sat, g_ourpos);
+          cout<<" ele " << getElevationDeg(sat, g_srcpos[nmm.sourceid()]) << " azi " << getAzimuthDeg(sat, g_srcpos[nmm.sourceid()]);
 
           if(almas.count(sv)) {
             Point almapoint;
@@ -565,9 +575,41 @@ try
             cout<<" alma-dist " << Vector(sat, almapoint).length();
 
             Vector speed;
-            getSpeed(gs.tow, eph[sv].iods[gs.gpsiod], &speed);
+            getSpeed(gs.tow, eph[sv], &speed);
             Point core;
-            csv << nmm.localutcseconds() << " 0 "<< sv <<" " << gs.tow << " " << match.distance <<" " << Vector(sat, almapoint).length() << " " << utcFromGPS(gpswn, gs.tow) - nmm.localutcseconds() << " " << sat.x <<" " << sat.y <<" " << sat.z <<" " <<speed.x <<" " <<speed.y<<" " <<speed.z<< " " << Vector(core, sat).length() << " " << eph[sv].iods[gs.gpsiod].getI0()<<" " << eph[sv].iods[gs.gpsiod].getE() << " " <<gs.gpsiod<<endl;
+            csv << nmm.localutcseconds() << " 0 "<< sv <<" " << gs.tow << " " << match.distance <<" " << Vector(sat, almapoint).length() << " " << utcFromGPS(gpswn, gs.tow) - nmm.localutcseconds() << " " << sat.x <<" " << sat.y <<" " << sat.z <<" " <<speed.x <<" " <<speed.y<<" " <<speed.z<< " " << Vector(core, sat).length() << " " << eph[sv].getI0()<<" " << eph[sv].getE() << " " <<gs.gpsiod<<endl;
+          }
+
+          int start = utcFromGPS(gpswn, (int)gs.tow);
+          cout<<"sp3 start: "<<start<<" wn " << gpswn<<" tow " << gs.tow << endl;
+            
+          SP3Entry e{0, sv, start};
+          auto bestSP3 = lower_bound(g_sp3s.begin(), g_sp3s.end(), e, sp3Order);
+          if(bestSP3 != g_sp3s.end() && bestSP3->gnss == e.gnss && bestSP3->sv == sv) {
+            static set<pair<int,int>> haveSeen;
+            if(!haveSeen.count({sv, bestSP3->t})) {
+              haveSeen.insert({sv, bestSP3->t});
+              Point newPoint;
+              double E=getCoordinates(gs.tow + (bestSP3->t - start), eph[sv], &newPoint, false);
+              Point sp3Point(bestSP3->x, bestSP3->y, bestSP3->z);
+              Vector dist(newPoint, sp3Point);
+
+              Vector nspeed;
+              getSpeed(gs.tow + (bestSP3->t - start), eph[sv], &nspeed);
+              Vector speed = nspeed;
+              nspeed.norm();
+              double along = nspeed.inner(dist);
+              
+              cout<<"\nsp3 "<<(bestSP3->t - start)<<" G"<<sv<<" "<<humanTime(bestSP3->t)<<" (" << newPoint.x/1000.0 <<", "<<newPoint.y/1000.0<<", "<<newPoint.z/1000.0<< ") (" <<
+                (bestSP3->x/1000.0) <<", " << (bestSP3->y/1000.0) <<", " << (bestSP3->z/1000.0) << ") "<<bestSP3->clockBias << " " << getGPSAtomicOffset(gs.tow + (bestSP3->t-start), oldgs1s[sv]).first<< " " << dist.length()<< " ";
+              cout << (bestSP3->clockBias - getGPSAtomicOffset(gs.tow + (bestSP3->t-start), oldgs1s[sv]).first);
+              cout << " " << gs.af0 <<" " << gs.af1;
+              cout << endl;
+              
+              sp3csv <<std::fixed<< bestSP3->t << " 0 "<< sv <<" " << ephAge(gs.tow+(bestSP3->t - start), eph[sv].getT0e()) <<" "<<bestSP3->x<<" " << bestSP3->y<<" " <<bestSP3->z <<" " << newPoint.x<<" " <<newPoint.y <<" " <<newPoint.z << " " <<bestSP3->clockBias <<" ";
+              sp3csv << getGPSAtomicOffset(gs.tow + (bestSP3->t-start), oldgs1s[sv]).first<<" " << dist.length() <<" " << along <<" ";
+              sp3csv << (bestSP3->clockBias - getGPSAtomicOffset(gs.tow + (bestSP3->t-start), oldgs1s[sv]).first) << " " << E << " " << speed.length()<<endl;
+            }
           }
         }
       }
@@ -738,7 +780,7 @@ try
       else if(strno == 3)
         cout<<" l_n " << (int)gm.l_n  << " z " <<gm.getZ()/1000.0;
       else if(strno == 4) {
-        cout<<", taun "<<gm.taun <<" NT "<<gm.NT <<" FT " << (int) gm.FT <<" En " << (int)gm.En;
+        cout<<", taun "<<gm.taun <<" NT "<<gm.NT <<" FT " << (int) gm.FT <<" En " << (int)gm.En <<" M " << (int)gm.M ;
         if(gm.x && gm.y && gm.z) {
           auto longlat = getLongLat(gm.getX(), gm.getY(), gm.getZ());
           cout<<" long "<< 180* longlat.first/M_PI <<" lat " << 180*longlat.second/M_PI<<" rad "<<gm.getRadius();
@@ -750,7 +792,7 @@ try
         }
       }
       else if(strno == 5)
-        cout<<", n4 "<< (int)gm.n4 << " l_n " << gm.l_n;
+        cout<<", n4 "<< (int)gm.n4 << " l_n " << gm.l_n <<" tauc "<< gm.tauc <<  " taugps "<<gm.taugps;
       else if(strno == 6 || strno ==8 || strno == 10 || strno ==12 ||strno ==14) {
         cout<<" nA "<< gm.nA <<" CnA " << gm.CnA <<" LambdaNaDeg "<< gm.getLambdaNaDeg() << " e " <<gm.getE() << " i0 "<< 180.0*gm.getI0()/M_PI;
       }
@@ -760,7 +802,8 @@ try
       cout<<endl;
     }
     else if(nmm.type() == NavMonMessage::ObserverPositionType) {
-      g_ourpos = Point(nmm.op().x(), nmm.op().y(), nmm.op().z());
+      g_srcpos[nmm.sourceid()] = Point(nmm.op().x(), nmm.op().y(), nmm.op().z());
+      
       if(!doObserverPosition)
         continue;
       etstamp();
@@ -771,8 +814,8 @@ try
 	  <<" lat "<< 180*std::get<0>(latlonh)/M_PI
 	  <<" elev "<< std::get<2>(latlonh) << " acc "<<nmm.op().acc()<<" m "<<endl;
 
-      loccsv<<std::fixed<<nmm.localutcseconds()+nmm.localutcnanoseconds()/1000000000.0<<" "<<180*std::get<1>(latlonh)/M_PI<<" "<<
-        180*std::get<0>(latlonh)/M_PI<<" "<<std::get<2>(latlonh)<<" "<<nmm.op().acc()<<"\n";
+      //loccsv<<std::fixed<<nmm.localutcseconds()+nmm.localutcnanoseconds()/1000000000.0<<" "<<180*std::get<1>(latlonh)/M_PI<<" "<<
+      //        180*std::get<0>(latlonh)/M_PI<<" "<<std::get<2>(latlonh)<<" "<<nmm.op().acc()<<"\n";
 
     }
     else if(nmm.type() == NavMonMessage::RFDataType) {
@@ -818,16 +861,16 @@ try
         static int n;
         double E=getCoordinates(nmm.rfd().rcvtow(), eph, &sat);
 
-        double range = Vector(g_ourpos, sat).length();
+        double range = Vector(g_srcpos[nmm.sourceid()], sat).length();
 
         double origrange = range;
         E=getCoordinates(nmm.rfd().rcvtow() - range/299792458.0, eph, &sat);
-        range = Vector(g_ourpos, sat).length();
+        range = Vector(g_srcpos[nmm.sourceid()], sat).length();
         cout << " d "<<origrange-range;
         origrange=range;
         /*
         E=getCoordinates(nmm.rfd().rcvtow() + range/299792458.0 + offset/1000000000.0 - 0.018, eph, &sat);
-        range = Vector(g_ourpos, sat).length();
+        range = Vector(g_srcpos[nmm.sourceid()], sat).length();
         cout << " d "<< 10000.0*(origrange-range);
         origrange=range;
         */
@@ -841,10 +884,10 @@ try
         rot.y = sat.x * sin(theta) + sat.y * cos(theta);
         rot.z = sat.z;
         double oldrange=range;
-        range = Vector(g_ourpos, rot).length(); // second try
+        range = Vector(g_srcpos[nmm.sourceid()], rot).length(); // second try
         cout<<" rot-shift "<<oldrange-range <<" abs-move "<<Vector(rot, sat).length();
         */
-        double rotcor = omegaE * (sat.x*g_ourpos.y - sat.y * g_ourpos.x) / 299792458.0;
+        double rotcor = omegaE * (sat.x*g_srcpos[nmm.sourceid()].y - sat.y * g_srcpos[nmm.sourceid()].x) / 299792458.0;
         cout<<" rot-shift "<<rotcor;
         range += rotcor;
         
@@ -874,7 +917,7 @@ try
         }
         auto& satstat=fixes[nmm.sourceid()].sats[{(int)nmm.rfd().gnssid(), (int)nmm.rfd().gnsssv()}];
         satstat.ephrange = range;
-        auto dop = doDoppler(nmm.rfd().rcvtow(), g_ourpos, eph, 1575420000);
+        auto dop = doDoppler(nmm.rfd().rcvtow(), g_srcpos[nmm.sourceid()], eph, 1575420000);
         satstat.radvel = dop.radvel;
         if(nmm.rfd().sigid()==1) {
           satstat.bestrange1 = bestrange;
@@ -910,6 +953,63 @@ try
         nmm.ujs().agccnt()<<" flags "<<nmm.ujs().flags()<<" jamind "<<
         nmm.ujs().jamind()<<endl;
     }
+    else if(nmm.type() == NavMonMessage::SBASMessageType) {
+      if(!svfilter.check(1, nmm.sbm().gnsssv(), 0))
+        continue;
+
+      etstamp();
+      basic_string<uint8_t> sbas((uint8_t*)nmm.sbm().contents().c_str(), nmm.sbm().contents().size());
+      cout<<" PRN "<<nmm.sbm().gnsssv()<<" SBAS message type ";
+
+      // Preamble sequence: 
+      // 0x53, 0x9a, 0xc6
+      // 83, 154, 198
+      
+      // preamble(8), msgtype(6), payload212-95(18)
+      // 5 * payload194-3(32)
+      // payload2-1 parity(24) pad(6)
+      
+      
+      //   cout<< makeHexDump(string((char*)sbas.c_str(), sbas.size())) << endl;
+      int type = getbitu(&sbas[0], 8, 6);
+      cout <<type<<" ";
+      static map<int, SBASState> sbstate;
+
+      if(type == 0) {
+        sbstate[nmm.sbm().gnsssv()].parse0(sbas, nmm.localutcseconds());
+      }
+      else if(type == 1) {
+        sbstate[nmm.sbm().gnsssv()].parse1(sbas, nmm.localutcseconds());
+      }
+      else if(type == 6) {
+        auto integ = sbstate[nmm.sbm().gnsssv()].parse6(sbas, nmm.localutcseconds());
+        cout<<"integrity updated: ";
+        for(const auto& i : integ) {
+          cout<<makeSatPartialName(i.id)<<" corr "<<i.correction <<" udrei "<< i.udrei <<" ";
+        }
+      }
+      else if(type ==7) {
+        sbstate[nmm.sbm().gnsssv()].parse7(sbas, nmm.localutcseconds());
+        cout<<" latency " <<sbstate[nmm.sbm().gnsssv()].d_latency;
+      }
+      else if(type == 24) {
+        auto ret=sbstate[nmm.sbm().gnsssv()].parse24(sbas, nmm.localutcseconds());
+        cout<< " fast";
+        for(const auto& i : ret.first)
+          cout<< " "<<makeSatPartialName(i.id)<<" corr "<< i.correction <<" udrei "<<i.udrei;
+        for(const auto& i : ret.second)
+          cout<< " "<<makeSatPartialName(i.id)<<" dx "<< i.dx <<" dy "<<i.dy<<" dz "<<i.dz<<" dai " <<i.dai;
+                
+      }
+      else if(type == 25) {
+        auto ret = sbstate[nmm.sbm().gnsssv()].parse25(sbas, nmm.localutcseconds());
+        for(const auto& i : ret)
+          cout<< " "<<makeSatPartialName(i.id)<<" dx "<< i.dx <<" dy "<<i.dy<<" dz "<<i.dz<<" dai " <<i.dai;
+
+      }
+        
+      cout<<endl;
+    }
     else if(nmm.type() == NavMonMessage::DebuggingType) {
 
       auto res = parseTrkMeas(basic_string<uint8_t>((const uint8_t*)nmm.dm().payload().c_str(), nmm.dm().payload().size()));
@@ -932,13 +1032,13 @@ try
             const auto& eph = galEphemeris[a.sv];
             Point sat;
             getCoordinates(rtow, eph, &sat);
-            elevA=getElevationDeg(sat, g_ourpos);
+            elevA=getElevationDeg(sat, g_srcpos[nmm.sourceid()]);
           }
           if(galEphemeris.count(b.sv)) {
             const auto& eph = galEphemeris[b.sv];
             Point sat;
             getCoordinates(rtow, eph, &sat);
-            elevB=getElevationDeg(sat, g_ourpos);
+            elevB=getElevationDeg(sat, g_srcpos[nmm.sourceid()]);
           }
           return elevB < elevA;
 
@@ -960,14 +1060,14 @@ try
         Point sat;
         
         double E=getCoordinates(rtow - clockoffms/1000.0, eph, &sat);
-        double range = Vector(g_ourpos, sat).length();
+        double range = Vector(g_srcpos[nmm.sourceid()], sat).length();
         getCoordinates(rtow - clockoffms/1000.0 - range/299792458.0, eph, &sat);
-        range = Vector(g_ourpos, sat).length();
+        range = Vector(g_srcpos[nmm.sourceid()], sat).length();
         
         double trmsec = ldexp(maxt - sv.tr, -32) + clockoffms;
 
         constexpr double omegaE = 2*M_PI /86164.091 ;
-        double rotcor = omegaE * (sat.x*g_ourpos.y - sat.y * g_ourpos.x) / 299792458.0;
+        double rotcor = omegaE * (sat.x*g_srcpos[nmm.sourceid()].y - sat.y * g_srcpos[nmm.sourceid()].x) / 299792458.0;
         range += rotcor;
 
         double bgdcor = 299792458.0 *ldexp(eph.BGDE1E5b,-32);
@@ -996,7 +1096,7 @@ try
 
         cout<<" rotcor "<< rotcor;
         cout<<" relcor "<<relcor;
-        cout<<" elev " << getElevationDeg(sat, g_ourpos);
+        cout<<" elev " << getElevationDeg(sat, g_srcpos[nmm.sourceid()]);
         cout<<" bgd-m " << bgdcor;
         cout<<" clockoff-ms " << clockoffms << endl;
         

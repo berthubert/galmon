@@ -4,7 +4,7 @@
 #include <map>
 #include "navmon.hh"
 #include <vector>
-
+#include "minivec.hh"
       
 // 0 do not use
 // 1 PRN mask
@@ -17,6 +17,11 @@
 // 26 Ionospheric delay corrections
 // 27 SBAS service message
 
+// GSA HQ Prague
+const Point c_egnosCenter{3970085, 1021937, 4869792};
+
+// Somewhere in Minnesota, Dakota, Canada border
+const Point c_waasCenter{-510062, -4166466, 4786089};
 
 struct SBASState
 {

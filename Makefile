@@ -1,6 +1,6 @@
 CFLAGS = -O3 -Wall -ggdb 
 
-CXXFLAGS:= -std=gnu++17 -Wall -O2 -MMD -MP -fno-omit-frame-pointer -Iext/CLI11 \
+CXXFLAGS:= -std=gnu++17 -Wall -O2 -ggdb -MMD -MP -fno-omit-frame-pointer -Iext/CLI11 \
 	 -Iext/fmt-6.1.2/include/ -Iext/powerblog/ext/simplesocket -Iext/powerblog/ext/ \
 	 -I/usr/local/opt/openssl/include/  \
 	 -Iext/sgp4/libsgp4/ \
@@ -36,7 +36,7 @@ clean:
 decrypt: decrypt.o bits.o ext/fmt-6.1.2/src/format.o
 	$(CXX) -std=gnu++17 $^ -o $@ 
 
-navparse: navparse.o ext/fmt-6.1.2/src/format.o $(H2OPP) $(SIMPLESOCKETS) minicurl.o ubx.o bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) tle.o navmon.o coverage.o osen.o trkmeas.o influxpush.o ${EXTRADEP} githash.o
+navparse: navparse.o ext/fmt-6.1.2/src/format.o $(H2OPP) $(SIMPLESOCKETS) minicurl.o ubx.o bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) tle.o navmon.o coverage.o osen.o trkmeas.o influxpush.o ${EXTRADEP} githash.o sbas.o
 	$(CXX) -std=gnu++17 $^ -o $@ -pthread -L/usr/local/lib -L/usr/local/opt/openssl/lib/  -lh2o-evloop -lssl -lcrypto -lz  -lcurl -lprotobuf  $(WSLAY)
 
 reporter: reporter.o ext/fmt-6.1.2/src/format.o $(SIMPLESOCKETS) minicurl.o ubx.o bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) tle.o navmon.o coverage.o osen.o githash.o
@@ -46,7 +46,7 @@ galmonmon: galmonmon.o ext/fmt-6.1.2/src/format.o $(SIMPLESOCKETS) minicurl.o ub
 	$(CXX) -std=gnu++17 $^ -o $@ -pthread -L/usr/local/lib -lprotobuf -lcurl
 
 
-navdump: navdump.o ext/fmt-6.1.2/src/format.o bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o navmon.o $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) tle.o sp3.o osen.o trkmeas.o githash.o rinex.o ${EXTRADEP}
+navdump: navdump.o ext/fmt-6.1.2/src/format.o bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o navmon.o $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) tle.o sp3.o osen.o trkmeas.o githash.o rinex.o sbas.o ${EXTRADEP}
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -pthread  -lprotobuf -lz
 
 navdisplay: navdisplay.o ext/fmt-6.1.2/src/format.o bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o ephemeris.o navmon.o osen.o githash.o

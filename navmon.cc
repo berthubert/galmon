@@ -326,8 +326,8 @@ std::string sbasName(int prn)
     sbas ="GAGAN";
   }
   else
-    sbas ="SBAS";
+    sbas ="SBAS?";
 
-  sbas+="? " + std::to_string(prn);
+  sbas+=" " + std::to_string(prn);
   return sbas;
 }

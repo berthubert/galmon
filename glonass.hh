@@ -53,6 +53,9 @@ struct GlonassMessage
   double getdY() { return ldexp(dy*1000.0, -20); }
   double getdZ() { return ldexp(dz*1000.0, -20); }
 
+  // this is there to make doDoppler work, which sadly wants to do
+  // arithmetic to get the age of an ephemeris
+  double getT0e() const { return 0; }
   
   double getRadius() { return sqrt(getX()*getX() + getY()*getY() + getZ()*getZ()); }
    
@@ -127,7 +130,26 @@ struct GlonassMessage
     P4 = getbitu(&gstr[0], 85-34, 1);
     deltaTaun = getbitsglonass(&gstr[0], 85 - 58, 4);
   }
+  // nanosecond, nanosecond/s pair
+  std::pair<double, double> getUTCOffset(int tow) const
+  {
+    std::pair<double, double> ret;
+    ret.second=0;
 
+    ret.first = 1000000000.0*ldexp(tauc, -31); // this is Glonass-M
+
+    return ret;
+  }
+
+  std::pair<double, double> getGPSOffset(int tow) const
+  {
+    std::pair<double, double> ret;
+    ret.second=0;
+    ret.first = 1000000000.0*ldexp(taugps, -30); 
+    return ret;
+  }
+
+  
   uint32_t getGloTime() const;
   
   uint8_t n4{0}; // counting from 1996 ('n4=1'), this is the 4-year plan index we are currently in
@@ -138,7 +160,7 @@ struct GlonassMessage
   {
     n4=getbitu(&gstr[0], 85-36, 5);
     taugps = getbitsglonass(&gstr[0], 85-31, 22);
-    tauc = getbitsglonass(&gstr[0], 85-69, 32);
+    tauc = getbitsglonass(&gstr[0], 85-69, 32); // check the NEW ICD
     l_n = getbitu(&gstr[0], 85 - 9, 1);
   }
 

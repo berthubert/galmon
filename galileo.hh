@@ -8,7 +8,7 @@
 
 bool getTOWFromInav(std::basic_string_view<uint8_t> inav, uint32_t *satTOW, uint16_t *wn);
 
-struct GalileoMessage
+struct GalileoMessage : GPSLikeEphemeris
 {
   uint8_t wtype;
 
@@ -41,8 +41,8 @@ struct GalileoMessage
   }
 
   uint8_t sparetime{0};
-  uint16_t wn{0};  // we put the "unrolled" week number here!
-  uint32_t tow{0}; // "last seen"
+  uint16_t wn{0};  
+  uint32_t tow{0}; 
   int iodalmanac;
   int wnalmanac;
   int t0almanac;
@@ -99,6 +99,11 @@ struct GalileoMessage
 
   uint16_t iodnav;
 
+  int getIOD() const
+  {
+    return iodnav;
+  }
+  
   struct Almanac
   {
     int svid{-1};
@@ -131,7 +136,10 @@ struct GalileoMessage
     double getCrc()   const { return 0;   } // meters
     double getCrs()   const { return 0;   } // meters
     double getDeltan()const { return 0; } //radians/s
-    
+    int getIOD() const
+    {
+      return -1;
+    }
   } alma1, alma2, alma3;
 
   
@@ -211,7 +219,7 @@ struct GalileoMessage
     
     return {factor * cur, factor * trend};
   }
-
+  // pair of nanosecond, nanosecond/s 
   std::pair<double, double> getGPSOffset(int tow, int wn) const
   {
     int dw = (int)(uint8_t)wn - (int)(uint8_t) wn0g;
