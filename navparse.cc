@@ -1544,6 +1544,7 @@ try
     }
 
     char bert[6];
+    // I apologise deeply
     if(fread(bert, 1, 6, stdin) != 6 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
       cerr<<"EOF or bad magic"<<endl;
       break;
@@ -2347,7 +2348,34 @@ try
       sb.perrecv[nmm.sourceid()].last_seen = nmm.localutcseconds();
 
       basic_string<uint8_t> sbas((uint8_t*)nmm.sbm().contents().c_str(), nmm.sbm().contents().length());
-      sb.status.parse(sbas, nmm.localutcseconds());
+      auto delta = sb.status.parse(sbas, nmm.localutcseconds());
+      // fast correction
+      for(const auto& f : delta.first) {
+        idb.addValue(f.id, "sbas_fast",
+                     {{"correction", f.correction},
+                         {"udrei", f.udrei}}, nmm.localutcseconds(),
+                     nmm.sbm().gnsssv(), "sbas");
+                     
+                
+      }
+      for(const auto& lt : delta.second) {
+        idb.addValue(lt.id,"sbas_lterm",
+                     {
+                       {"iod8", lt.iod8},
+                         {"toa", lt.toa},
+                         {"iodp", lt.iodp},
+                           {"dx", lt.dx},
+                             {"dy", lt.dy},
+                               {"dz", lt.dz},
+                                 {"dai", lt.dai},
+                                   {"ddx", lt.ddx},
+                                     {"ddy", lt.ddy},
+                                       {"ddz", lt.ddz},
+                                         {"ddai", lt.ddai}
+                     }, nmm.localutcseconds(), nmm.sbm().gnsssv(), "sbas");
+
+      }
+
       if(nmm.localutcseconds() - sb.status.d_lastDNU > 120) {
         for(const auto& c : sb.status.d_fast) {
           g_svstats[c.first].sbas[nmm.sbm().gnsssv()].fast = c.second; 

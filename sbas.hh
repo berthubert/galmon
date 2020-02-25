@@ -40,12 +40,12 @@ struct SBASState
     int toa;
     int iodp;
     double dx, dy, dz, dai;
-    double ddx, ddy, ddz, ddai;
+    double ddx{0}, ddy{0}, ddz{0}, ddai{0};
     bool velocity{false};
     time_t lastUpdate{-1};
   };
 
-  void parse(const std::basic_string<uint8_t>& sbas, time_t now);
+  std::pair<std::vector<SBASState::FastCorrection>, std::vector<SBASState::LongTermCorrection>> parse(const std::basic_string<uint8_t>& sbas, time_t now);
   
   void parse0(const std::basic_string<uint8_t>& message, time_t now);
 
