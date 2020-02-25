@@ -114,8 +114,14 @@ void InfluxPusher::doSend(const set<std::string>& buffer)
       infl.open ("infl.txt", std::ofstream::out | std::ofstream::app);
       infl << newout;
     */
-    
-    mc.postURL("http://127.0.0.1:8086/write?db="+d_dbname, newout, mch);
+    try {    
+      mc.postURL("http://127.0.0.1:8086/write?db="+d_dbname, newout, mch);
+    }
+    catch(std::exception& e) {
+      if(strstr(e.what(), "retention"))
+        return;
+      throw;        
+    }
   }
 }
 
