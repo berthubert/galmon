@@ -2359,6 +2359,36 @@ try
                 
       }
       for(const auto& lt : delta.second) {
+        auto iter = g_svstats.find(lt.id);
+        if(iter == g_svstats.end())
+          continue;
+        const auto& s = *iter;
+        bool haveEphemeris=false;
+        double spaceShift=0, ephShift = 0, rangeShift =0;
+        if(s.second.completeIOD() && (s.second.liveIOD().getIOD() & 0xff) == lt.iod8) {
+            Point sat;
+            
+            s.second.getCoordinates(s.second.tow(), &sat);
+            Point adjsat=sat;
+            adjsat.x += lt.dx;
+            adjsat.y += lt.dy;
+            adjsat.z += lt.dz;
+            Point sbasCenter;
+            int prn = nmm.sbm().gnsssv();
+            if(prn== 126 || prn == 136 || prn == 123)
+              sbasCenter = c_egnosCenter;
+            else if(prn == 138 || prn == 131 || prn == 133)
+              sbasCenter = c_waasCenter;
+            else
+              sbasCenter = Point{0,0,0};
+            
+            double dist = Vector(sbasCenter, adjsat).length() - Vector(sbasCenter, sat).length();
+            spaceShift = dist;
+            dist -= lt.dai / 3;
+            ephShift = dist;
+            rangeShift = dist - g_svstats[lt.id].sbas[nmm.sbm().gnsssv()].fast.correction;
+            haveEphemeris=true;
+          }
         idb.addValue(lt.id,"sbas_lterm",
                      {
                        {"iod8", lt.iod8},
@@ -2371,7 +2401,11 @@ try
                                    {"ddx", lt.ddx},
                                      {"ddy", lt.ddy},
                                        {"ddz", lt.ddz},
-                                         {"ddai", lt.ddai}
+                                         {"ddai", lt.ddai},
+                                           {"ephemeris", 1.0*haveEphemeris},
+                                             {"space_shift", spaceShift},
+                                               {"eph_shift", ephShift},
+                                                 {"range_shift", rangeShift}
                      }, nmm.localutcseconds(), nmm.sbm().gnsssv(), "sbas");
 
       }
