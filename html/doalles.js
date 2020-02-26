@@ -304,9 +304,24 @@ function update()
 
     
     d3.json("global.json", function(d) {
-        d3.select('#facts').html("Galileo-UTC offset: <b>"+d["utc-offset-ns"].toFixed(2)+"</b> ns, Galileo-GPS offset: <b>"+d["gps-offset-ns"].toFixed(2)+"</b> ns, GPS UTC offset: <b>"+d["gps-utc-offset-ns"].toFixed(2)+"</b>. "+d["leap-seconds"]+"</b> leap seconds");
+        var str="Galileo-UTC offset: <b>"+d["gst-utc-offset-ns"].toFixed(2)+"</b> ns";
+        str += ", Galileo-GPS offset: <b>"+d["gst-gps-offset-ns"].toFixed(2)+"</b> ns";
+        str += " , GPS-UTC offset: <b>"+d["gps-utc-offset-ns"].toFixed(2)+" ns</b>";
+        str += " , BeiDou-UTC offset: <b>"+d["beidou-utc-offset-ns"].toFixed(2)+" ns</b>";
+        str += " , GLONASS-UTC offset: <b>"+d["glonass-utc-offset-ns"].toFixed(2)+" ns</b>";
+        str += " , GLONASS-GPS offset: <b>"+d["glonass-gps-offset-ns"].toFixed(2)+" ns</b>";
+        str += ", GPS-UTC offset: <b>"+d["beidou-utc-offset-ns"].toFixed(2)+" ns</b>, "+d["leap-seconds"]+"</b> leap seconds";
+        
+        d3.select('#facts').html(str);
         lastseen = moment(1000*d["last-seen"]);
         d3.select("#freshness").html(lastseen.fromNow());
+
+
+        str = d["total-live-receivers"]+" receivers active, tracking ";
+        str += d["total-live-svs"] + " satellites via " ;
+        str += d["total-live-signals"] + " signals." ;
+        d3.select("#allstats").text(str);
+        
     });
     
     d3.json("svs.json", function(d) {

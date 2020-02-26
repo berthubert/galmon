@@ -4,7 +4,7 @@
 #include <map>
 #include "navmon.hh"
 #include <vector>
-
+#include "minivec.hh"
       
 // 0 do not use
 // 1 PRN mask
@@ -17,6 +17,11 @@
 // 26 Ionospheric delay corrections
 // 27 SBAS service message
 
+// GSA HQ Prague
+const Point c_egnosCenter{3970085, 1021937, 4869792};
+
+// Somewhere in Minnesota, Dakota, Canada border
+const Point c_waasCenter{-510062, -4166466, 4786089};
 
 struct SBASState
 {
@@ -35,12 +40,12 @@ struct SBASState
     int toa;
     int iodp;
     double dx, dy, dz, dai;
-    double ddx, ddy, ddz, ddai;
+    double ddx{0}, ddy{0}, ddz{0}, ddai{0};
     bool velocity{false};
     time_t lastUpdate{-1};
   };
 
-  void parse(const std::basic_string<uint8_t>& sbas, time_t now);
+  std::pair<std::vector<SBASState::FastCorrection>, std::vector<SBASState::LongTermCorrection>> parse(const std::basic_string<uint8_t>& sbas, time_t now);
   
   void parse0(const std::basic_string<uint8_t>& message, time_t now);
 

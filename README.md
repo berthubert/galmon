@@ -174,11 +174,11 @@ cp ubxtool ubxtool.sh /usr/local/ubxtool/
 cp ubxtool.service /etc/systemd/system/
 ```
 
-Then collect the server IP address (SERVER-IP) and a station number
-(STATION-NUMBER) as described in [Operator.md], and run:
+Then please reach out as indicated in [Operator.md] to obtain your
+station ID and the receiver hostname and run:
 
 ```
-echo SERVER-IP > /usr/local/ubxtool/destination
+echo RECEIVER-NAME > /usr/local/ubxtool/destination
 echo STATION-NUMBER > /usr/local/ubxtool/station
 ```
 
@@ -269,23 +269,26 @@ The software can interpret SP3 files, good sources:
    * GBU = ultra rapid, still a few days delay, but much more recent.
 
 Uncompress and concatenate all downloaded files into 'all.sp3' and run
-'navdump' on collected protobuf, and it will output 'sp3.csv' with fit data.
+'navdump ' on collected protobuf, and it will output 'sp3.csv' with fit data.
 
-Big TODO
---------
+Tooling
+-------
 
- * Dual goals: completeness, liveness, not the same
-   For forensics, great if the packet is there
-   For display, not that bad if we missed a message
- * In general, consider refeed strategy
-     Raw serial
-     Protobuf
-     Influxdb
-     ".csv files"
- * Delivery needs to be bit more stateful (queue)
-   
- * Semantics definition for output of Navnexus
-   "we'll never surprise you with old data"
+ * ubxtool: Configure and use a Ublox chip to gather messages, and send as
+   protobuf to standard output or a remote server (with buffering).
+ * navdump: convert protobuf format data into a textual display of messages
+ * navparse: consume protobuf and turn into a webserver with data, plus
+   optionally fill an influxdb time-series database for graphing and analysis
+   purposes.
+ * navrecv: receive protobuf messages over the network and store them on
+   disk
+ * navnexus: serve protobuf messages from disk over the network
+ * navcat: serve protobuf messages from disk directly to stdout
+ * reporter: make "the galmon.eu weekly galileo report"
+ * rinreport: rinex analysis tooling (not generically useful yet)
+ * galmonmon: monitor a navparse instance for changes, tweet them out
+ * navdisplay: some eye-candy that converts protobuf into a live display
+   (not very good)
 
 Global coverage (via volunteers)
 --------------------------------

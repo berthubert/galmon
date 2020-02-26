@@ -166,7 +166,7 @@ std::optional<string> StateKeeper::reportState(string_view thing, string_view na
 
 
 StateKeeper g_sk;
-
+#if 0
 static std::string string_replace(const std::string& str, const std::string& match, 
         const std::string& replacement, unsigned int max_replacements = UINT_MAX)
 {
@@ -182,12 +182,14 @@ static std::string string_replace(const std::string& str, const std::string& mat
     }
     return newstr;
 }
-
+#endif 
 void sendTweet(const string& tweet)
 {
   string etweet = tweet;
   //system((string("twurl -X POST /1.1/statuses/update.json -d \"media_ids=1215649475231997953&status=")+etweet+"\" >> twitter.log").c_str());
-  system((string("twurl -X POST /1.1/statuses/update.json -d \"status=")+etweet+"\" >> twitter.log").c_str());
+  if(system((string("twurl -X POST /1.1/statuses/update.json -d \"status=")+etweet+"\" >> twitter.log").c_str()) < 0) {
+    cout<<"Problem tweeting!"<<endl;
+  }
   return;
 }
 
@@ -247,7 +249,27 @@ int main(int argc, char **argv)
         cout<<"Galmon behind by " << (time(0) - (long) iter.value()) <<" seconds"<<endl;
       }
       */
-      
+
+      res = mc.getURL(url+"sbas.json");
+      j = nlohmann::json::parse(res);
+      std::optional<string> sbasHealthChange;
+      for(auto iter = j.begin();  iter != j.end(); ++iter)  {
+        if(iter.value().count("health")) {
+          string name = sbasName(atoi(iter.key().c_str()));
+          sbasHealthChange = g_sk.reportState(name, "sbas-health", (string)iter.value()["health"]);
+          //          cout<<"Setting state for "<< name <<" to "<< (string)iter.value()["health"] << endl;
+
+          
+          if(sbasHealthChange) {
+            ostringstream out;
+            out<<"✈️ augmentation system "<<name<<" health changed: "<<*sbasHealthChange;
+            cout<<out.str()<<endl; 
+            if(doTweet)
+              sendTweet(out.str());
+            
+          }
+        }
+      }
       
       res = mc.getURL(url+"svs.json");
       j = nlohmann::json::parse(res);
@@ -295,7 +317,7 @@ int main(int argc, char **argv)
       
         auto seenChange = g_sk.reportState(fullName, "silent", notseen);
 
-        auto sisaChange = g_sk.reportState(fullName, "sisa", (string)sv["sisa"]);
+        auto sisaChange = g_sk.reportState(fullName, "sisa", (double) sv["sisa-m"], (string)sv["sisa"]);
 
         double ephdisco = sv.count("latest-disco") ? (double)sv["latest-disco"] : -1.0;
         auto ephdiscochange = g_sk.reportState(fullName, "eph-disco", ephdisco);
@@ -357,9 +379,13 @@ int main(int argc, char **argv)
 
         if(sisaChange) {
           ostringstream tmp;
-          tmp<< " SISA/URA reported ranging accuracy changed, new: "<<*sisaChange<<", old: " << *g_sk.getPrevState(fullName, "sisa");
-          if(tmp.str().find("200 cm") == string::npos || tmp.str().find("282 cm") == string::npos)
+          auto state = g_sk.getFullState(fullName, "sisa");
+          auto prevState = g_sk.getPrevFullState(fullName, "sisa");
+          tmp<< " SISA/URA reported ranging accuracy changed, new: "<<state->text<<", old: " << prevState->text;
+          if(get<double>(state->state) > 3 || get<double>(prevState->state) > 3)
             out << tmp.str();
+          else
+            cout<<"Not reporting: "<<tmp.str()<<endl;
         }
 
         string tweet;

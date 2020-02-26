@@ -135,8 +135,9 @@ pair<vector<SBASState::FastCorrection>, vector<SBASState::LongTermCorrection>> S
   return ret;
 }
 
-void SBASState::parse(const std::basic_string<uint8_t>& sbas, time_t now)
+pair<vector<SBASState::FastCorrection>, vector<SBASState::LongTermCorrection>> SBASState::parse(const std::basic_string<uint8_t>& sbas, time_t now)
 {
+  pair<vector<SBASState::FastCorrection>, vector<SBASState::LongTermCorrection>> ret;
   int type = getbitu(&sbas[0], 8, 6);
   if(type == 0) {
     parse0(sbas, now);
@@ -145,21 +146,22 @@ void SBASState::parse(const std::basic_string<uint8_t>& sbas, time_t now)
     parse1(sbas, now);
   }
   else if(type >= 2 && type <= 5) {
-    parse2_5(sbas, now);
+    ret.first = parse2_5(sbas, now);
   }
   
   else if(type == 6) {
-    parse6(sbas, now);
+    ret.first = parse6(sbas, now);
   }
   else if(type ==7) {
     parse7(sbas, now);
   }
   else if(type == 24) {
-    parse24(sbas, now);
+    ret = parse24(sbas, now);
   }
   else if(type == 25) {
-    parse25(sbas, now);
+    ret.second = parse25(sbas, now);
   }
+  return ret;
 }
 
 void SBASState::parse25H(const basic_string<uint8_t>& sbas, time_t t, int offset, vector<LongTermCorrection>& ret)
