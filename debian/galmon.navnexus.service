@@ -1,0 +1,20 @@
+[Unit]
+Description=galmon navnexus (serve recorded data on port 29601)
+After=network.target nss-lookup.target
+StartLimitIntervalSec=0
+# require that the pre-installed configuration file exists
+ConditionPathExists=/etc/default/navstar
+
+[Service]
+# Customize $DAEMON_OPTS_NAVNEXUS in /etc/default/navstar
+EnvironmentFile=-/etc/default/navstar
+Type=simple
+Restart=always
+RestartSec=4
+User=ubxtool
+Group=ubxtool
+RuntimeDirectory=navnexus
+ExecStart=/usr/bin/navnexus $DAEMON_OPTS_NAVNEXUS
+
+[Install]
+WantedBy=multi-user.target

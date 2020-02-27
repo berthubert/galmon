@@ -8,6 +8,13 @@ CXXFLAGS:= -std=gnu++17 -Wall -O2 -ggdb -MMD -MP -fno-omit-frame-pointer -Iext/C
 
 # CXXFLAGS += -Wno-delete-non-virtual-dtor
 
+# If unset, create a variable for the path or binary to use as "install" for debuild.
+INSTALL ?= install
+# If unset, create a variable with the path used by "make install"
+prefix ?= /usr/local/ubxtool
+# If unset, create a variable for a path underneath $prefix that stores html files
+htdocs ?= /share/package
+
 ifneq (,$(wildcard ubxsec.c))
 	EXTRADEP = ubxsec.o
 else ifneq (,$(wildcard ubxsec.o))
@@ -39,6 +46,30 @@ SIMPLESOCKETS=ext/powerblog/ext/simplesocket/swrappers.o ext/powerblog/ext/simpl
 clean:
 	rm -f *~ *.o *.d ext/*/*.o ext/*/*.d $(PROGRAMS) navmon.pb.h navmon.pb.cc $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) $(H2OPP) $(SIMPLESOCKETS)
 	rm -f ext/fmt-6.1.2/src/format.[do] ext/sgp4/libsgp4/*.d ext/powerblog/ext/simplesocket/*.d
+
+help2man:
+	$(INSTALL) -m 755 -d $(DESTDIR)$(prefix)/share/man/man1
+	HELP2MAN_DESCRIPTION=Open-source GNSS Monitoring Project
+	$(foreach binaryfile,$(PROGRAMS),help2man -N -n "$(HELP2MAN_DESCRIPTION)" ./$(binaryfile) | gzip > $(DESTDIR)$(prefix)/share/man/man1/$(binaryfile).1.gz;)
+	@echo until these binaries support --help and --version remove the broken output
+	rm -f $(DESTDIR)$(prefix)/share/man/man1/testrunner.1.gz
+
+install: $(PROGRAMS) help2man
+	$(INSTALL) -m 755 -d $(DESTDIR)$(prefix)/bin
+	$(foreach binaryfile,$(PROGRAMS),$(INSTALL) -s -m 755 -D ./$(binaryfile) $(DESTDIR)$(prefix)/bin/$(binaryfile);)
+	@echo "using cp instead of install because recursive directories of ascii"
+	mkdir -p $(DESTDIR)$(prefix)$(htdocs)/galmon
+	cp -a html $(DESTDIR)$(prefix)$(htdocs)/galmon/
+
+download-debian-package:
+	apt-key adv --fetch-keys https://ota.bike/public-package-signing-keys/86E7F51C04FBAAB0.asc
+	echo "deb https://ota.bike/debian/ buster main" > /etc/apt/sources.list.d/galmon.list
+	apt-get update && apt-get install -y galmon
+
+download-raspbian-package:
+	apt-key adv --fetch-keys https://ota.bike/public-package-signing-keys/86E7F51C04FBAAB0.asc
+	echo "deb https://ota.bike/raspbian/ buster main" > /etc/apt/sources.list.d/galmon.list
+	apt-get update && apt-get install -y galmon
 
 decrypt: decrypt.o bits.o ext/fmt-6.1.2/src/format.o
 	$(CXX) -std=gnu++17 $^ -o $@ 

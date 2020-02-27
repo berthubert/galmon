@@ -1,0 +1,24 @@
+Source: galmon
+Section: net
+Priority: optional
+Maintainer: Patrick Tudor <debian@ptudor.net>
+Build-Depends: debhelper (>=11~)
+Standards-Version: 4.3.0
+Homepage: https://github.com/ahupowerdns/galmon/
+
+Package: galmon
+Architecture: any
+Multi-Arch: foreign
+Conflicts: gpsd-clients
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: galmon GNSS Monitoring Project software
+                         88                                             
+                         88                                             
+                         88                                             
+   ,adPPYb,d8 ,adPPYYba, 88 88,dPYba,,adPYba,   ,adPPYba,  8b,dPPYba,   
+  a8"    `Y88 ""     `Y8 88 88P'   "88"    "8a a8"     "8a 88P'   `"8a  
+  8b       88 ,adPPPPP88 88 88      88      88 8b       d8 88       88  
+  "8a,   ,d88 88,    ,88 88 88      88      88 "8a,   ,a8" 88       88  
+   `"YbbdP"Y8 `"8bbdP"Y8 88 88      88      88  `"YbbdP"'  88       88  
+   aa,    ,88                                                           
+    "Y8bbdP"                                                            

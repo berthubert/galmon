@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export DEB_CFLAGS_MAINT_APPEND  = -Wall -pedantic
+export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	dh_auto_install -- prefix=/usr
+
+# override to install /etc/default/navstar alongside /etc/default/galmon
+override_dh_installinit:
+	dh_installinit --name=navstar
+	dh_installinit
+
+override_dh_installsystemd:
+	dh_installsystemd --no-enable --no-start --name=galmon-upgrade galmon-upgrade.service
+	dh_installsystemd --no-enable --no-start --name=galmon-upgrade galmon-upgrade.timer
+	dh_installsystemd --no-enable --no-start --name=navnexus navnexus.service
+	dh_installsystemd --no-enable --no-start --name=navrecv navrecv.service
+	dh_installsystemd --no-enable --no-start --name=ubxtool@ ubxtool@.service
