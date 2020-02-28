@@ -1046,7 +1046,7 @@ int main(int argc, char** argv)
   int curCycleTOW{-1}; // means invalid
   ns.launch();
   
-  if (!doSILENT) { cerr<<humanTimeNow()<<" Entering main loop"<<endl; }
+  cerr<<humanTimeNow()<<" Entering main loop"<<endl;
   for(;;) {
     try {
       auto [msg, timestamp] = getUBXMessage(fd, nullptr);
