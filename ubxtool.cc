@@ -562,6 +562,20 @@ int initFD(const char* fname, bool doRTSCTS)
 
 }
 
+char getGNSSChar(int id)
+{
+  if(id==0)
+    return 'G';
+  if(id==2)
+    return 'E';
+  if(id==3)
+    return 'C';
+  if(id==6)
+    return 'R';
+  else
+    return '0'+id;
+}
+
 // ubxtool device srcid
 int main(int argc, char** argv)
 {
@@ -1256,7 +1270,7 @@ int main(int argc, char** argv)
           if(time(0)- lastStat > 30) {
             cerr<<humanTimeNow()<<" src "<<g_srcid<< " (fix: "<<g_fixtype<<") currently receiving: ";
             for(auto& s : svseen) {
-              cerr<<get<0>(s)<<","<<get<1>(s)<<"@"<<get<2>(s)<<" ";
+              cerr<<getGNSSChar(get<0>(s))<<get<1>(s)<<"@"<<get<2>(s)<<" ";
             }
             cerr<<endl;
             lastStat = time(0);
