@@ -34,7 +34,9 @@
 
 #include "CLI/CLI.hpp"
 #include "gpscnav.hh"
+#include "rtcm.hh"
 #include "version.hh"
+
 
 static char program[]="navparse";
 
@@ -2158,6 +2160,47 @@ try
       //      g_svstats[id].wn = nmm.gpsi().gnsswn();
       //      if(g_svstats[id].wn < 512) // XXX ROLLOVER
       //        g_svstats[id].wn += 2048;
+    }
+    else if(nmm.type() == NavMonMessage::RTCMMessageType) {
+      RTCMMessage rm;
+      rm.parse(nmm.rm().contents());
+      if(rm.type == 1057 || rm.type == 1240) {
+        for(const auto& ed : rm.d_ephs) {
+          idb.addValue(ed.id, "rtcm-eph-correction", {
+                       {"iod", ed.iod},
+                       {"radial", ed.radial},
+                       {"along", ed.along},
+                       {"cross", ed.cross},
+                       {"dradial", ed.dradial},
+                       {"dalong", ed.dalong},
+                       {"dcross", ed.dcross},
+                         {"ssr-iod", rm.ssrIOD},
+                       {"ssr-provider", rm.ssrProvider},
+                       {"ssr-solution", rm.ssrSolution},
+                       {"tow", rm.sow},
+                         {"udi", rm.udi}},
+            nmm.localutcseconds(),
+            nmm.sourceid());
+
+        }
+      }
+      else if(rm.type == 1058 || rm.type == 1241) {
+        for(const auto& cd : rm.d_clocks) {
+          idb.addValue(cd.id, "rtcm-clock-correction", {
+                       {"dclock0", cd.dclock0},
+                         {"dclock1", cd.dclock1},
+                           {"dclock2", cd.dclock2},
+                         {"ssr-iod", rm.ssrIOD},
+                       {"ssr-provider", rm.ssrProvider},
+                       {"ssr-solution", rm.ssrSolution},
+                       {"tow", rm.sow},
+                         {"udi", rm.udi}},
+            nmm.localutcseconds(),
+            nmm.sourceid());
+          
+        }
+      }
+
     }
     else if(nmm.type()== NavMonMessage::GPSCnavType) {
       SatID id{nmm.gpsc().gnssid(), nmm.gpsc().gnsssv(), nmm.gpsc().sigid()};

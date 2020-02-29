@@ -16,6 +16,7 @@ message NavMonMessage {
     UbloxJammingStatsType = 12;
     SBASMessageType = 13;
     GPSCnavType = 14;
+    RTCMMessageType = 15;
   }
 
   required uint64 sourceID = 1;
@@ -171,6 +172,11 @@ message NavMonMessage {
         required uint32 sigid = 6;
   }
 
+  message RTCMMessage {
+	required bytes contents =5;
+  }
+
+
 
   optional GalileoInav gi=5;
   optional ReceptionData rd=6;  
@@ -185,5 +191,6 @@ message NavMonMessage {
   optional ObserverDetails od = 15;
   optional UbloxJammingStats ujs = 16;
   optional SBASMessage sbm = 17;
-  optional GPSCnav gpsc=18; 
+  optional GPSCnav gpsc = 18;
+  optional RTCMMessage rm = 19;   
 }

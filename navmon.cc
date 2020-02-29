@@ -331,3 +331,23 @@ std::string sbasName(int prn)
   sbas+=" " + std::to_string(prn);
   return sbas;
 }
+
+size_t writen2(int fd, const void *buf, size_t count)
+{
+  const char *ptr = (char*)buf;
+  const char *eptr = ptr + count;
+
+  ssize_t res;
+  while(ptr != eptr) {
+    res = ::write(fd, ptr, eptr - ptr);
+    if(res < 0) {
+      throw runtime_error("failed in writen2: "+string(strerror(errno)));
+    }
+    else if (res == 0)
+      throw EofException();
+
+    ptr += (size_t) res;
+  }
+
+  return count;
+}

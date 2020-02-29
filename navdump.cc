@@ -30,6 +30,7 @@
 #include "version.hh"
 #include "gpscnav.hh"
 #include "rinex.hh"
+#include "rtcm.hh"
 
 static char program[]="navdump";
 
@@ -645,6 +646,23 @@ try
       }
 
       cout<<"\n";
+    }
+    else if(nmm.type() == NavMonMessage::RTCMMessageType) {
+      etstamp();
+      RTCMMessage rm;
+      rm.parse(nmm.rm().contents());
+      if(rm.type == 1057 || rm.type == 1240) {
+        for(const auto& ed : rm.d_ephs) {
+          cout<<makeSatPartialName(ed.id)<<":  iode "<< ed.iod<<" ("<< ed.radial<<", "<<ed.along<<", "<<ed.cross<<") mm -> (";
+          cout<< ed.dradial<<", "<<ed.dalong<<", "<<ed.dcross<< ") mm/s\n";
+        }
+      }
+      else if(rm.type == 1058 || rm.type == 1241) {
+        for(const auto& cd : rm.d_clocks) {
+          cout<<makeSatPartialName(cd.id)<<":  dclock0 "<< cd.dclock0 <<" dclock1 " << cd.dclock1 <<" dclock2 "<< cd.dclock2 << endl;
+        }
+      }
+
     }
     else if(nmm.type() == NavMonMessage::GPSCnavType) {
       int sv = nmm.gpsc().gnsssv();

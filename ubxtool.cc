@@ -33,7 +33,7 @@
 #include "comboaddress.hh"
 #include "swrappers.hh"
 #include "sclasses.hh"
-
+#include "nmmsender.hh"
 #include "version.hh"
 
 static char program[]="ubxtool";
@@ -70,25 +70,6 @@ static int getBaudrate(int baud)
 
 static int g_baudval;
 
-size_t writen2(int fd, const void *buf, size_t count)
-{
-  const char *ptr = (char*)buf;
-  const char *eptr = ptr + count;
-
-  ssize_t res;
-  while(ptr != eptr) {
-    res = ::write(fd, ptr, eptr - ptr);
-    if(res < 0) {
-      throw runtime_error("failed in writen2: "+string(strerror(errno)));
-    }
-    else if (res == 0)
-      throw EofException();
-
-    ptr += (size_t) res;
-  }
-
-  return count;
-}
 
 /* inav schedule:
 1) Find plausible start time of next cycle
@@ -293,147 +274,6 @@ bool sendAndWaitForUBXAckNack(int fd, int seconds, basic_string_view<uint8_t> ms
   return false;
 }
 
-
-class NMMSender
-{
-  struct Destination
-  {
-    int fd{-1};
-    std::string dst;
-    std::string fname;
-
-    deque<string> queue;
-    std::mutex mut;
-    void emitNMM(const NavMonMessage& nmm);
-  };
-  
-public:
-  void addDestination(int fd)
-  {
-    auto d = std::make_unique<Destination>();
-    d->fd = fd;
-    d_dests.push_back(std::move(d));
-  }
-  void addDestination(const std::string& dest)
-  {
-    auto d = std::make_unique<Destination>();
-    d->dst = dest;
-    d_dests.push_back(std::move(d));
-  }
-
-  void launch()
-  {
-    for(auto& d : d_dests) {
-      if(!d->dst.empty()) {
-        thread t(&NMMSender::sendTCPThread, this, d.get());
-        t.detach();
-      }
-    }
-  }
-  
-  void sendTCPThread(Destination* d)
-  {
-    struct NameError{};
-    for(;;) {
-      ComboAddress chosen;
-      try {
-        vector<ComboAddress> addrs;
-        for(;;) {
-          addrs=resolveName(d->dst, true, true);
-          if(!addrs.empty())
-            break;
-          
-          cerr<<humanTimeNow()<<" Unable to resolve "<<d->dst<<", sleeping and trying again later"<<endl;
-          throw NameError();
-        }
-          
-        std::random_device rng;
-        std::mt19937 urng(rng());
-        std::shuffle(addrs.begin(), addrs.end(), urng);
-
-        for(auto& addr: addrs)  {
-          if(!addr.sin4.sin_port)
-            addr.sin4.sin_port = ntohs(29603);
-          chosen=addr;
-          Socket s(addr.sin4.sin_family, SOCK_STREAM);
-          SocketCommunicator sc(s);
-          sc.setTimeout(3);
-          sc.connect(addr);
-          if (doDEBUG) { cerr<<humanTimeNow()<<" Connected to "<<d->dst<<" on "<<addr.toStringWithPort()<<endl; }
-          for(;;) {
-            std::string msg;
-            {
-              std::lock_guard<std::mutex> mut(d->mut);
-              if(!d->queue.empty()) {
-                msg = d->queue.front();
-              }
-            }
-            if(!msg.empty()) {
-              sc.writen(msg);
-              std::lock_guard<std::mutex> mut(d->mut);
-              d->queue.pop_front();
-            }
-            else usleep(100000);
-          }
-        }
-      }
-      catch(NameError&) {
-        {
-          std::lock_guard<std::mutex> mut(d->mut);
-          if (doDEBUG) { cerr<<humanTimeNow()<<" There are now "<<d->queue.size()<<" messages queued for "<<d->dst<<endl; }
-        }
-        sleep(30);
-      }
-      catch(std::exception& e) {
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Sending thread for "<<d->dst<<" via "<<chosen.toStringWithPort()<<" had error: "<<e.what()<<endl; }
-        {
-          std::lock_guard<std::mutex> mut(d->mut);
-          if (doDEBUG) { cerr<<humanTimeNow()<<" There are now "<<d->queue.size()<<" messages queued for "<<d->dst<<endl; }
-        }
-        sleep(1);
-      }
-      catch(...) {
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Sending thread for "<<d->dst <<" via "<<chosen.toStringWithPort()<<" had error"; }
-        {
-          std::lock_guard<std::mutex> mut(d->mut);
-          if (doDEBUG) { cerr<<"There are now "<<d->queue.size()<<" messages queued for "<<d->dst<<" via "<<chosen.toStringWithPort()<<endl; }
-        }
-        sleep(1);
-      }
-    }
-  }
-
-  void emitNMM(const NavMonMessage& nmm);
-
-private:
-
-  vector<unique_ptr<Destination>> d_dests;
-};
-
-void NMMSender::emitNMM(const NavMonMessage& nmm)
-{
-  for(auto& d : d_dests) {
-    d->emitNMM(nmm);
-  }
-}
-
-void NMMSender::Destination::emitNMM(const NavMonMessage& nmm)
-{
-  string out;
-  nmm.SerializeToString(& out);
-  string msg("bert");
-  
-  uint16_t len = htons(out.size());
-  msg.append((char*)&len, 2);
-  msg.append(out);
-
-  if(!dst.empty()) {
-    std::lock_guard<std::mutex> l(mut);
-    queue.push_back(msg);
-  }
-  else
-    writen2(fd, msg.c_str(), msg.size());
-}
 
 
 bool version9 = false;
@@ -641,6 +481,7 @@ int main(int argc, char** argv)
 
   signal(SIGPIPE, SIG_IGN);
   NMMSender ns;
+  ns.d_debug = doDEBUG;
   for(const auto& s : destinations) {
     auto res=resolveName(s, true, true);
     if(res.empty()) {
