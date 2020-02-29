@@ -271,6 +271,30 @@ The software can interpret SP3 files, good sources:
 Uncompress and concatenate all downloaded files into 'all.sp3' and run
 'navdump ' on collected protobuf, and it will output 'sp3.csv' with fit data.
 
+RTCM
+----
+RTCM is the Radio Technical Commission for Maritime Services, and
+confusingly, also the name of a protocol. This project can parse RTCM 10403.1 
+messages, and currently processes State Space Representation (SSR) messages,
+specifically types 1057/1240 (GPS/Galileo Orbit corrections to broadcast
+ephemeris) and 1058/1241 (GPS/Galileo Clock corrections to broadcast
+ephemeris).
+
+RTCM messages need to be converted to protobuf format, and the `rtcmtool` is
+provided for this purpose.
+
+RTCM is frequently transmitted over the internet using 'ntrip', a typical
+commandline to process RTCM in our project is:
+```
+$ ntripclient ntrip:CLKA0_DEU1/user:password@navcast.spaceopal.com:2101 | ./rtcmtool --station x --destination y
+```
+
+User and password can be obtained from https://spaceopal.com/navcast/ - the
+Galileo operating company. 
+
+There are many other sources of RTCM but currently not many offer the SSR
+messages we can use.
+
 Tooling
 -------
 
@@ -289,6 +313,12 @@ Tooling
  * galmonmon: monitor a navparse instance for changes, tweet them out
  * navdisplay: some eye-candy that converts protobuf into a live display
    (not very good)
+ * rtcmtool: accepts RTCM messages on standard input (for example coming
+   from ntripclient) and transmits them as protobuf messages, either to
+   stdout or to a navrecv server. This is the equivalent of 'ubxtool'
+   except for submitting RTCM messages. 
+
+
 
 Global coverage (via volunteers)
 --------------------------------
