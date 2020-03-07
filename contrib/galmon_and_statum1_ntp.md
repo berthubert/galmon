@@ -224,6 +224,60 @@ Under the "st" you can see an 1 reporting your Raspberry PI is seen as Stratum 1
 
 ***That's all folks! Good luck***
 
+## Further tweaks
+### UART Baudrate
+As suggested by [akhepcat](https://github.com/akhepcat) in the pull request one additional tweak can be made. By default the UART runs at a [baud rate](https://en.wikipedia.org/wiki/Baud) of 38400, which if you haven't worked with modems or serial lines a lot is simply said a measure of characters per second. A baud rate of 38400 could cause messages from the chipset be missed as there is more to send then ~38400 characters per secoond.
+
+There are two ways to adjust this, one would be via the windows tool [ucenter](https://www.u-blox.com/en/product/u-center) from u-blox. An additional method is via the "other" ubxtool from the gpsd package. Unfortunatly this ubxtool is only available in a newer version of the gpsd distributions then those found on Raspbian / Debian 10 and the associated backports. 
+
+To get this gpsd version of ubxtool the quick way would be to clone the gpsd from the gitlab repo at [https://gitlab.com/gpsd/gpsd](https://gitlab.com/gpsd/gpsd). (See their [build instructions](https://gitlab.com/gpsd/gpsd/-/blob/master/build.adoc) on how to compile etc). You **don't** need to install this and in the process overwrite your Debian/Raspbian package and/or install an additional version in /usr/local. This gpsd ubxtool runs fine from the source directory.
+
+The gpsd ubxtool requires access to the USB port of the simpleRTK2B, so you need to stop the galmon ubxtool to make the below changes. The port used in my setup is '/dev/ttyACM0' for the USB port and '/dev/ttyAMA0' for the Raspberry UART. These config changes are made via the USB port.
+
+The ubxtool provides a lot of output, but to read the current baudrate execute the below comment and see the beginning of the output:
+```
+root@raspberrypi:~/Sources/gpsd# ./ubxtool -f /dev/ttyACM0 -g CFG-UART1-BAUDRATE
+sent:
+UBX-CFG-VALGET:
+ version 0 layer 0 reserved 0,0
+  layers (ram)
+    item CFG-UART1-BAUDRATE/0x40520001
+
+UBX-CFG-VALGET:
+ version 1 layer 0 reserved 0,0
+  layers (ram)
+    item CFG-UART1-BAUDRATE/0x40520001 val 38400
+
+UBX-ACK-ACK:
+  ACK to Class x06 (CFG) ID x8b (VALGET)
+<<FURTHER OUTPUT REMOVED>>
+```
+Above you can see the current baud rate on the line starting with `item CFG-UART1-BAUDRAT`.
+
+
+To set the baudrate with the command (Afterwards please do read it back with above command to check your changes):
+```
+root@raspberrypi:~/Sources/gpsd# ./ubxtool -f /dev/ttyACM0 -z CFG-UART1-BAUDRATE,115200
+sent:
+UBX-CFG-VALSET:
+ version 0 layer 0x7 transaction 0x0 reserved 0
+  layers (ram bbr flash) transacion (Transactionless)
+    item CFG-UART1-BAUDRATE/0x40520001 val 115200
+
+UBX-ACK-ACK:
+  ACK to Class x06 (CFG) ID x8a (VALSET)
+
+<<FURTHER OUTPUT REMOVED>>
+```
+Then restart gpsd and let it determine the new baudrate, this might take some minutes. You can see the baudrate gpsd detects with this hack that misuses the gpsd client protocol. It assumes you have netcat installed.
+```
+root@raspberrypi:~# echo '?WATCH={"enable":true,"json":true}' | nc -q 1 localhost 2947
+{"class":"VERSION","release":"3.17","rev":"3.17","proto_major":3,"proto_minor":12}
+{"class":"DEVICES","devices":[{"class":"DEVICE","path":"/dev/ttyAMA0","driver":"u-blox","activated":"2020-03-07T13:52:06.115Z","flags":1,"native":0,"bps":115200,"parity":"N","stopbits":1,"cycle":1.00,"mincycle":0.25}]}
+{"class":"WATCH","enable":true,"json":true,"nmea":false,"raw":0,"scaled":false,"timing":false,"split24":false,"pps":false}
+```
+On the second line you can see the baud rate at the field "bps" above you can see: `"bps":115200` it's now running at 115200.
+
 ## Thanks and Links
 First of all thanks to bert@hubertnet.nl or [@PowerDNS_Bert](https://twitter.com/PowerDNS_Bert) for setting up GalMon and the rest of the community. Additionally to [amontefusco](https://github.com/amontefusco) for feedback on the issue and his pictures.
 
@@ -231,4 +285,4 @@ First of all thanks to bert@hubertnet.nl or [@PowerDNS_Bert](https://twitter.com
 - Raspberry PI page to enable the UART (and disable bluetooth) : https://www.raspberrypi.org/documentation/configuration/uart.md
 - SatSignal quick start page on a Raspberry PI as Stratum 1 server: https://www.satsignal.eu/ntp/Raspberry-Pi-quickstart.html
 - SatSignal describing in more detail using the Raspberry PI as Stratum 1 server: http://www.satsignal.eu/ntp/Raspberry-Pi-NTP.html
-
+- [akhepcat](https://github.com/akhepcat) remark to set the UART buadrate to 115200
