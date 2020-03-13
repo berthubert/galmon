@@ -108,7 +108,7 @@ rinreport: rinreport.o rinex.o githash.o navmon.o ext/fmt-6.1.2/src/format.o  ep
 	$(CXX) -std=gnu++17 $^ -o $@ -lz -pthread
 
 rtcmtool: rtcmtool.o navmon.pb.o githash.o ext/fmt-6.1.2/src/format.o  bits.o nmmsender.o $(SIMPLESOCKETS)  navmon.o rtcm.o
-	$(CXX) -std=gnu++17 $^ -o $@ -lz -pthread -lprotobuf
+	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -lz -pthread -lprotobuf
 
 
 ubxtool: navmon.pb.o ubxtool.o ubx.o bits.o ext/fmt-6.1.2/src/format.o galileo.o  gps.o beidou.o navmon.o ephemeris.o $(SIMPLESOCKETS) osen.o githash.o nmmsender.o
