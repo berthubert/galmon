@@ -34,6 +34,7 @@ struct RTCMMessage
     double radial, along, cross;
     double dradial, dalong, dcross;
     int iod;
+    int sow;
   };
   struct ClockDelta
   {

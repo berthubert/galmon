@@ -8,6 +8,7 @@
 #include "tle.hh"
 #include "sbas.hh"
 #include "ephemeris.hh"
+#include "rtcm.hh"
 
 using namespace std; // XXX
 
@@ -59,6 +60,8 @@ struct SVStat
 
   map<int, SBASCombo> sbas;
 
+  RTCMMessage::EphemerisDelta rtcmEphDelta;
+  
   const GPSLikeEphemeris& liveIOD() const;
   const GPSLikeEphemeris& prevIOD() const;
 

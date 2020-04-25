@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "best-tle", "iod", "eph-age-m", "latest-disco", "time-disco", "sisa", "health", "alma-dist", "delta-utc", "sources", "hqsources", "db", "delta_hz_corr","prres", "elev", "last-seen-s"];    
+    var columns = ["sv", "best-tle", "iod", "eph-age-m", "latest-disco", "time-disco", "sisa", "health", "alma-dist", "delta-utc", "sources", "hqsources", "db", "rtcm-eph-delta-cm","prres", "elev", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -25,6 +25,8 @@ function maketable(str, arr)
         .html(function(column) {
             if(column == "delta_hz_corr")
                 return "ΔHz";
+            if(column == "rtcm-eph-delta-cm")
+                return "Δrtcm";
             if(column == "delta-gps")
                 return "ΔGPS ns";
             if(column == "delta-utc")
@@ -59,6 +61,12 @@ function maketable(str, arr)
                     ret.value = '<img width="16" height="16" src="https://ds9a.nl/tmp/'+ img +'"/>';
 //                    ret.value="";
                     ret.value += "&nbsp;<a href='sv.html?gnssid="+row.gnssid+"&sv="+row.svid+"&sigid="+row.sigid+"'>"+row.sv+"</a>";
+                }
+                else if(column == "rtcm-eph-delta-cm") {
+                    if(row[column] != null)
+                        ret.value = row[column].toFixed(1)+" cm";
+                    else
+                        ret.value="";
                 }
                 else if(column == "aodc/e") {
                     if(row["aodc"] != null && row["aode"] != null)
@@ -306,11 +314,11 @@ function update()
     d3.json("global.json", function(d) {
         var str="Galileo-UTC offset: <b>"+d["gst-utc-offset-ns"].toFixed(2)+"</b> ns";
         str += ", Galileo-GPS offset: <b>"+d["gst-gps-offset-ns"].toFixed(2)+"</b> ns";
-        str += " , GPS-UTC offset: <b>"+d["gps-utc-offset-ns"].toFixed(2)+" ns</b>";
-        str += " , BeiDou-UTC offset: <b>"+d["beidou-utc-offset-ns"].toFixed(2)+" ns</b>";
-        str += " , GLONASS-UTC offset: <b>"+d["glonass-utc-offset-ns"].toFixed(2)+" ns</b>";
-        str += " , GLONASS-GPS offset: <b>"+d["glonass-gps-offset-ns"].toFixed(2)+" ns</b>";
-        str += ", GPS-UTC offset: <b>"+d["beidou-utc-offset-ns"].toFixed(2)+" ns</b>, "+d["leap-seconds"]+"</b> leap seconds";
+        str += ", GPS-UTC offset: <b>"+d["gps-utc-offset-ns"].toFixed(2)+" ns</b>";
+        str += ", BeiDou-UTC offset: <b>"+d["beidou-utc-offset-ns"].toFixed(2)+" ns</b>";
+        str += ", GLONASS-UTC offset: <b>"+d["glonass-utc-offset-ns"].toFixed(2)+" ns</b>";
+        str += ", GLONASS-GPS offset: <b>"+d["glonass-gps-offset-ns"].toFixed(2)+" ns</b>";
+        str += ", "+d["leap-seconds"]+"</b> leap seconds (GPS/Galileo)";
         
         d3.select('#facts').html(str);
         lastseen = moment(1000*d["last-seen"]);

@@ -1245,6 +1245,19 @@ try
           //          item["t0c"] = s.second.liveIOD().getT0c();
           
 
+          if(s.second.rtcmEphDelta.id.gnss == s.first.gnss && s.second.rtcmEphDelta.id.sv == s.first.sv && s.second.rtcmEphDelta.iod == s.second.liveIOD().getIOD()
+             && abs(s.second.rtcmEphDelta.sow - s.second.tow())<60) {
+            const auto& ed = s.second.rtcmEphDelta;
+            item["rtcm-eph-delta-cm"] = truncPrec(sqrt(ed.radial*ed.radial + ed.along*ed.along + ed.cross*ed.cross)/10.0, 2);
+            item["rtcm-eph-radial-cm"] = truncPrec(ed.radial/10.0, 2);
+            item["rtcm-eph-along-cm"] = truncPrec(ed.along/10.0, 2);
+            item["rtcm-eph-cross-cm"] = truncPrec(ed.cross/10.0, 2);
+            item["rtcm-eph-dradial-cm"] = truncPrec(ed.dradial/10.0, 2);
+            item["rtcm-eph-dalong-cm"] = truncPrec(ed.dalong/10.0, 2);
+            item["rtcm-eph-dcross-cm"] = truncPrec(ed.dcross/10.0, 2);
+            
+          }
+          
           Point p;
           Point core;
           
@@ -2166,6 +2179,10 @@ try
       rm.parse(nmm.rm().contents());
       if(rm.type == 1057 || rm.type == 1240) {
         for(const auto& ed : rm.d_ephs) {
+          auto iter = g_svstats.find(ed.id);
+          if(iter != g_svstats.end() && iter->second.completeIOD()  && iter->second.liveIOD().getIOD() == ed.iod)
+            iter->second.rtcmEphDelta = ed;
+          
           idb.addValue(ed.id, "rtcm-eph-correction", {
                        {"iod", ed.iod},
                        {"radial", ed.radial},
@@ -2328,7 +2345,7 @@ try
       int strno = gm.parse(std::basic_string<uint8_t>((uint8_t*)nmm.gloi().contents().c_str(), nmm.gloi().contents().size()));
       g_svstats[id].perrecv[nmm.sourceid()].t = nmm.localutcseconds();
       if(strno == 1 && gm.n4 != 0 && gm.NT !=0) {
-        uint32_t glotime = gm.getGloTime(); // this starts GLONASS time at 31st of december 1995, 00:00 UTC
+        //        uint32_t glotime = gm.getGloTime(); // this starts GLONASS time at 31st of december 1995, 00:00 UTC
         // CONVERSION, possibly vital
         //        svstat.wn = glotime / (7*86400);
         //        svstat.tow = glotime % (7*86400);

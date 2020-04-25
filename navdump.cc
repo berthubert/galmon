@@ -287,7 +287,9 @@ try
   ofstream iodstream("iodstream.csv");
   iodstream << "timestamp gnssid sv iodnav t0e age" << endl;
 
-                                                     
+  ofstream ephcsv("eph.csv");
+  ephcsv<<"timestamp gnssid sv old_iod new_iod age insta_age x y z lat lon h"<<endl;
+  
   ofstream csv("delta.csv");
   csv <<"timestamp gnssid sv tow tle_distance alma_distance utc_dist x y z vx vy vz rad inclination e iod"<<endl;
 
@@ -447,8 +449,8 @@ try
             auto newAtomic = gm.getAtomicOffset(gm.tow);
             cout<<" clock-jump "<<oldAtomic.first - newAtomic.first<<" ns ";
             //            doOrbitDump(2, sv, gm.wn, oldEph[sv], gm, gm.tow - 3*3600, gm.tow + 3*3600);
-
-            
+            auto latlonh = ecefToWGS84(newPoint.x, newPoint.y, newPoint.z);
+            ephcsv<<nmm.localutcseconds()<<" "<< 2 <<" " << sv <<" " <<oldEph[sv].iodnav << " "<<gm.iodnav <<" "<< (gm.getT0e() - oldEph[sv].getT0e()) <<" "<<ephAge(gm.tow, gm.getT0e())/3600 << " " <<newPoint.x<<" " << newPoint.y <<" " <<newPoint.z<<" " << 180*get<0>(latlonh)/M_PI<<" " << 180*get<1>(latlonh)/M_PI <<" " <<get<2>(latlonh) << "\n";
             oldEph[sv]=gm;
           }
         }

@@ -38,6 +38,8 @@ struct IntervalStat
 {
   std::optional<int> unhealthy;
   std::optional<int> sisa;
+  bool ripe{false};
+  bool expired{false};
 };
 
 
@@ -116,12 +118,34 @@ int main(int argc, char **argv)
     }
   }
 
+  res = mc.getURL(url + mc.urlEncode("select max(\"eph-age\") from ephemeris where "+period+" and sigid='"+to_string(sigid)+"' group by gnssid,sv,sigid,time(10m)"));
+  j = nlohmann::json::parse(res);
+  for(const auto& sv : j["results"][0]["series"]) {
+    const auto& tags=sv["tags"];
+    SatID id{(unsigned int)std::stoi((string)tags["gnssid"]), (unsigned int)std::stoi((string)tags["sv"]), (unsigned int)std::stoi((string)tags["sigid"])};
+
+
+    for(const auto& v : sv["values"]) {
+      if(v.size() > 1 && v[1] != nullptr) {
+        int seconds = (int)v[1];
+        if(seconds > 86400) { // probably wraparound
+        }
+        else if(seconds > 4*3600) {
+          g_stats[id][(int)v[0]].expired = 1;
+          cout<<makeSatIDName(id)<<": "<<humanTimeShort(v[0])<<" " << seconds<<endl;
+        }
+        else if(seconds > 2*3600)
+          g_stats[id][(int)v[0]].ripe = (int)v[1] > 7200;
+      }
+    }
+  }
+  
   g_stats.erase({2,14,1});
   g_stats.erase({2,18,1});
   g_stats.erase({2,14,5});
   g_stats.erase({2,18,5});
 
-  //g_stats[{2,11,1}];
+  g_stats[{2,19,1}];
   
   unsigned int maxintervals=0;
   time_t start=time(0), stop=0;
@@ -140,10 +164,16 @@ int main(int argc, char **argv)
   cout<<"Report on "<<g_stats.size()<<" SVs from "<<humanTime(start) <<" to " <<humanTime(stop) << endl;
   int totnapa=0, totunhealthy=0, tothealthy=0, tottesting=0;
   int totunobserved=0;
+  int totripe = 0,  totexpired = 0;
   for(const auto& sv : g_stats) {
 
-    int napa=0, unhealthy=0, healthy=0, testing=0;
+    int napa=0, unhealthy=0, healthy=0, testing=0, ripe=0, expired=0;
     for(const auto& i : sv.second) {
+      if(i.second.ripe)
+        ripe++;
+      if(i.second.expired)
+        expired++;
+
       if(i.second.unhealthy) {
         if(*i.second.unhealthy==1)
           unhealthy++;
@@ -169,24 +199,30 @@ int main(int argc, char **argv)
     totunhealthy += unhealthy;
     tottesting += testing;
     tothealthy += healthy;
+    totripe += ripe;
+    totexpired += expired;
     totunobserved += maxintervals-sv.second.size();
      
-    cout<<fmt::sprintf("E%02d: %6.2f%% unobserved, %6.2f%% unhealthy, %6.2f%% healthy, %6.2f%% testing, %6.2f%% napa",
+    cout<<fmt::sprintf("E%02d: %6.2f%% unobserved, %6.2f%% unhealthy, %6.2f%% healthy, %6.2f%% testing, %6.2f%% napa, %6.2f%% ripe, %6.2f%% expired",
                        sv.first.sv,
                        100.0*(maxintervals-sv.second.size())/maxintervals,
                        100.0*unhealthy/maxintervals,
                        100.0*healthy/maxintervals,
                        100.0*testing/maxintervals,
-                       100.0*napa/maxintervals
+                       100.0*napa/maxintervals,
+                       100.0*ripe/maxintervals,
+                       100.0*expired/maxintervals
                        )<<endl;
   }
   cout<<"------------------------------------------------------------------------------------------"<<endl;
-  cout<<fmt::sprintf("Tot: %6.2f%% unobserved, %6.2f%% unhealthy, %6.2f%% healthy, %6.2f%% testing, %6.2f%% napa",
+  cout<<fmt::sprintf("Tot: %6.2f%% unobserved, %6.2f%% unhealthy, %6.2f%% healthy, %6.2f%% testing, %6.2f%% napa, %6.2f%% ripe, %6.2f%% expired",
                      100.0*(totunobserved)/maxintervals/g_stats.size(),
                      100.0*totunhealthy/maxintervals/g_stats.size(),
                      100.0*tothealthy/maxintervals/g_stats.size(),
                      100.0*tottesting/maxintervals/g_stats.size(),
-                     100.0*totnapa/maxintervals/g_stats.size()
+                     100.0*totnapa/maxintervals/g_stats.size(),
+                     100.0*totripe/maxintervals/g_stats.size(),
+                     100.0*totexpired/maxintervals/g_stats.size()
                      )<<endl;
 
 }

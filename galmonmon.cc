@@ -311,7 +311,7 @@ int main(int argc, char **argv)
         auto healthchange = g_sk.reportState(fullName, "health", sv["healthissue"]!=0);
         std::optional<string> tooOldChange;
         if(gnssid == 2)
-          tooOldChange = g_sk.reportState(fullName, "eph-too-old", sv["eph-age-m"] > 180, fmt::sprintf("%.2f", (double)sv["eph-age-m"]));
+          tooOldChange = g_sk.reportState(fullName, "eph-too-old", sv["eph-age-m"] > 105, fmt::sprintf("%.2f", (double)sv["eph-age-m"]));
         else 
           tooOldChange = g_sk.reportState(fullName, "eph-too-old", sv["eph-age-m"] > 140, fmt::sprintf("%.2f", (double)sv["eph-age-m"]));
       

@@ -54,6 +54,7 @@ void RTCMMessage::parse(const std::string& str)
       ed.dalong = gbs(off + iodlen + 89, 19) * 0.004;
       ed.dcross = gbs(off + iodlen +108, 19) * 0.004;
       ed.iod = gbu(off +6, iodlen);
+      ed.sow = sow;
       if(type == 1057) {
         ed.id.gnss = 0;
         ed.id.sigid = 0;

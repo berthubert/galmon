@@ -1,5 +1,6 @@
 #include <tuple>
 #include <math.h>
+#include "ephemeris.hh"
 
 /* gratefully adopted from http://danceswithcode.net/engineeringnotes/geodetic_to_ecef/geodetic_to_ecef.html
    which in turn is based on the excellent work from 
