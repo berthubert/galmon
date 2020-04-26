@@ -79,7 +79,7 @@ To build everything, including the webserver, try:
 
 ```
 apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev \
-libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev
+libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev libzstd-dev
 git clone https://github.com/ahupowerdns/galmon.git --recursive
 cd galmon
 make

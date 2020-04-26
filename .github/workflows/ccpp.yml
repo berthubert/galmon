@@ -10,7 +10,7 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: deps
-      run: sudo apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev
+      run: sudo apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev libzstd-dev
     - name: submodules
       run: git submodule update --init --recursive
     - name: config
