@@ -693,9 +693,14 @@ try
         continue;
       etstamp();
 
-
-      
-      auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid1().contents().c_str(), nmm.bid1().contents().size()));
+      std::basic_string<uint8_t> cond;
+      try {
+        cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid1().contents().c_str(), nmm.bid1().contents().size()));
+      }
+      catch(std::exception& e) {
+        cout<<"Parsing error"<<endl;
+        continue;
+      }
       uint8_t pageno;
       static map<int, BeidouMessage> bms;
       auto& bm = bms[sv];
