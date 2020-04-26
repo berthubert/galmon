@@ -26,11 +26,6 @@ using namespace std;
 
 extern const char* g_gitHash;
 
-void unixDie(const std::string& str)
-{
-  throw std::runtime_error(str+string(": ")+string(strerror(errno)));
-}
-
 time_t parseTime(std::string_view in)
 {
   time_t now=time(0);

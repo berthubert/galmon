@@ -351,3 +351,8 @@ size_t writen2(int fd, const void *buf, size_t count)
 
   return count;
 }
+
+void unixDie(const std::string& reason)
+{
+  throw std::runtime_error(reason+": "+strerror(errno));
+}

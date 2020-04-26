@@ -78,3 +78,4 @@ double utcFromGPS(int wn, double tow);
 
 std::string makeHexDump(const std::string& str);
 size_t writen2(int fd, const void *buf, size_t count);
+void unixDie(const std::string& reason);
