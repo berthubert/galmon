@@ -16,7 +16,7 @@ class NMMSender
 
     std::deque<std::string> queue;
     std::mutex mut;
-    void emitNMM(const NavMonMessage& nmm);
+    void emitNMM(const NavMonMessage& nmm, bool compress);
   };
   
 public:
@@ -47,7 +47,8 @@ public:
 
   void emitNMM(const NavMonMessage& nmm);
   bool d_debug{false};
-private:
+  bool d_compress{false}; // set BEFORE launch
 
+private:
   std::vector<std::unique_ptr<Destination>> d_dests;
 };

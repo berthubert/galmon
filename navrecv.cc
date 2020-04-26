@@ -11,7 +11,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-
+#include "zstdwrap.hh"
 #include "CLI/CLI.hpp"
 #include "version.hh"
 
@@ -138,10 +138,51 @@ void writeToDisk(time_t s, uint64_t sourceid, std::string_view message)
   }
 }
 
+// note that this moves the socket
+void recvSession2(Socket&& uns, ComboAddress client)
+{
+  cerr << "Entering compressed session for "<<client.toStringWithPort()<<endl;
+  ZStdReader zsr(uns);
+  int s = zsr.getFD();
+  //  time_t start = time(0);
+  for(;;) {
+    // enable this to test ubxtool resilience & buffering
+    //    if(time(0) - start > 30)
+    //  sleep(10);
+    string num=SRead(s, 4);
+    if(num.empty()) {
+      cerr<<"EOF from "<<client.toStringWithPort()<<endl;
+      break;
+    }
+    string out="bert";
+    
+    string part = SRead(s, 2);
+    out += part;
+    
+    uint16_t len;
+    memcpy(&len, part.c_str(), 2);
+    len = htons(len);
+    
+    part = SRead(s, len);
+    out += part;
+    
+    NavMonMessage nmm;
+    nmm.ParseFromString(part);
+    uint32_t denum;
+    
+    memcpy(&denum, num.c_str(), 4);
+    denum = htonl(denum);
+    //    cerr<<"Received message "<<denum<< " "<<nmm.localutcseconds()<<" " << nmm.localutcnanoseconds()/1000000000.0<<endl;
+    writeToDisk(nmm.localutcseconds(), nmm.sourceid(), out);
+    SWrite(uns, num);
+  }
+}
+
+
 void recvSession(int s, ComboAddress client)
 {
   try {
-    Socket sock(s);
+    Socket sock(s); // this closes on destruction
     cerr<<"Receiving messages from "<<client.toStringWithPort()<<endl;
     for(;;) {
       string part=SRead(sock, 4);
@@ -150,6 +191,8 @@ void recvSession(int s, ComboAddress client)
         break;
       }
       if(part != "bert") {
+        if(part == "RNIE")
+          return recvSession2(std::move(sock), client);  // protocol v2, socket is moved cuz cleanup is special
         cerr << "Wrong magic from "<<client.toStringWithPort()<<": "<<part<<endl;
         break;
       }

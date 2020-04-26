@@ -426,9 +426,10 @@ int main(int argc, char** argv)
   unsigned int fuzzPositionMeters=0;
   string owner;
   string remark;
-
+  bool doCompress=false;
   app.add_option("--destination,-d", destinations, "Send output to this IPv4/v6 address");
   app.add_flag("--wait", doWait, "Wait a bit, do not try to read init messages");
+  app.add_flag("--compress,-z", doCompress, "Use compressed protocol for network transmission");
   app.add_flag("--reset", doReset, "Reset UBX device");
   app.add_flag("--beidou,-c", doBeidou, "Enable BeiDou reception");
   app.add_flag("--gps,-g", doGPS, "Enable GPS reception");
@@ -878,6 +879,7 @@ int main(int argc, char** argv)
   */
 
   int curCycleTOW{-1}; // means invalid
+  ns.d_compress = doCompress;
   ns.launch();
   
   cerr<<humanTimeNow()<<" Entering main loop"<<endl;
