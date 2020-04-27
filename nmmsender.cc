@@ -6,7 +6,7 @@
 #include "navmon.hh"
 #include <algorithm>
 #include "zstdwrap.hh"
-
+#include <netinet/tcp.h>
 using namespace std;
 
 void NMMSender::sendTCPThread(Destination* d)
@@ -45,7 +45,8 @@ void NMMSender::sendTCPThread(Destination* d)
         };
         std::unique_ptr<ZStdCompressor> zsc;
         if(d_compress) {
-          sc.writen("RNIE"); // the other magic value is "bert". hence. 
+          sc.writen("RNIE00000000"); // the other magic value is "bert". hence.
+          // the 00000000 is a placeholder for a "secret" we might implement later
           zsc = std::make_unique<ZStdCompressor>(emit, 20);
         }
         bool hadMessage=false;
@@ -111,6 +112,9 @@ void NMMSender::sendTCPThread(Destination* d)
             }
             hadMessage = false;
             usleep(100000);
+#ifdef __linux__
+            SSetsockopt(s, IPPROTO_TCP, TCP_CORK, 1 );
+#endif
 
           }
         }

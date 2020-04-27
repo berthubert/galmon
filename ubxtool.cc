@@ -566,7 +566,7 @@ int main(int argc, char** argv)
       }
       if (doDEBUG && m8t) { cerr<<humanTimeNow()<<" Detected timing module"<<endl; }
       if (doDEBUG) { cerr<<humanTimeNow()<<" Sending serial number query"<<endl; }
-      msg = buildUbxMessage(0x27, 0x03, {});
+      msg = buildUbxMessage(0x27, 0x03, {}); // UBX-SEC-UNIQID
       um1=sendAndWaitForUBX(fd, 1, msg, 0x27, 0x03); // ask for serial
       serialno = fmt::sprintf("%02x%02x%02x%02x%02x",
                               um1.getPayload()[4],

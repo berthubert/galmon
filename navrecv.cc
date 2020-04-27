@@ -14,6 +14,7 @@
 #include "zstdwrap.hh"
 #include "CLI/CLI.hpp"
 #include "version.hh"
+#include <netinet/tcp.h>
 
 static char program[]="navrecv";
 
@@ -141,6 +142,7 @@ void writeToDisk(time_t s, uint64_t sourceid, std::string_view message)
 // note that this moves the socket
 void recvSession2(Socket&& uns, ComboAddress client)
 {
+  string secret = SRead(uns, 8); // ignored for now
   cerr << "Entering compressed session for "<<client.toStringWithPort()<<endl;
   ZStdReader zsr(uns);
   int s = zsr.getFD();
@@ -174,6 +176,9 @@ void recvSession2(Socket&& uns, ComboAddress client)
     denum = htonl(denum);
     //    cerr<<"Received message "<<denum<< " "<<nmm.localutcseconds()<<" " << nmm.localutcnanoseconds()/1000000000.0<<endl;
     writeToDisk(nmm.localutcseconds(), nmm.sourceid(), out);
+    
+    SSetsockopt(uns, IPPROTO_TCP, TCP_CORK, 1 );            
+
     SWrite(uns, num);
   }
 }
