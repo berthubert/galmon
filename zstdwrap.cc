@@ -2,6 +2,7 @@
 #include <zstd.h>
 #include <iostream>
 #include <string.h>
+#include <vector>
 #include "navmon.hh"
 
 using std::cout;
