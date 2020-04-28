@@ -174,7 +174,7 @@ cp ubxtool ubxtool.sh /usr/local/ubxtool/
 cp ubxtool.service /etc/systemd/system/
 ```
 
-Then please reach out as indicated in [Operator.md] to obtain your
+Then please reach out as indicated in [Operator.md](Operator.md) to obtain your
 station ID and the receiver hostname and run:
 
 ```
