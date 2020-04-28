@@ -53,7 +53,7 @@ void NMMSender::sendTCPThread(Destination* d)
         if(d_compress) {
           sc.writen("RNIE00000000"); // the other magic value is "bert". hence.
           // the 00000000 is a placeholder for a "secret" we might implement later
-          zsc = std::make_unique<ZStdCompressor>(emit, 20);
+          zsc = std::make_unique<ZStdCompressor>(emit, 9);
         }
         bool hadMessage=false;
         int msgnum = 0;
