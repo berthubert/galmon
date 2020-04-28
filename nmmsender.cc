@@ -38,6 +38,12 @@ void NMMSender::sendTCPThread(Destination* d)
         SocketCommunicator sc(s);
         sc.setTimeout(3);
         sc.connect(addr);
+
+#if !defined(TCP_CORK) && defined(TCP_NOPUSH)
+	/* start off "buffering" */
+        SSetsockopt(s, IPPROTO_TCP, TCP_NOPUSH, 1 );
+#endif
+
         time_t connStartTime = time(0);
         if (d_debug) { cerr<<humanTimeNow()<<" Connected to "<<d->dst<<" on "<<addr.toStringWithPort()<<endl; }
         auto emit = [&sc](const char*buf, uint32_t len) {
@@ -112,8 +118,20 @@ void NMMSender::sendTCPThread(Destination* d)
             }
             hadMessage = false;
             usleep(100000);
-#ifdef __linux__
+#if defined(TCP_CORK)
+	    /* linux-only: has an implied 200ms timeout */
             SSetsockopt(s, IPPROTO_TCP, TCP_CORK, 1 );
+#elif defined(TCP_NOPUSH)
+	    /*
+	     * freebsd/osx: buffers until buffer full/connection closed, so
+	     * we toggle it every other loop through
+	     */
+	    static bool push_toggle;
+	    if (push_toggle) {
+		    SSetsockopt(s, IPPROTO_TCP, TCP_NOPUSH, 0 );
+		    SSetsockopt(s, IPPROTO_TCP, TCP_NOPUSH, 1 );
+	    }
+	    push_toggle = !push_toggle;
 #endif
 
           }
