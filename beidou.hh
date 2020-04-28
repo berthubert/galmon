@@ -17,7 +17,7 @@ int beidouBitconv(int their);
    C05 (58.75E)
 */
 
-struct BeidouMessage
+struct BeidouMessage : GPSLikeEphemeris
 {
   uint8_t strtype;
 
@@ -118,7 +118,11 @@ struct BeidouMessage
   double getCrc()   const { return ldexp(crc,        -6);     } // meters
   double getCrs()   const { return ldexp(crs,        -6);     } // meters
   double getM0()    const { return ldexp(m0 * M_PI, -31);     } // radians
-  
+
+  int getIOD() const
+  {
+    return -1;
+  }
   
   void parse2(std::basic_string_view<uint8_t> cond)
   {

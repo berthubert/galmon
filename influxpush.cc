@@ -53,7 +53,7 @@ void InfluxPusher::addValueObserver(int src, string_view name, const initializer
 }
 
   
-void InfluxPusher::addValue(const SatID& id, string_view name, const initializer_list<pair<const char*, double>>& values, double t, std::optional<int> src)
+void InfluxPusher::addValue(const SatID& id, string_view name, const initializer_list<pair<const char*, double>>& values, double t, std::optional<int> src, std::optional<string> tag)
 {
   if(d_mute)
     return;
@@ -69,7 +69,7 @@ void InfluxPusher::addValue(const SatID& id, string_view name, const initializer
 
   string buffer = string(name) +",gnssid="+to_string(id.gnss)+",sv=" +to_string(id.sv)+",sigid="+to_string(id.sigid);
   if(src)
-    buffer += ",src="+to_string(*src);
+    buffer += ","+*tag+"="+to_string(*src);
   
   buffer+= " ";
   bool lefirst=true;
@@ -114,8 +114,14 @@ void InfluxPusher::doSend(const set<std::string>& buffer)
       infl.open ("infl.txt", std::ofstream::out | std::ofstream::app);
       infl << newout;
     */
-    
-    mc.postURL("http://127.0.0.1:8086/write?db="+d_dbname, newout, mch);
+    try {    
+      mc.postURL("http://127.0.0.1:8086/write?db="+d_dbname, newout, mch);
+    }
+    catch(std::exception& e) {
+      if(strstr(e.what(), "retention"))
+        return;
+      throw;        
+    }
   }
 }
 

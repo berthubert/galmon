@@ -137,6 +137,7 @@ function makeTable(str, obj)
     Object.keys(obj).forEach(function(e) {
         if(e=="svs") {
             Object.keys(obj[e]).forEach(function(k) {
+		if(obj[e][k].elev && obj[e][k].azi) {
                 var obj2 ={id: k, elev: obj[e][k].elev.toFixed(1),
                           sigid: obj[e][k].sigid, 
                           db: obj[e][k].db, azi: obj[e][k].azi.toFixed(1),
@@ -162,6 +163,7 @@ function makeTable(str, obj)
                 else if(gnssid==6)
                     color="yellow";
                 gnss_position.push([obj[e][k].azi, obj[e][k].elev, k.split("@")[0] , obj[e][k].db/4,4, color]);
+		}
             });
         }
         else
@@ -215,7 +217,7 @@ function makeTable(str, obj)
                 
                 return ret;
             })}).
-        enter().append("td").text(function(d) {
+        enter().append("td").html(function(d) {
             return d.value;
             
         }).attr("align", d=> d.align).style("background-color", d=> d.color);

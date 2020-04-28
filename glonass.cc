@@ -1,6 +1,10 @@
 #include "glonass.hh"
 #include <math.h>
 #include <string.h>
+#include <chrono>
+#include <iostream>
+using std::cout;
+using std::endl;
 
 static const double ae = 6378.136; // km		// IERS: 6378136.6
 static const double mu = 398.6004418E3; // km3/s2	// IERS: 3.986004418
@@ -98,8 +102,25 @@ static void rk4step (const double A[3], double y[6], double h)
     y[j] = y[j] + h * (k1[j] + 2*(k2[j] + k3[j]) + k4[j]) / 6;
 }
 
+
+using Clock = std::chrono::steady_clock; 
+
+static double passedMsec(const Clock::time_point& then, const Clock::time_point& now)
+{
+  return std::chrono::duration_cast<std::chrono::microseconds>(now - then).count()/1000.0;
+}
+
+
+static double passedMsec(const Clock::time_point& then)
+{
+  return passedMsec(then, Clock::now());
+}
+
+
 double getCoordinates(double tow, const GlonassMessage& eph, Point* p)
 {
+  auto start = Clock::now();
+  
   double y0[6] = {ldexp(eph.x, -11), ldexp(eph.y, -11), ldexp(eph.z, -11),
     ldexp(eph.dx, -20), ldexp(eph.dy, -20), ldexp(eph.dz, -20)};
   double A[3] = {ldexp(eph.ddx, -30), ldexp(eph.ddy, -30), ldexp(eph.ddz, -30)};
@@ -116,5 +137,7 @@ double getCoordinates(double tow, const GlonassMessage& eph, Point* p)
     rk4step (A, y0, h);
 
   *p = Point (1E3*y0[0], 1E3*y0[1], 1E3*y0 [2]);
+  static double total=0;
+  //  cout<<"Took: "<<(total+=passedMsec(start))<<" ms" <<endl;
   return 0;
 }

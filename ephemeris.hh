@@ -2,6 +2,37 @@
 #include "minivec.hh"
 #include <iostream>
 #include <tuple>
+#include <stdint.h>
+struct GPSLikeEphemeris
+{
+  virtual double getMu() const = 0;
+  virtual double getOmegaE()    const = 0; 
+  virtual double getE() const = 0;
+  virtual uint32_t getT0e() const = 0;
+
+  virtual double getI0() const = 0;
+
+  virtual double getOmegadot() const = 0;
+
+  virtual double getSqrtA() const = 0;
+  virtual double getOmega0() const = 0;
+  virtual double getOmega() const = 0;
+
+  virtual double getM0() const = 0;
+  virtual double getIdot()      const = 0;
+  virtual double getCic()       const = 0;
+  virtual double getCis()       const = 0;
+  virtual double getCuc()   const = 0;
+  virtual double getCus()   const = 0;
+  virtual double getCrc()   const = 0;
+  virtual double getCrs()   const = 0;
+  virtual double getDeltan()const = 0;
+
+  virtual int getIOD() const = 0;
+  // maybe af0, af1, af2?
+  // maybe getUTCOffset? getAtomicOffset etc
+  
+};
 
 // lat, lon, height (rad, rad, meters)
 std::tuple<double, double, double> ecefToWGS84(double x, double y, double z);

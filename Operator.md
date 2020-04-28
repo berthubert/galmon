@@ -6,7 +6,8 @@ Here are some ground rules to follow once you have locally tested your galmon st
 
  * Please ask bert@hubertnet.nl or [ahu on
    IRC](https://webchat.oftc.net/?channels=galileo) or
-   [@PowerDNS_Bert](https://twitter.com/PowerDNS_Bert) for a station ID. 
+   [@PowerDNS_Bert](https://twitter.com/PowerDNS_Bert) for a station ID and receiver
+   hostname.
  * Please do not randomly pick a station ID!! Project data quality and integrity
    depends on your cooperation.
  * The rule is: one station ID per receiver. Do not under any circumstances

@@ -1,0 +1,10 @@
+[Unit]
+Description=Update galmon
+Documentation=https://github.com/ahupowerdns/galmon
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=3d
+
+[Install]
+WantedBy=timers.target

@@ -79,7 +79,7 @@ To build everything, including the webserver, try:
 
 ```
 apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev \
-libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev
+libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev libzstd-dev
 git clone https://github.com/ahupowerdns/galmon.git --recursive
 cd galmon
 make
@@ -157,7 +157,7 @@ To see what is going on, try:
 To distribute data to a remote `navrecv`, use:
 
 ```
-./ubxtool --wait --port /dev/ttyACM0 --galileo --station 255 --dest 127.0.0.1
+./ubxtool --wait --port /dev/ttyACM0 --galileo --station 255 --destination 127.0.0.1
 ```
 
 This will send protobuf to 127.0.0.1:29603. You can add as many destinations
@@ -191,11 +191,11 @@ cp ubxtool ubxtool.sh /usr/local/ubxtool/
 cp ubxtool.service /etc/systemd/system/
 ```
 
-Then collect the server IP address (SERVER-IP) and a station number
-(STATION-NUMBER) as described in [Operator.md], and run:
+Then please reach out as indicated in [Operator.md] to obtain your
+station ID and the receiver hostname and run:
 
 ```
-echo SERVER-IP > /usr/local/ubxtool/destination
+echo RECEIVER-NAME > /usr/local/ubxtool/destination
 echo STATION-NUMBER > /usr/local/ubxtool/station
 ```
 
@@ -286,23 +286,56 @@ The software can interpret SP3 files, good sources:
    * GBU = ultra rapid, still a few days delay, but much more recent.
 
 Uncompress and concatenate all downloaded files into 'all.sp3' and run
-'navdump' on collected protobuf, and it will output 'sp3.csv' with fit data.
+'navdump ' on collected protobuf, and it will output 'sp3.csv' with fit data.
 
-Big TODO
---------
+RTCM
+----
+RTCM is the Radio Technical Commission for Maritime Services, and
+confusingly, also the name of a protocol. This project can parse RTCM 10403.1 
+messages, and currently processes State Space Representation (SSR) messages,
+specifically types 1057/1240 (GPS/Galileo Orbit corrections to broadcast
+ephemeris) and 1058/1241 (GPS/Galileo Clock corrections to broadcast
+ephemeris).
 
- * Dual goals: completeness, liveness, not the same
-   For forensics, great if the packet is there
-   For display, not that bad if we missed a message
- * In general, consider refeed strategy
-     Raw serial
-     Protobuf
-     Influxdb
-     ".csv files"
- * Delivery needs to be bit more stateful (queue)
-   
- * Semantics definition for output of Navnexus
-   "we'll never surprise you with old data"
+RTCM messages need to be converted to protobuf format, and the `rtcmtool` is
+provided for this purpose.
+
+RTCM is frequently transmitted over the internet using 'ntrip', a typical
+commandline to process RTCM in our project is:
+```
+$ ntripclient ntrip:CLKA0_DEU1/user:password@navcast.spaceopal.com:2101 | ./rtcmtool --station x --destination y
+```
+
+User and password can be obtained from https://spaceopal.com/navcast/ - the
+Galileo operating company. 
+
+There are many other sources of RTCM but currently not many offer the SSR
+messages we can use.
+
+Tooling
+-------
+
+ * ubxtool: Configure and use a Ublox chip to gather messages, and send as
+   protobuf to standard output or a remote server (with buffering).
+ * navdump: convert protobuf format data into a textual display of messages
+ * navparse: consume protobuf and turn into a webserver with data, plus
+   optionally fill an influxdb time-series database for graphing and analysis
+   purposes.
+ * navrecv: receive protobuf messages over the network and store them on
+   disk
+ * navnexus: serve protobuf messages from disk over the network
+ * navcat: serve protobuf messages from disk directly to stdout
+ * reporter: make "the galmon.eu weekly galileo report"
+ * rinreport: rinex analysis tooling (not generically useful yet)
+ * galmonmon: monitor a navparse instance for changes, tweet them out
+ * navdisplay: some eye-candy that converts protobuf into a live display
+   (not very good)
+ * rtcmtool: accepts RTCM messages on standard input (for example coming
+   from ntripclient) and transmits them as protobuf messages, either to
+   stdout or to a navrecv server. This is the equivalent of 'ubxtool'
+   except for submitting RTCM messages. 
+
+
 
 Global coverage (via volunteers)
 --------------------------------

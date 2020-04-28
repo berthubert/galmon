@@ -1,0 +1,52 @@
+#!/bin/sh
+# ptudor 20200120
+set -e
+
+#. /usr/share/debconf/confmodule
+
+setup_user() {
+
+if getent group ubxtool > /dev/null ; then
+  echo "galmon: ubxtool group exists, skipping"
+else
+  echo "galmon: creating ubxtool system group"
+  addgroup --system ubxtool
+fi
+
+if getent passwd ubxtool > /dev/null ; then
+  echo "galmon: ubxtool user exists, skipping"
+else
+  echo "galmon: creating ubxtool system user"
+  adduser --system ubxtool && adduser ubxtool ubxtool
+  echo "galmon: adding ubxtool user to dialout group"
+  adduser ubxtool dialout
+fi
+}
+
+restart_ubxtool_daemon() {
+# I feel like this belongs in rules with dh_installsystemd but do not understand how to add the wildcard.
+if systemctl is-active 'ubxtool@*' > /dev/null ; then
+  echo "galmon: restarting ubxtool."
+  systemctl daemon-reload && systemctl restart 'ubxtool@*'
+else
+  echo "galmon: ubxtool services are not currently enabled, not restarting."
+fi
+}
+
+print_help_text() {
+  echo "Galmon installation finished. If this is your first time, please:"
+  echo "  1) Create a ubxtool configuration 2) Enable the service"
+  echo "  3) Enable the timer for automatic upgrades if you want"
+  echo "Replace ttyACM0 below with your device listed in /dev"
+  echo "Example: cp /etc/default/galmon /etc/default/ubxtool-ttyACM0"
+  echo "Example: vi /etc/default/ubxtool-ttyACM0"
+  echo "Example: systemctl enable --now ubxtool@ttyACM0"
+  echo "Example: systemctl enable --now galmon-upgrade.timer"
+}
+
+setup_user
+print_help_text
+restart_ubxtool_daemon
+
+#DEBHELPER#
+

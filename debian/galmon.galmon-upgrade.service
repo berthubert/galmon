@@ -1,0 +1,15 @@
+[Unit]
+Description=Upgrade Galmon Software
+After=network.target nss-lookup.target
+StartLimitIntervalSec=0
+# require that the configuration exists
+ConditionPathExists=/etc/default/galmon
+
+[Service]
+Type=simple
+Restart=no
+ExecStartPre=+apt-get update
+ExecStart=+apt-get install -y galmon
+
+[Install]
+WantedBy=multi-user.target

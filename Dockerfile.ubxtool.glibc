@@ -22,6 +22,7 @@ RUN set -ex && \
         g++ \
         git \
         libprotobuf-dev \
+        libzstd-dev \
         make \
         protobuf-compiler \
     && \

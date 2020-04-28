@@ -23,6 +23,8 @@ RUN set -ex && \
         git \
         make \
         protobuf-dev \
+        zstd-dev \
+        zstd-static \
     && \
     :
 

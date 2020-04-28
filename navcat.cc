@@ -26,11 +26,6 @@ using namespace std;
 
 extern const char* g_gitHash;
 
-void unixDie(const std::string& str)
-{
-  throw std::runtime_error(str+string(": ")+string(strerror(errno)));
-}
-
 time_t parseTime(std::string_view in)
 {
   time_t now=time(0);
@@ -80,27 +75,6 @@ vector<uint64_t> getSources(string_view dirname)
   sort(ret.begin(), ret.end());
   return ret;
 }
-
-static size_t writen2(int fd, const void *buf, size_t count)
-{
-  const char *ptr = (char*)buf;
-  const char *eptr = ptr + count;
-
-  ssize_t res;
-  while(ptr != eptr) {
-    res = ::write(fd, ptr, eptr - ptr);
-    if(res < 0) {
-      throw runtime_error("failed in writen2: "+string(strerror(errno)));
-    }
-    else if (res == 0)
-      throw EofException();
-
-    ptr += (size_t) res;
-  }
-
-  return count;
-}
-
 
 
 void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)

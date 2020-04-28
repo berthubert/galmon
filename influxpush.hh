@@ -9,7 +9,7 @@ struct InfluxPusher
 {
   explicit InfluxPusher(std::string_view dbname);
   void addValueObserver(int src, std::string_view name, const std::initializer_list<std::pair<const char*, double>>& values, double t, std::optional<SatID> satid=std::optional<SatID>());
-  void addValue(const SatID& id, std::string_view name, const std::initializer_list<std::pair<const char*, double>>& values, double t, std::optional<int> src = std::optional<int>());
+  void addValue(const SatID& id, std::string_view name, const std::initializer_list<std::pair<const char*, double>>& values, double t, std::optional<int> src = std::optional<int>(), std::optional<string> tag = std::optional<string>("src"));
   
   void checkSend();
   void doSend(const std::set<std::string>& buffer);

@@ -1,0 +1,20 @@
+[Unit]
+Description=galmon ubxtool on /dev/%I
+After=network.target nss-lookup.target
+StartLimitIntervalSec=0
+# require that both the device and configuration exist
+ConditionPathExists=/dev/%i
+ConditionPathExists=/etc/default/ubxtool-%i
+
+[Service]
+EnvironmentFile=-/etc/default/ubxtool-%i
+Type=simple
+Restart=always
+RestartSec=4
+User=ubxtool
+Group=ubxtool
+RuntimeDirectory=ubxtool
+ExecStart=/usr/bin/ubxtool --port /dev/%i $DAEMON_OPTS
+
+[Install]
+WantedBy=multi-user.target

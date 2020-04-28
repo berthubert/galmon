@@ -1,0 +1,20 @@
+[Unit]
+Description=galmon navrecv (receive data on port 29603)
+After=network.target nss-lookup.target
+StartLimitIntervalSec=0
+# require that the pre-installed configuration file exists
+ConditionPathExists=/etc/default/navstar
+
+[Service]
+# Customize $DAEMON_OPTS_NAVRECV in /etc/default/navstar
+EnvironmentFile=-/etc/default/navstar
+Type=simple
+Restart=always
+RestartSec=1
+User=ubxtool
+Group=ubxtool
+RuntimeDirectory=navrecv
+ExecStart=/usr/bin/navrecv $DAEMON_OPTS_NAVRECV
+
+[Install]
+WantedBy=multi-user.target

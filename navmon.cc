@@ -259,12 +259,14 @@ char getGNSSChar(int id)
 {
   if(id==0)
     return 'G';
-  if(id==2)
+  else if(id==2)
     return 'E';
-  if(id==3)
+  else if(id==3)
     return 'C';
-  if(id==6)
+  else if(id==6)
     return 'R';
+  else if(id==255)
+    return '?';
   else
     return '0'+id;
 }
@@ -324,8 +326,33 @@ std::string sbasName(int prn)
     sbas ="GAGAN";
   }
   else
-    sbas ="SBAS";
+    sbas ="SBAS?";
 
   sbas+=" " + std::to_string(prn);
   return sbas;
+}
+
+size_t writen2(int fd, const void *buf, size_t count)
+{
+  const char *ptr = (char*)buf;
+  const char *eptr = ptr + count;
+
+  ssize_t res;
+  while(ptr != eptr) {
+    res = ::write(fd, ptr, eptr - ptr);
+    if(res < 0) {
+      throw runtime_error("failed in writen2: "+string(strerror(errno)));
+    }
+    else if (res == 0)
+      throw EofException();
+
+    ptr += (size_t) res;
+  }
+
+  return count;
+}
+
+void unixDie(const std::string& reason)
+{
+  throw std::runtime_error(reason+": "+strerror(errno));
 }

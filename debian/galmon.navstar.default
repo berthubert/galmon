@@ -1,0 +1,9 @@
+# Copyright 2020 AHU Holding BV - bert@hubertnet.nl - https://berthub.eu/
+# https://galmon.eu - https://github.com/ahupowerdns/galmon
+# This package is free software: /usr/share/common-licenses/GPL-3
+#
+# Here are daemon options used by the navrecv and navnexus services
+DAEMON_OPTS_NAVNEXUS="--storage /var/lib/galmon/storage --bind ::1"
+DAEMON_OPTS_NAVRECV="--bind ::1 --storage /var/lib/galmon/storage"
+#
+DAEMON_OPTS_NAVPARSE="--bind [::1]:10000 --html /usr/share/package/galmon/html --influxdb galileo"
