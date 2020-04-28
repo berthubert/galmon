@@ -6,6 +6,7 @@ StartLimitIntervalSec=0
 ConditionPathExists=/etc/default/galmon
 
 [Service]
+Environment=DEBIAN_FRONTEND=noninteractive
 Type=simple
 Restart=no
 ExecStartPre=+apt-get update
