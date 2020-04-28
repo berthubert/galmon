@@ -58,6 +58,21 @@ Both rtcmtool and ubxtool can send data over TCP/IP, but also to standard
 output. This standard output mode makes it possible to pipe the output of
 these tools straight into navdump or navparse. 
 
+There are two transport protocols, one uncompressed, which consists of the 4
+byte magic value, a 2 byte length field, and then the message. This protocol
+has been deprecated for TCP, but it is still there for --stdout output.
+
+The second protocol is zstd compressed, and features acknowledgements. The
+protocol is an initial 4 byte magic value "RNIE", followed by 8 reserved
+bytes which are currently ignored. Then zstd compression starts, each
+message consists of a 4 byte message number, followed by a two byte length
+field, followed by the message. There are no further magic values beyond the
+first one.
+
+The receiver is expected to return the 4 byte message number for each
+message received. Messages which have not been acknowledged like this will
+be retransmitted on reconnect.
+
 Storage details
 ---------------
 Storage is very simplistic but robust. For every receiver, for every hour,
