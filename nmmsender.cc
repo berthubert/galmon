@@ -167,7 +167,7 @@ void NMMSender::Destination::emitNMM(const NavMonMessage& nmm, bool compressed)
   string out;
   nmm.SerializeToString(& out);
   string msg;
-  if(!compressed)
+  if(dst.empty() || !compressed)
     msg="bert";
   
   uint16_t len = htons(out.size());
