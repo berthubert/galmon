@@ -176,8 +176,9 @@ void recvSession2(Socket&& uns, ComboAddress client)
     denum = htonl(denum);
     //    cerr<<"Received message "<<denum<< " "<<nmm.localutcseconds()<<" " << nmm.localutcnanoseconds()/1000000000.0<<endl;
     writeToDisk(nmm.localutcseconds(), nmm.sourceid(), out);
-    
-    SSetsockopt(uns, IPPROTO_TCP, TCP_CORK, 1 );            
+#ifdef __linux__
+    SSetsockopt(uns, IPPROTO_TCP, TCP_CORK, 1 );
+#endif
 
     SWrite(uns, num);
   }

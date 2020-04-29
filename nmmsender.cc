@@ -38,6 +38,12 @@ void NMMSender::sendTCPThread(Destination* d)
         SocketCommunicator sc(s);
         sc.setTimeout(3);
         sc.connect(addr);
+
+#if !defined(TCP_CORK) && defined(TCP_NOPUSH)
+	/* start off "buffering" */
+        SSetsockopt(s, IPPROTO_TCP, TCP_NOPUSH, 1 );
+#endif
+
         time_t connStartTime = time(0);
         if (d_debug) { cerr<<humanTimeNow()<<" Connected to "<<d->dst<<" on "<<addr.toStringWithPort()<<endl; }
         auto emit = [&sc](const char*buf, uint32_t len) {
@@ -47,7 +53,7 @@ void NMMSender::sendTCPThread(Destination* d)
         if(d_compress) {
           sc.writen("RNIE00000000"); // the other magic value is "bert". hence.
           // the 00000000 is a placeholder for a "secret" we might implement later
-          zsc = std::make_unique<ZStdCompressor>(emit, 20);
+          zsc = std::make_unique<ZStdCompressor>(emit, 9);
         }
         bool hadMessage=false;
         int msgnum = 0;
@@ -112,8 +118,20 @@ void NMMSender::sendTCPThread(Destination* d)
             }
             hadMessage = false;
             usleep(100000);
-#ifdef __linux__
+#if defined(TCP_CORK)
+	    /* linux-only: has an implied 200ms timeout */
             SSetsockopt(s, IPPROTO_TCP, TCP_CORK, 1 );
+#elif defined(TCP_NOPUSH)
+	    /*
+	     * freebsd/osx: buffers until buffer full/connection closed, so
+	     * we toggle it every other loop through
+	     */
+	    static bool push_toggle;
+	    if (push_toggle) {
+		    SSetsockopt(s, IPPROTO_TCP, TCP_NOPUSH, 0 );
+		    SSetsockopt(s, IPPROTO_TCP, TCP_NOPUSH, 1 );
+	    }
+	    push_toggle = !push_toggle;
 #endif
 
           }
@@ -167,7 +185,7 @@ void NMMSender::Destination::emitNMM(const NavMonMessage& nmm, bool compressed)
   string out;
   nmm.SerializeToString(& out);
   string msg;
-  if(!compressed)
+  if(dst.empty() || !compressed)
     msg="bert";
   
   uint16_t len = htons(out.size());

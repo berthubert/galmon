@@ -17,7 +17,9 @@ if getent passwd ubxtool > /dev/null ; then
   echo "galmon: ubxtool user exists, skipping"
 else
   echo "galmon: creating ubxtool system user"
-  adduser --system ubxtool && adduser ubxtool ubxtool
+  adduser --system ubxtool --no-create-home --home /run/ubxtool
+  echo "galmon: adding ubxtool user to ubxtool group"
+  adduser ubxtool ubxtool
   echo "galmon: adding ubxtool user to dialout group"
   adduser ubxtool dialout
 fi
@@ -41,7 +43,7 @@ print_help_text() {
   echo "Example: cp /etc/default/galmon /etc/default/ubxtool-ttyACM0"
   echo "Example: vi /etc/default/ubxtool-ttyACM0"
   echo "Example: systemctl enable --now ubxtool@ttyACM0"
-  echo "Example: systemctl enable --now galmon-upgrade.timer"
+  echo "Example: (beta testing) systemctl enable --now galmon-upgrade.timer"
 }
 
 setup_user

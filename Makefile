@@ -51,9 +51,11 @@ clean:
 
 help2man:
 	$(INSTALL) -m 755 -d $(DESTDIR)$(prefix)/share/man/man1
-	HELP2MAN_DESCRIPTION=Open-source GNSS Monitoring Project
+	HELP2MAN_DESCRIPTION="Open-source GNSS Monitoring Project"
 	$(foreach binaryfile,$(PROGRAMS),help2man -N -n "$(HELP2MAN_DESCRIPTION)" ./$(binaryfile) | gzip > $(DESTDIR)$(prefix)/share/man/man1/$(binaryfile).1.gz;)
 	@echo until these binaries support --help and --version remove the broken output
+	rm -f $(DESTDIR)$(prefix)/share/man/man1/rinreport.1.gz
+	rm -f $(DESTDIR)$(prefix)/share/man/man1/rtcmtool.1.gz
 	rm -f $(DESTDIR)$(prefix)/share/man/man1/testrunner.1.gz
 
 install: $(PROGRAMS) help2man
@@ -114,7 +116,7 @@ rinreport: rinreport.o rinex.o githash.o navmon.o ext/fmt-6.1.2/src/format.o  ep
 	$(CXX) -std=gnu++17 $^ -o $@ -lz -pthread
 
 rtcmtool: rtcmtool.o navmon.pb.o githash.o ext/fmt-6.1.2/src/format.o  bits.o nmmsender.o $(SIMPLESOCKETS)  navmon.o rtcm.o zstdwrap.o
-	$(CXX) -std=gnu++17 $^ -o $@ -lz -pthread -lprotobuf -lzstd
+	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -lz -pthread -lprotobuf -lzstd
 
 
 UBXTOOL_DEPS = navmon.pb.o ubxtool.o ubx.o bits.o ext/fmt-6.1.2/src/format.o galileo.o  gps.o beidou.o navmon.o ephemeris.o $(SIMPLESOCKETS) osen.o githash.o nmmsender.o zstdwrap.o

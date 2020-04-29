@@ -2,7 +2,7 @@ Source: galmon
 Section: net
 Priority: optional
 Maintainer: Patrick Tudor <debian@ptudor.net>
-Build-Depends: debhelper (>=11~)
+Build-Depends: debhelper (>=11~), help2man, libzstd-dev, adduser
 Standards-Version: 4.3.0
 Homepage: https://github.com/ahupowerdns/galmon/
 

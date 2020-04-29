@@ -403,6 +403,14 @@ int initFD(const char* fname, bool doRTSCTS)
 
 }
 
+static string format_serial(basic_string<uint8_t> payload)
+{
+	return fmt::sprintf("%02x%02x%02x%02x%02x",
+                            payload[4], payload[5],
+                            payload[6], payload[7],
+                            payload[8]);
+}
+
 // ubxtool device srcid
 int main(int argc, char** argv)
 {
@@ -569,12 +577,7 @@ int main(int argc, char** argv)
       if (doDEBUG) { cerr<<humanTimeNow()<<" Sending serial number query"<<endl; }
       msg = buildUbxMessage(0x27, 0x03, {}); // UBX-SEC-UNIQID
       um1=sendAndWaitForUBX(fd, 1, msg, 0x27, 0x03); // ask for serial
-      serialno = fmt::sprintf("%02x%02x%02x%02x%02x",
-                              um1.getPayload()[4],
-                              um1.getPayload()[5],
-                              um1.getPayload()[6],
-                              um1.getPayload()[7],
-                              um1.getPayload()[8]);
+      serialno = format_serial(um1.getPayload());
       
       cerr<<humanTimeNow()<<" Serial number "<< serialno <<endl;
 
@@ -972,6 +975,12 @@ int main(int argc, char** argv)
           ns.emitNMM( nmm);
         }
       }
+
+      if(msg.getClass() == 0x27 && msg.getType() == 0x03) { // serial
+        serialno = format_serial(payload);
+        cerr<<humanTimeNow()<<" Serial number from stream "<< serialno <<endl;
+      }
+
       
       
       if(msg.getClass() == 0x02 && msg.getType() == 0x15) {  // RAWX, the doppler stuff
