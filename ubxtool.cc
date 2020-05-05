@@ -166,8 +166,10 @@ std::pair<UBXMessage, struct timeval> getUBXMessage(int fd, double* timeout)
     marker[0] = marker[1];
     int res = readn2Timeout(fd, marker+1, 1, timeout);
 
-    if(res < 0)
+    if(res < 0) {
+      cerr<<"Readn2Timeout failed: "<<strerror(errno)<<endl;
       throw EofException();
+    }
     
     //    if (doDEBUG) { cerr<<humanTimeNow()<<" marker now: "<< (int)marker[0]<<" " <<(int)marker[1]<<endl; }
     if(marker[0]==0xb5 && marker[1]==0x62) { // bingo
@@ -977,7 +979,8 @@ int main(int argc, char** argv)
 
       if(msg.getClass() == 0x27 && msg.getType() == 0x03) { // serial
         serialno = format_serial(payload);
-        cerr<<humanTimeNow()<<" Serial number from stream "<< serialno <<endl;
+        if(doDEBUG)
+          cerr<<humanTimeNow()<<" Serial number from stream "<< serialno <<endl;
       }
 
       
@@ -1524,7 +1527,7 @@ int main(int argc, char** argv)
         for(int n = 0; n < 15; ++n)
           hexstring+=fmt::sprintf("%x", (int)getbitu(payload.c_str(), 36 + 4*n, 4));
 
-        if (doDEBUG) { cerr<<humanTimeNow()<<" "<<humanTime(g_gnssutc.tv_sec)<<" SAR RLM type "<<type<<" from gal sv " << sv << " beacon "<<hexstring <<" code "<<(int)payload[12]<<" params "<<payload[12] + 256*payload[13]<<endl; }
+        //        if (doDEBUG) { cerr<<humanTimeNow()<<" "<<humanTime(g_gnssutc.tv_sec)<<" SAR RLM type "<<type<<" from gal sv " << sv << " beacon "<<hexstring <<" code "<<(int)payload[12]<<" params "<<payload[12] + 256*payload[13]<<endl; }
 
       //      wk.emitLine(sv, "SAR "+hexstring);
       //      cout<<"SAR: sv = "<< (int)msg[2] <<" ";
@@ -1660,10 +1663,10 @@ int main(int argc, char** argv)
       if (doDEBUG) { cerr<<humanTimeNow()<<" Bad UBX checksum, skipping message"<<endl; }
     }
     catch(EofException& em) {
-      cerr<<"EOF, break"<<endl;
       break;
     }
   }
+  cerr<<"Done after reading "<<lseek(fd, 0, SEEK_CUR)<<" bytes, flushing buffers.."<<endl;
   if(!g_fromFile)
     tcsetattr(fd, TCSANOW, &g_oldtio);                                          
 }                                                                         
