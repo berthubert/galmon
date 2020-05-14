@@ -452,7 +452,13 @@ try
         ret["last-seen"]=utcFromGST(latestWN(2, svstats), latestTow(2, svstats));
       }
       catch(...)
-        {}
+        {
+           try {
+             ret["last-seen"]=utcFromGPS(latestWN(0, svstats), latestTow(0, svstats));        
+           }
+           catch(...)
+           {}
+        }
       
       ret["gst-utc-offset-ns"] = g_GSTUTCOffset;
       ret["gst-gps-offset-ns"] = g_GSTGPSOffset;
