@@ -164,6 +164,7 @@ int main(int argc, char** argv)
   signal(SIGPIPE, SIG_IGN);
   if(argc < 3) {
     cout<<"Syntax: navcat storage start stop"<<endl;
+    cout<<"Example: ./navcat storage \"2020-01-01 00:00\" \"2020-01-02 00:00\" | ./navdump  "<<endl;
     return(EXIT_FAILURE);
   }
   time_t startTime = parseTime(argv[2]);
