@@ -82,12 +82,18 @@ int main(int argc, char **argv)
     period = "time > '"+ beginarg +"' and time <= '" + endarg +"'";
     cout<<"Period: "<<period<<endl;
   }
+  cerr<<"InfluxDBName: "<<influxDBName<<endl;
 
-  string url="http://127.0.0.1:8086/query?db="+influxDBName+"&epoch=s&q=";
+
+  // auto res = mc.getURL(url + mc.urlEncode("select distinct(value) from sisa where "+period+" and sigid='"+to_string(sigid)+"' group by gnssid,sv,sigid,time(10m)"));
+
+
   
-  auto res = mc.getURL(url + mc.urlEncode("select distinct(value) from sisa where "+period+" and sigid='"+to_string(sigid)+"' group by gnssid,sv,sigid,time(10m)"));
+  string url="http://127.0.0.1:8086/query?db="+influxDBName+"&epoch=s&q=";
+  string query="select distinct(value) from sisa where "+period+" and sigid='"+to_string(sigid)+"' group by gnssid,sv,sigid,time(10m)";
 
-
+  cout<<"query: "<<query<<endl;
+  auto res = mc.getURL(url + mc.urlEncode(query));
 
   auto j = nlohmann::json::parse(res);
   //  cout<<j<<endl;

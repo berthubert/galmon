@@ -318,7 +318,13 @@ Tooling
    stdout or to a navrecv server. This is the equivalent of 'ubxtool'
    except for submitting RTCM messages. 
 
+Sample command lines
+--------------------
+Look at old data:
 
+```
+$ ./navcat storage "2020-01-01 00:00" "2020-01-02 00:00" | ./navdump  
+```
 
 Global coverage (via volunteers)
 --------------------------------
