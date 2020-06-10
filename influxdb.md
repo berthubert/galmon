@@ -65,6 +65,33 @@ band on which this data was received.
    * oldx,oldy,oldz: ECEF coordinates according to old ephemeris at new t0e
    * iod, oldiod: new and old IOD
 
+RTCM SSR corrections:
+
+These measurements are tagged by gnssid, sv
+
+  * rtcm-eph-correction:
+    * iod: iod this correction corresponds to
+    * radial: radial error (millimeters)
+    * along: error along track
+    * cross: error across track
+    * dradial: velocity error in millimeters/second
+    * dalong: along track velocity error
+    * dcross: across track velocity error
+    * ssr-iod
+    * ssr-provider
+    * ssr-solution
+    * total-dist
+    * tow
+    * udi
+  * rtcm-clock-correction
+    * dclock0
+    * dclock1
+    * dclock2
+    * ssr-iod
+    * ssr-provider
+    * tow
+    * udi
+
 Observer measurements:
 
  * fix

@@ -2201,7 +2201,8 @@ try
                        {"ssr-provider", rm.ssrProvider},
                        {"ssr-solution", rm.ssrSolution},
                        {"tow", rm.sow},
-                         {"udi", rm.udi}},
+                         {"udi", rm.udi},
+                           {"total-dist", sqrt(ed.radial*ed.radial + ed.along*ed.along + ed.cross*ed.cross)}},
             nmm.localutcseconds(),
             nmm.sourceid());
 
