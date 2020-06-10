@@ -14,6 +14,46 @@ using namespace std;
 
 extern const char* g_gitHash;
 
+class Stats
+{
+public:
+  void add(double v)
+  {
+    results.dirty=true;
+    results.d.push_back(v);
+  }
+  struct Results
+  {
+    vector<double> d;
+    bool dirty{false};
+    double median() const
+    {
+      return quantile(0.5);
+    }
+    double quantile(double p) const
+    {
+      unsigned int pos = p * d.size();
+      if(!d.size())
+        throw runtime_error("Empty range for quantile");
+      if(pos == d.size())
+        --pos;
+      return d[p*d.size()];
+    }
+
+  };
+  const Results& done()
+  {
+    if(results.dirty) {
+      sort(results.d.begin(), results.d.end());
+      results.dirty=false;
+    }
+    return results;
+  }
+
+private:
+  Results results;
+};
+
 /*
   Goal: generate statistics from influxdb.
 
@@ -40,6 +80,7 @@ struct IntervalStat
   std::optional<int> sisa;
   bool ripe{false};
   bool expired{false};
+  double rtcmDist{-1};
 };
 
 
@@ -145,14 +186,36 @@ int main(int argc, char **argv)
       }
     }
   }
+
+  /////////////////////
+
+  res = mc.getURL(url + mc.urlEncode("select mean(\"total-dist\") from \"rtcm-eph-correction\" where "+period+" and sigid='"+to_string(sigid)+"' group by gnssid,sv,sigid,time(10m)"));
+  j = nlohmann::json::parse(res);
+  for(const auto& sv : j["results"][0]["series"]) {
+    try {
+      const auto& tags=sv["tags"];
+      SatID id{(unsigned int)std::stoi((string)tags["gnssid"]), (unsigned int)std::stoi((string)tags["sv"]), (unsigned int)std::stoi((string)tags["sigid"])};
+      for(const auto& v : sv["values"]) {
+        
+        g_stats[id][(int)v[0]].rtcmDist = v[1];
+      }
+    }
+    catch(...) {
+      continue;
+    }
+  }
+
   
+  /////////////////////
+
+
   g_stats.erase({2,14,1});
   g_stats.erase({2,18,1});
   g_stats.erase({2,14,5});
   g_stats.erase({2,18,5});
-
+  /*
   g_stats[{2,19,1}];
-  
+  */
   unsigned int maxintervals=0;
   time_t start=time(0), stop=0;
   for(const auto& sv : g_stats) {
@@ -171,10 +234,19 @@ int main(int argc, char **argv)
   int totnapa=0, totunhealthy=0, tothealthy=0, tottesting=0;
   int totunobserved=0;
   int totripe = 0,  totexpired = 0;
+  Stats totRTCM;
   for(const auto& sv : g_stats) {
 
     int napa=0, unhealthy=0, healthy=0, testing=0, ripe=0, expired=0;
+
+    Stats rtcm;
     for(const auto& i : sv.second) {
+
+      if(i.second.rtcmDist >= 0) {
+        rtcm.add(i.second.rtcmDist);
+        totRTCM.add(i.second.rtcmDist);
+      }
+      
       if(i.second.ripe)
         ripe++;
       if(i.second.expired)
@@ -209,7 +281,7 @@ int main(int argc, char **argv)
     totexpired += expired;
     totunobserved += maxintervals-sv.second.size();
      
-    cout<<fmt::sprintf("E%02d: %6.2f%% unobserved, %6.2f%% unhealthy, %6.2f%% healthy, %6.2f%% testing, %6.2f%% napa, %6.2f%% ripe, %6.2f%% expired",
+    cout<<fmt::sprintf("E%02d: %6.2f%% unobserved, %6.2f%% unhealthy, %6.2f%% healthy, %6.2f%% testing, %6.2f%% napa, %6.2f%% ripe, %6.2f%% expired, %.1f - %.1f - %.1f cm",
                        sv.first.sv,
                        100.0*(maxintervals-sv.second.size())/maxintervals,
                        100.0*unhealthy/maxintervals,
@@ -217,18 +289,20 @@ int main(int argc, char **argv)
                        100.0*testing/maxintervals,
                        100.0*napa/maxintervals,
                        100.0*ripe/maxintervals,
-                       100.0*expired/maxintervals
+                       100.0*expired/maxintervals,
+                       rtcm.done().quantile(0.10)/10, rtcm.done().median()/10, rtcm.done().quantile(0.9)/10
                        )<<endl;
   }
   cout<<"------------------------------------------------------------------------------------------"<<endl;
-  cout<<fmt::sprintf("Tot: %6.2f%% unobserved, %6.2f%% unhealthy, %6.2f%% healthy, %6.2f%% testing, %6.2f%% napa, %6.2f%% ripe, %6.2f%% expired",
+  cout<<fmt::sprintf("Tot: %6.2f%% unobserved, %6.2f%% unhealthy, %6.2f%% healthy, %6.2f%% testing, %6.2f%% napa, %6.2f%% ripe, %6.2f%% expired, %.1f - %.1f - %.1f cm",
                      100.0*(totunobserved)/maxintervals/g_stats.size(),
                      100.0*totunhealthy/maxintervals/g_stats.size(),
                      100.0*tothealthy/maxintervals/g_stats.size(),
                      100.0*tottesting/maxintervals/g_stats.size(),
                      100.0*totnapa/maxintervals/g_stats.size(),
                      100.0*totripe/maxintervals/g_stats.size(),
-                     100.0*totexpired/maxintervals/g_stats.size()
+                     100.0*totexpired/maxintervals/g_stats.size(),
+                     totRTCM.done().quantile(0.10)/10, totRTCM.done().median()/10, totRTCM.done().quantile(0.9)/10
                      )<<endl;
 
 }
