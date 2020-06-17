@@ -259,6 +259,34 @@ void SVStat::reportNewEphemeris(const SatID& id, InfluxPusher& idb)
   else
     latestDisco= -1;
 
+  if(gnss==2) {
+    const auto& eg = ephgalmsg;
+
+    idb.addValue(id, "ephemeris-actual", {
+        {"iod", eg.getIOD()}}, satUTCTime(id));
+    
+    
+    idb.addValue(id, "ephemeris-actual", {
+        {"iod", eg.getIOD()}, 
+        {"t0e", eg.t0e},
+          {"sqrta", eg.sqrtA},
+            {"e", eg.e},
+              {"cuc", eg.cuc},
+                {"cus", eg.cus},
+                  {"crc", eg.crc},
+                    {"crs", eg.crs},
+                      {"m0", eg.m0},
+                        {"deltan", eg.deltan},
+                          {"i0", eg.i0},
+                            {"cic", eg.cic},
+                              {"cis", eg.cis},
+                                {"omegadot", eg.omegadot},
+                                  {"omega0", eg.omega0},
+                                    {"idot", eg.idot},
+                                      {"omega", eg.omega}}, satUTCTime(id));
+
+  }
+  
   if(hours < 24) {
     idb.addValue(id,  "eph-disco",
                  {{"meters", disco},
@@ -2110,10 +2138,10 @@ try
       if(frame == 1) {
         
         idb.addValue(id, "clock", {{"offset_ns", getGPSAtomicOffset(svstat.tow(), svstat.gpsmsg).first}, 
-              {"t0c", 16.0*gm.t0c},
-                {"af0", 8.0*gm.af0},
-                  {"af1", 8.0*gm.af1},
-                    {"af2", 16.0*gm.af2}}, satUTCTime(id)); 
+              {"t0c", 16*gm.t0c},
+                {"af0", 8*gm.af0},
+                  {"af1", 8*gm.af1},
+                    {"af2", 16*gm.af2}}, satUTCTime(id)); 
 
         //        cout<<"Got ura "<<gm.ura<<" for sv "<<id.first<<","<<id.second<<endl;
         idb.addValue(id, "gpsura", {{"value", gm.ura}}, satUTCTime(id));

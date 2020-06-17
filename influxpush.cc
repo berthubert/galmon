@@ -53,7 +53,7 @@ void InfluxPusher::addValueObserver(int src, string_view name, const initializer
 }
 
   
-void InfluxPusher::addValue(const SatID& id, string_view name, const initializer_list<pair<const char*, double>>& values, double t, std::optional<int> src, std::optional<string> tag)
+void InfluxPusher::addValue(const SatID& id, string_view name, const initializer_list<pair<const char*, var_t>>& values, double t, std::optional<int> src, std::optional<string> tag)
 {
   if(d_mute)
     return;
@@ -63,8 +63,9 @@ void InfluxPusher::addValue(const SatID& id, string_view name, const initializer
     return;
   }
   for(const auto& p : values) {
-    if(isnan(p.second))
-      return;
+    if(auto ptr = std::get_if<double>(&p.second))
+      if(isnan(*ptr))
+        return;
   }
 
   string buffer = string(name) +",gnssid="+to_string(id.gnss)+",sv=" +to_string(id.sv)+",sigid="+to_string(id.sigid);
@@ -78,7 +79,14 @@ void InfluxPusher::addValue(const SatID& id, string_view name, const initializer
       buffer +=",";
     }
     lefirst=false;
-    buffer += string(v.first) + "="+to_string(v.second);
+    buffer += string(v.first) + "=";
+
+    std::visit([&buffer](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+        buffer += to_string(arg);
+        if constexpr (!std::is_same_v<T, double>)
+                       buffer+="i";
+      }, v.second);
   }
   buffer += " " + to_string((uint64_t)(t*1000000000))+"\n";
   queueValue(buffer);
