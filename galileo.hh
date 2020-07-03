@@ -266,8 +266,8 @@ struct GalileoMessage : GPSLikeEphemeris
     sf3 = getbitu(&page[0], 44, 1);
     sf4 = getbitu(&page[0], 45, 1);
     sf5 = getbitu(&page[0], 46, 1);
-    BGDE1E5a = getbits(&page[0], 47, 10);
-    BGDE1E5b = getbits(&page[0], 57, 10);
+    BGDE1E5a = getbits(&page[0], 47, 10); // 2^-32 s
+    BGDE1E5b = getbits(&page[0], 57, 10); // 2^-32 s
     
     e5bhs = getbitu(&page[0], 67, 2);
     e1bhs = getbitu(&page[0], 69, 2);
