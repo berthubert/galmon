@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
+#include <iostream>
 using namespace std;
 
 
@@ -82,8 +83,22 @@ bool getNMM(FILE* fp, NavMonMessage& nmm, uint32_t& offset)
 bool getRawNMM(int fd, timespec& t, string& raw, uint32_t& offset)
 {
   char bert[4];
-  if(read(fd, bert, 4) != 4 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
-    return false;
+  int res;
+  if((res=read(fd, bert, 4)) != 4 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
+    if(res != 4)
+      return false;
+
+    for(int s=0;; ++s ) {
+      cerr<<"Skipping character hunting for good magic.. "<<s<<endl;
+      bert[0] = bert[1];
+      bert[1] = bert[2];
+      bert[2] = bert[3];
+      res = read(fd, bert + 3, 1);
+      if(res != 1)
+        return false;
+      if(bert[0]=='b' && bert[1]=='e' && bert[2] =='r' && bert[3]=='t')
+        break;
+    }
   }
     
     
@@ -109,8 +124,26 @@ bool getRawNMM(int fd, timespec& t, string& raw, uint32_t& offset)
 bool getRawNMM(FILE* fp, timespec& t, string& raw, uint32_t& offset)
 {
   char bert[4];
-  if(fread(bert, 1, 4, fp) != 4 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
-    return false;
+  int res;
+  if((res=fread(bert, 1, 4, fp)) != 4 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
+    if(res != 4) {
+      //      cerr<<"EOF"<<endl;
+      return false;
+    }
+
+    for(int s=0;; ++s ) {
+      cerr<<"Skipping character hunting for good magic.. "<<s<<endl;
+      bert[0] = bert[1];
+      bert[1] = bert[2];
+      bert[2] = bert[3];
+      res = fread(bert+3, 1,1, fp);
+      if(res != 1)
+        return false;
+      if(bert[0]=='b' && bert[1]=='e' && bert[2] =='r' && bert[3]=='t') {
+        cerr<<"Resync!"<<endl;
+        break;
+      }
+    }
   }
     
   uint16_t len;
