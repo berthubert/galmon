@@ -18,11 +18,12 @@ int main(int argc, char **argv)
 {
   string influxDBName("galileo2");
   bool doVERSION=false;
-  int sigid=1;
+
   CLI::App app(program);
   vector<string> fnames;
+  string sp3src("default");
   app.add_flag("--version", doVERSION, "show program version and copyright");
-  app.add_option("--sigid,-s", sigid, "Signal identifier. 1 or 5 for Galileo.");
+  app.add_option("--sp3src,-s", sp3src, "Identifier of SP3 source");
   app.add_option("--influxdb", influxDBName, "Name of influxdb database");
   app.add_option("files", fnames, "filenames to parse");
   try {
@@ -40,14 +41,10 @@ int main(int argc, char **argv)
   for(const auto& fn : fnames) {
     SP3Reader sp3(fn);
     SP3Entry e;
-    SatID sid;
     cout<<fn<<endl;
     while(sp3.get(e)) {
-      sid.gnss = e.gnss;
-      sid.sigid = sigid;
-      sid.sv = e.sv;
       // XXX LEAP SECOND ADJUSTMENT FIXED AT 18 SECONDS
-      idb.addValue(sid, "sp3", {{"x", e.x}, {"y", e.y}, {"z", e.z}, {"clock-bias", e.clockBias}}, e.t + 18);
+      idb.addValue({{"gnssid", e.gnss}, {"sv", e.sv}, {"sp3src", sp3src}}, "sp3", {{"x", e.x}, {"y", e.y}, {"z", e.z}, {"clock-bias", e.clockBias}}, e.t + 18);
     }
   }
 }
