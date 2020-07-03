@@ -68,8 +68,23 @@ static int getBaudrate(int baud)
     throw std::runtime_error("Unknown baudrate "+to_string(baud));
 }
 
-static int g_baudval;
+static int getBaudrateFromSymbol(int baud)
+{
+  if(baud==B115200)
+    return 115200;
+  else if(baud==B57600)
+    return 57600;
+  else if(baud==B38400)
+    return 38400;
+  else if(baud==B19200)
+    return 19200;
+  else if(baud==B9600)
+    return 9600;
+  else
+    throw std::runtime_error("Unknown baudrate symbol "+to_string(baud));
+}
 
+static int g_baudval;
 
 /* inav schedule:
 1) Find plausible start time of next cycle
@@ -348,6 +363,48 @@ void readSome(int fd)
 
 struct termios g_oldtio;
 
+int getCurrentBaudrate(int fd)
+{
+  struct termios tio;
+  if(tcgetattr(fd, &tio)) { /* save current port settings */
+    perror("tcgetattr");
+    exit(-1);
+  }
+  return cfgetospeed(&tio);
+
+}
+
+void doTermios(int fd, bool doRTSCTS)
+{
+  struct termios newtio;
+  if(tcgetattr(fd, &g_oldtio)) { /* save current port settings */
+    perror("tcgetattr");
+    exit(-1);
+  }
+
+  bzero(&newtio, sizeof(newtio));                                         
+  newtio.c_cflag = CS8 | CLOCAL | CREAD;             
+  if (doRTSCTS) {
+    if(doDEBUG) { cerr<<humanTimeNow()<<" will enable RTSCTS"<<endl; }
+    newtio.c_cflag |= CRTSCTS;
+  }
+  newtio.c_iflag = IGNPAR;                                                
+  newtio.c_oflag = 0;                                                     
+  
+  /* set input mode (non-canonical, no echo,...) */                       
+  newtio.c_lflag = 0;                                                     
+    
+  newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */         
+  newtio.c_cc[VMIN]     = 4;   /* blocking read until 5 chars received */ 
+  
+  cfsetspeed(&newtio, g_baudval);
+  if(tcsetattr(fd, TCSANOW, &newtio)) {
+    perror("tcsetattr");
+    exit(-1);
+  }
+  if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - tty set"<<endl; }
+}
+
 int initFD(const char* fname, bool doRTSCTS)
 {
   int fd;
@@ -360,37 +417,14 @@ int initFD(const char* fname, bool doRTSCTS)
     if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - open("<<fname<<")"<<endl; }
     fd = open(fname, O_RDWR | O_NOCTTY );
     if (fd <0 ) {
-      throw runtime_error("Opening file "+string(fname));
+      throw runtime_error("Opening file "+string(fname)+": "+strerror(errno));
     }
     if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - open successful"<<endl; }
 
-    struct termios newtio;
-    if(tcgetattr(fd, &g_oldtio)) { /* save current port settings */
-      perror("tcgetattr");
-      exit(-1);
-    }
+    if(!g_baudval)
+      g_baudval = getCurrentBaudrate(fd);
 
-    bzero(&newtio, sizeof(newtio));                                         
-    newtio.c_cflag = CS8 | CLOCAL | CREAD;             
-    if (doRTSCTS) {
-      if(doDEBUG) { cerr<<humanTimeNow()<<" will enable RTSCTS"<<endl; }
-      newtio.c_cflag |= CRTSCTS;
-    }
-    newtio.c_iflag = IGNPAR;                                                
-    newtio.c_oflag = 0;                                                     
-    
-    /* set input mode (non-canonical, no echo,...) */                       
-    newtio.c_lflag = 0;                                                     
-    
-    newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */         
-    newtio.c_cc[VMIN]     = 4;   /* blocking read until 5 chars received */ 
-    
-    cfsetspeed(&newtio, g_baudval);
-    if(tcsetattr(fd, TCSANOW, &newtio)) {
-      perror("tcsetattr");
-      exit(-1);
-    }
-    if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - tty set"<<endl; }
+    doTermios(fd, doRTSCTS);
   }
   else {
     g_fromFile = true;
@@ -432,7 +466,8 @@ int main(int argc, char** argv)
   vector<string> destinations;
   string portName;
   int ubxport=3;
-  int baudrate=115200;
+  int baudrate=0;
+  int newbaudrate=0;
   unsigned int fuzzPositionMeters=0;
   string owner;
   string remark;
@@ -452,6 +487,7 @@ int main(int argc, char** argv)
   app.add_option("--station", g_srcid, "Station id");
   app.add_option("--ubxport,-u", ubxport, "UBX port to enable messages on (usb=3)");
   app.add_option("--baud,-b", baudrate, "Baudrate for serial connection");
+  app.add_option("--newbaud,-n", newbaudrate, "Attempt to change to this baudrate for serial connection");  
   app.add_flag("--keep-nmea,-k", doKeepNMEA, "Don't disable NMEA");
   app.add_flag("--fake-fix", doFakeFix, "Inject locally generated fake fix data");
   app.add_option("--fuzz-position,-f", fuzzPositionMeters, "Fuzz position by this many meters");
@@ -483,7 +519,8 @@ int main(int argc, char** argv)
     exit(1);
   }
 
-  g_baudval = getBaudrate(baudrate);
+  if(baudrate)
+    g_baudval = getBaudrate(baudrate);
 
   if(!(doGPS || doGalileo || doGlonass || doBeidou)) {
     cerr<<"Enable at least one of --gps, --galileo, --glonass, --beidou"<<endl;
@@ -505,7 +542,8 @@ int main(int argc, char** argv)
     ns.addDestination(1);
   
   int fd = initFD(portName.c_str(), doRTSCTS);
-  
+  if(!baudrate)
+    baudrate = getBaudrateFromSymbol(g_baudval);
 
   if(doFakeFix) // hack
     version9 = true;
@@ -770,32 +808,52 @@ int main(int argc, char** argv)
         }
       }
       
-       
-      if(!doKeepNMEA) {
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Disabling NMEA"<<endl; }
+
+      if(!doKeepNMEA || (newbaudrate && newbaudrate != baudrate)) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Changing port settings (newbaudrate="<<newbaudrate<<", baudrate="<<baudrate<<", keepNMEA="<<doKeepNMEA<<")"<<endl; }
         
+        uint8_t outproto = 0x01;
+        if(doKeepNMEA)
+          outproto += 0x02;
+          
         if(ubxport == 1 || ubxport == 2) {
           /* Ublox UART[1] or UART2 port, so encode baudrate and serial settings */
+          int actbaud = newbaudrate ? newbaudrate : baudrate;
           msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,
             0xC0 /* 8 bit */,
             0x08 /* No parity */,
             0x00,0x00,
-            (unsigned char)((baudrate) & 0xFF),
-            (unsigned char)((baudrate>>8) & 0xFF),
-            (unsigned char)((baudrate>>16) & 0xFF),
-            (unsigned char)((baudrate>>24) & 0xFF),
-            0x03,0x00,0x01,0x00,
+            (unsigned char)((actbaud) & 0xFF),
+            (unsigned char)((actbaud>>8) & 0xFF),
+            (unsigned char)((actbaud>>16) & 0xFF),
+            (unsigned char)((actbaud>>24) & 0xFF),
+            // in in   out      out      // 0x01 = ublox, 0x02 = nmea
+            0x03,0x00,outproto,0x00,
+            // flags   res  res
             0x00,0x00,0x00,0x00
           });
         }
-        else {
-          msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x01,0x00,0x00,0x00,0x00,0x00});
+        else {                              //   port                 res   tx-ready  res  res  res  res  res  res  res res   in   in     out  out  res   res  res res 
+          msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,outproto,0x00,0x00,0x00,0x00,0x00});
         }
-        if(sendAndWaitForUBXAckNack(fd, 10, msg, 0x06, 0x00)) { // disable NMEA
-          if (doDEBUG) { cerr<<humanTimeNow()<<" NMEA disabled"<<endl; }
+
+        if(newbaudrate && newbaudrate != baudrate) {
+          for(int n=0; n < 3; ++n) {
+            cerr<<humanTimeNow()<<" Sending new baudrate "<<n<<".. "<<endl;
+            writen2(fd, &msg[0], msg.size());
+            // there won't be an ack
+            usleep(100000);
+          }
+          g_baudval = getBaudrate(newbaudrate);
+          doTermios(fd, false);          
         }
         else {
-          if (doDEBUG) { cerr<<humanTimeNow()<<" Got NACK disabling NMEA"<<endl; }
+          if(sendAndWaitForUBXAckNack(fd, 10, msg, 0x06, 0x00)) { // disable NMEA
+            if (doDEBUG) { cerr<<humanTimeNow()<<" ACK for new port/protocol settings"<<endl; }
+          }
+          else {
+            if (doDEBUG) { cerr<<humanTimeNow()<<" Got NACK for port/protocol settings"<<endl; }
+          }
         }
       }
       if (doDEBUG) { cerr<<humanTimeNow()<<" Polling port settings"<<endl; } // UBX-CFG-PRT, 0x03 == USB
