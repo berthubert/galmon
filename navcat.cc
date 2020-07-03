@@ -86,7 +86,9 @@ void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
   // so we have a ton of files, and internally these are not ordered
   map<string,uint32_t> fpos;
   vector<pair<timespec,string> > rnmms;
+
   for(;;) {
+    cerr<<"Gathering data"<<endl;
     auto srcs = getSources(dir);
     rnmms.clear();
     for(const auto& src: srcs) {
@@ -100,7 +102,7 @@ void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
         fclose(fp);
         continue;
       }
-      cerr <<"Seeked to position "<<fpos[fname]<<" of "<<fname<<endl;
+      //      cerr <<"Seeked to position "<<fpos[fname]<<" of "<<fname<<endl;
 
       uint32_t looked=0;
       string msg;
@@ -112,17 +114,18 @@ void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
         }
         ++looked;
       }
-      cerr<<"Harvested "<<rnmms.size()<<" events out of "<<looked<<endl;
+      //      cerr<<"Harvested "<<rnmms.size()<<" events out of "<<looked<<endl;
       fpos[fname]=offset;
       fclose(fp);
     }
 
+    cerr<<"Sorting data"<<endl;
     sort(rnmms.begin(), rnmms.end(), [](const auto& a, const auto& b)
          {
            return std::tie(a.first.tv_sec, a.first.tv_nsec)
                 < std::tie(b.first.tv_sec, b.first.tv_nsec);
          });
-
+    cerr<<"Sending data"<<endl;
     for(const auto& nmm: rnmms) {
       if(nmm.first.tv_sec > stopTime)
         break;
@@ -133,6 +136,7 @@ void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
       //fwrite(buf.c_str(), 1, buf.size(), stdout);
       writen2(1, buf.c_str(), buf.size());
     }
+    cerr<<"Done sending"<<endl;
     if(3600 + start.tv_sec - (start.tv_sec%3600) < stopTime)
       start.tv_sec = 3600 + start.tv_sec - (start.tv_sec%3600);
     else {
