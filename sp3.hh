@@ -8,8 +8,8 @@ struct SP3Entry
   int gnss;
   int sv;
   time_t t;
-  double x, y, z;
-  double clockBias;
+  double x, y, z; // meters
+  double clockBias; // nanoseconds
 };
 
 class SP3Reader
