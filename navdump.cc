@@ -1159,6 +1159,18 @@ try
       }
       cout<<endl;
     }
+    else if(nmm.type() == NavMonMessage::SARResponseType) {    
+      etstamp();
+
+      string hexstring;
+      string id = nmm.sr().identifier();
+      for(int n = 0; n < 15; ++n)
+        hexstring+=fmt::sprintf("%x", (int)getbitu((unsigned char*)id.c_str(), 4 + 4*n, 4));
+
+      
+      cout<<" SAR RLM type "<< nmm.sr().type() <<" from gal sv ";
+      cout<< nmm.sr().gnsssv() << " beacon "<<hexstring <<" code "<<(int)nmm.sr().code()<<" params "<< makeHexDump(nmm.sr().params()) <<endl;
+    }
     else {
       etstamp();
       cout<<"Unknown type "<< (int)nmm.type()<<endl;
