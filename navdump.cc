@@ -669,17 +669,32 @@ try
       etstamp();
       RTCMMessage rm;
       rm.parse(nmm.rm().contents());
+      cout<<" rtcm-msg "<<rm.type<<" ";
       if(rm.type == 1057 || rm.type == 1240) {
+        cout<<"iod-ssr "<<rm.ssrIOD<<" ";
         for(const auto& ed : rm.d_ephs) {
-          cout<<makeSatPartialName(ed.id)<<":  iode "<< ed.iod<<" ("<< ed.radial<<", "<<ed.along<<", "<<ed.cross<<") mm -> (";
+          cout<<makeSatIDName(ed.id)<<":  iode "<< ed.iod<<" ("<< ed.radial<<", "<<ed.along<<", "<<ed.cross<<") mm -> (";
           cout<< ed.dradial<<", "<<ed.dalong<<", "<<ed.dcross<< ") mm/s\n";
         }
       }
       else if(rm.type == 1058 || rm.type == 1241) {
+        cout<<"iod-ssr "<<rm.ssrIOD<<" ";
         for(const auto& cd : rm.d_clocks) {
-          cout<<makeSatPartialName(cd.id)<<":  dclock0 "<< cd.dclock0 <<" dclock1 " << cd.dclock1 <<" dclock2 "<< cd.dclock2 << endl;
+          cout<<makeSatIDName(cd.id)<<":  dclock0 "<< cd.dclock0 <<" dclock1 " << cd.dclock1 <<" dclock2 "<< cd.dclock2 << endl;
         }
       }
+      else if (rm.type == 1060 || rm.type == 1243) {
+        for(const auto& ed : rm.d_ephs) {
+          cout<<makeSatIDName(ed.id)<<":  iode "<< ed.iod<<" ("<< ed.radial<<", "<<ed.along<<", "<<ed.cross<<") mm -> (";
+          cout<< ed.dradial<<", "<<ed.dalong<<", "<<ed.dcross<< ") mm/s\n";
+        }
+
+        for(const auto& cd : rm.d_clocks) {
+          cout<<makeSatIDName(cd.id)<<":  dclock0 "<< cd.dclock0 <<" dclock1 " << cd.dclock1 <<" dclock2 "<< cd.dclock2 << endl;
+        }
+      }
+      else
+        cout<<endl;
 
     }
     else if(nmm.type() == NavMonMessage::GPSCnavType) {
