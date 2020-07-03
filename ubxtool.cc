@@ -1564,8 +1564,6 @@ int main(int argc, char** argv)
         }
       }
       else if(msg.getClass() == 0x02 && msg.getType() == 0x59) { // UBX-RXM-RLM
-        int type = (int)payload[1];      
-        int sv = (int)payload[2];
 
         NavMonMessage nmm;
         nmm.set_sourceid(g_srcid);
@@ -1573,34 +1571,29 @@ int main(int argc, char** argv)
         nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
         
         nmm.set_type(NavMonMessage::SARResponseType);
+
+        // short version:
+        //   0         1   2    3      4   -  11    12     13,14 15
+        // version, type, sv, reserved beacon id  msg-code param res2
+
+        // long version:
+        //   0         1   2    3      4   -  11    12     13-24  25
+        // version, type, sv, reserved beacon id  msg-code params res2
+        
         nmm.mutable_sr()->set_gnssid(2); // Galileo only for now
-        nmm.mutable_sr()->set_gnsssv(sv);
-        nmm.mutable_sr()->set_sigid(0); // we should fill this in later
+        nmm.mutable_sr()->set_gnsssv(payload[2]);
+        nmm.mutable_sr()->set_sigid(1); // 
         nmm.mutable_sr()->set_type(payload[1]);
         nmm.mutable_sr()->set_identifier(string((char*)payload.c_str()+4, 8));
         nmm.mutable_sr()->set_code(payload[12]);
         nmm.mutable_sr()->set_params(string((char*)payload.c_str()+13, payload.size()-14));
+
         
         string hexstring;
-        for(int n = 0; n < 15; ++n)
+        for(int n = 0; n < 15; ++n)                                   
           hexstring+=fmt::sprintf("%x", (int)getbitu(payload.c_str(), 36 + 4*n, 4));
 
-        //        if (doDEBUG) { cerr<<humanTimeNow()<<" "<<humanTime(g_gnssutc.tv_sec)<<" SAR RLM type "<<type<<" from gal sv " << sv << " beacon "<<hexstring <<" code "<<(int)payload[12]<<" params "<<payload[12] + 256*payload[13]<<endl; }
-
-      //      wk.emitLine(sv, "SAR "+hexstring);
-      //      cout<<"SAR: sv = "<< (int)msg[2] <<" ";
-      //      for(int n=4; n < 12; ++n)
-      //        fmt::printf("%02x", (int)msg[n]);
-
-      //      for(int n = 0; n < 15; ++n)
-      //        fmt::printf("%x", (int)getbitu(msg.c_str(), 36 + 4*n, 4));
-      
-      //      cout << " Type: "<< (int) msg[12] <<"\n";
-      //      cout<<"Parameter: (len = "<<msg.length()<<") ";
-      //      for(unsigned int n = 13; n < msg.length(); ++n)
-      //        fmt::printf("%02x ", (int)msg[n]);
-      //      cout<<"\n";
-
+        ns.emitNMM(nmm);
       }
       else if(msg.getClass()==39 && msg.getType()==0) {
         NavMonMessage nmm;
