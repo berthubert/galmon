@@ -259,6 +259,39 @@ void SVStat::reportNewEphemeris(const SatID& id, InfluxPusher& idb)
   else
     latestDisco= -1;
 
+  if(gnss==0) { // GPS
+    const auto& eg = ephgpsmsg;
+
+    idb.addValue(id, "ephemeris-actual", {
+        {"iod", eg.getIOD()}}, satUTCTime(id));
+    
+    
+    idb.addValue(id, "ephemeris-actual", {
+        {"iod", eg.getIOD()}, 
+        {"t0e", eg.t0e},
+          {"sqrta", eg.sqrtA},
+            {"e", eg.e},
+              {"cuc", eg.cuc},
+                {"cus", eg.cus},
+                  {"crc", eg.crc},
+                    {"crs", eg.crs},
+                      {"m0", eg.m0},
+                        {"deltan", eg.deltan},
+                          {"i0", eg.i0},
+                            {"cic", eg.cic},
+                              {"cis", eg.cis},
+                                {"omegadot", eg.omegadot},
+                                  {"omega0", eg.omega0},
+                                    {"idot", eg.idot},
+                                      {"af0", eg.af0},
+                                        {"af1", eg.af1},
+                                          {"af2", eg.af2},
+                                            {"t0c", eg.t0c},
+                                      {"omega", eg.omega}}, satUTCTime(id));
+
+  }
+
+  
   if(gnss==2) {
     const auto& eg = ephgalmsg;
 
@@ -283,6 +316,10 @@ void SVStat::reportNewEphemeris(const SatID& id, InfluxPusher& idb)
                                 {"omegadot", eg.omegadot},
                                   {"omega0", eg.omega0},
                                     {"idot", eg.idot},
+                                      {"af0", eg.af0},
+                                        {"af1", eg.af1},
+                                          {"af2", eg.af2},
+                                            {"t0c", eg.t0c},
                                       {"omega", eg.omega}}, satUTCTime(id));
 
   }
@@ -2513,6 +2550,24 @@ try
           g_svstats[c.first].sbas[nmm.sbm().gnsssv()].longterm = c.second; 
         }
       }
+    }
+    else if(nmm.type() == NavMonMessage::SARResponseType) {
+      SatID id;
+      id.gnss = 2;
+      id.sv = nmm.sr().gnsssv();
+      id.sigid = nmm.sr().sigid();
+      string hexid = nmm.sr().identifier();
+      string hexstring;
+      for(int n = 0; n < 15; ++n)                                   
+        hexstring+=fmt::sprintf("%x", (int)getbitu((unsigned char*)hexid.c_str(), 4 + 4*n, 4));
+
+
+      
+      idb.addValue(id, "galsar", {{"mtype", (int) nmm.sr().type()},
+            {"midentifier", hexstring},
+              {"mcode", nmm.sr().code()},
+                {"mparams", makeHexDump(nmm.sr().params())}}, satUTCTime(id), nmm.sourceid());
+
     }
     else {
       cout<<"Unknown type "<< (int)nmm.type()<<endl;
