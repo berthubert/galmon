@@ -310,7 +310,23 @@ try
     
     // I am so sorry
     if(bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
-      cerr<<"Bad magic"<<endl;
+      cerr<<"Bad magic: "<<makeHexDump(string(bert, 4))<<endl;
+      int res;
+      for(int s=0;;++s) {
+        cerr<<"Skipping character hunting for good magic.. "<<s<<endl;
+        bert[0] = bert[1];
+        bert[1] = bert[2];
+        bert[2] = bert[3];
+        res = readn2(0, bert + 3, 1);
+        if(res != 1)
+          break;
+        if(bert[0]=='b' && bert[1]=='e' && bert[2] =='r' && bert[3]=='t')
+          break;
+      }
+      if(res != 1) {
+        cerr<<"EOF2, res = "<<res<<endl;
+        break;
+      }
     }
     
     uint16_t len;
