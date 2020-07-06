@@ -874,9 +874,11 @@ int main(int argc, char** argv)
         cerr<<"Got timeout waiting for ack of port protocol poll, no problem"<<endl;
       }
 
-      
-      if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RLM"<<endl; } // SAR
-      enableUBXMessageOnPort(fd, 0x02, 0x59, ubxport); // UBX-RXM-RLM
+
+      if(mods.find("NEO-M8P") ==string::npos) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RLM"<<endl; } // SAR
+        enableUBXMessageOnPort(fd, 0x02, 0x59, ubxport); // UBX-RXM-RLM
+      }
 
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-MON-HW"<<endl; } // SAR
       enableUBXMessageOnPort(fd, 0x0A, 0x09, ubxport, 16); // UBX-MON-HW
