@@ -2064,7 +2064,8 @@ try
           idb.addValue(id, "gpsoffset", {{"a0g", g_svstats[id].galmsg.a0g},
                 {"a1g", g_svstats[id].galmsg.a1g},
                   {"t0g", g_svstats[id].galmsg.t0g},
-                    {"delta", g_GSTGPSOffset}
+                    {"wn0g", g_svstats[id].galmsg.wn0g},
+                      {"delta", g_GSTGPSOffset}
             }, satUTCTime(id));
           
         }
