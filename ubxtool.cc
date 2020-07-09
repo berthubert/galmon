@@ -1825,6 +1825,29 @@ int main(int argc, char** argv)
         nmm.mutable_ujs()->set_jamind(mhw.jamInd);
         ns.emitNMM(nmm);
       }
+      else if(msg.getClass() == 0x01 && msg.getType() == 0x25) { // UBX-NAV-TIMEGAL
+        memcpy(&tstate.gal, &payload[0], sizeof(TIMEGAL));
+        //        cerr << "TIMEGAL itow: "<<tstate.gal.itow<<", fGalTow: "<<tstate.gal.fGalTow<<", tAcc: "<<tstate.gal.tAcc<< ", valid: "<< !!tstate.gal.valid<< endl;
+        tstate.transmitIfComplete(ns);
+      }
+      else
+      if(msg.getClass() == 0x01 && msg.getType() == 0x24) { // UBX-NAV-TIMEBDS
+        memcpy(&tstate.bds, &payload[0], sizeof(TIMEBDS));
+        //        cerr << "TIMEBDS itow: "<<tstate.bds.itow<<", fSow: "<<tstate.bds.fSow<<", tAcc: "<<tstate.bds.tAcc<< ", valid: "<< !!tstate.bds.valid  << endl;
+        tstate.transmitIfComplete(ns);
+      }
+      else
+      if(msg.getClass() == 0x01 && msg.getType() == 0x23) { // UBX-NAV-TIMEGLO
+        memcpy(&tstate.glo, &payload[0], sizeof(TIMEGLO));
+        //        cerr << "TIMEGLO itow: "<<tstate.glo.itow<<", fTod: "<<tstate.glo.fTod<<", tAcc: "<<tstate.glo.tAcc<< ", valid: "<<!!tstate.glo.valid<<endl;
+        tstate.transmitIfComplete(ns);
+      }
+      else
+      if(msg.getClass() == 0x01 && msg.getType() == 0x20) { // UBX-NAV-TIMEGPS
+        memcpy(&tstate.gps, &payload[0], sizeof(TIMEGPS));
+        //        cerr << "TIMEGPS itow: "<<tstate.gps.itow<<", ftow: "<<tstate.gps.ftow<<", tAcc: "<<tstate.gps.tAcc<< ", valid: "<< !!tstate.gps.valid<<endl;
+        tstate.transmitIfComplete(ns);
+      }
       else 
         if (doDEBUG) { cerr<<humanTimeNow()<<" Unknown UBX message of class "<<(int) msg.getClass() <<" and type "<< (int) msg.getType()<< " of "<<payload.size()<<" bytes"<<endl; }
 
