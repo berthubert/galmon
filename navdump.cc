@@ -1171,6 +1171,15 @@ try
       cout<<" SAR RLM type "<< nmm.sr().type() <<" from gal sv ";
       cout<< nmm.sr().gnsssv() << " beacon "<<hexstring <<" code "<<(int)nmm.sr().code()<<" params "<< makeHexDump(nmm.sr().params()) <<endl;
     }
+    else if(nmm.type() == NavMonMessage::TimeOffsetType) {
+      etstamp();
+      cout<<" got a time-offset message with "<< nmm.to().offsets().size()<<" offsets: ";
+      for(const auto& o : nmm.to().offsets()) {
+        cout << "gnssid "<<o.gnssid()<<" offset " << o.offsetns() << " +- "<<o.tacc()<<" ("<<o.valid()<<") , ";
+      }
+      cout<<endl;
+            
+    }
     else {
       etstamp();
       cout<<"Unknown type "<< (int)nmm.type()<<endl;

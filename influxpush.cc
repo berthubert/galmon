@@ -40,6 +40,8 @@ void InfluxPusher::addValueObserver(int src, string_view name, const initializer
   buffer+= " ";
   bool lefirst=true;
   for(const auto& v : values) {
+    if(!v.first) // trick to null out certain fields
+      continue;
     d_numvalues++;
     if(!lefirst) {
       buffer +=",";
@@ -102,6 +104,9 @@ void InfluxPusher::addValue(const vector<pair<string,var_t>>& tags, string_view 
   buffer+= " ";
   bool lefirst=true;
   for(const auto& v : values) {
+    if(!v.first) // trick to null out certain fields
+      continue;
+
     d_numvalues++;
     if(!lefirst) {
       buffer +=",";

@@ -2797,13 +2797,52 @@ try
       for(int n = 0; n < 15; ++n)                                   
         hexstring+=fmt::sprintf("%x", (int)getbitu((unsigned char*)hexid.c_str(), 4 + 4*n, 4));
 
-
-      
       idb.addValue(id, "galsar", {{"mtype", (int) nmm.sr().type()},
             {"midentifier", hexstring},
               {"mcode", nmm.sr().code()},
                 {"mparams", makeHexDump(nmm.sr().params())}}, satUTCTime(id), nmm.sourceid());
 
+    }
+    else if(nmm.type() == NavMonMessage::TimeOffsetType) {
+      struct gnsstimeoffset
+      {
+        double offset{0};
+        double accuracy{-1}; // this is how we detect 'unset'
+      } gps, gal, glo, bds;
+      for(const auto& o : nmm.to().offsets()) {
+        if(o.gnssid() == 0) {
+          gps.offset = o.offsetns();
+          gps.accuracy = o.tacc();
+        } else if(o.gnssid() == 2) {
+          gal.offset = o.offsetns();
+          gal.accuracy = o.tacc();
+        } else if(o.gnssid() == 3) {
+          bds.offset = o.offsetns();
+          bds.accuracy = o.tacc();
+        } else if(o.gnssid() == 6) {
+          glo.offset = o.offsetns();
+          glo.accuracy = o.tacc();
+        }
+      }
+      idb.addValueObserver(nmm.sourceid(), "timeoffset",
+      {{"itow", nmm.to().itow()},
+          {gps.accuracy >= 0 ? "gps-offset" : nullptr, gps.offset},
+          {gal.accuracy >= 0 ? "gal-offset" : nullptr, gal.offset},
+          {glo.accuracy >= 0 ? "glo-offset": nullptr, glo.offset},
+          {bds.accuracy >= 0 ? "bds-offset": nullptr, bds.offset},
+
+          {"gps-tacc", gps.accuracy},
+          {"gal-tacc", gal.accuracy},
+          {"glo-tacc", glo.accuracy},
+          {"bds-tacc", bds.accuracy},
+            
+          {(gal.accuracy >= 0 && gps.accuracy >=0) ? "gal-gps-offset" : nullptr, gal.offset - gps.offset},
+          {(gal.accuracy >= 0 && bds.accuracy >=0) ? "gal-bds-offset" : nullptr, gal.offset - bds.offset},
+          {(gal.accuracy >= 0 && glo.accuracy >=0) ? "gal-glo-offset" : nullptr, gal.offset - glo.offset},
+          {(gps.accuracy >= 0 && bds.accuracy >=0) ? "gps-bds-offset" : nullptr, gps.offset - bds.offset},
+          {(gps.accuracy >= 0 && glo.accuracy >=0) ? "gps-glo-offset" : nullptr, gps.offset - glo.offset},
+          {(bds.accuracy >= 0 && glo.accuracy >=0) ? "bds-glo-offset" : nullptr, bds.offset - glo.offset}},
+                           nmm.localutcseconds());
     }
     else {
       cout<<"Unknown type "<< (int)nmm.type()<<endl;
