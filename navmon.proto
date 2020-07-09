@@ -17,6 +17,7 @@ message NavMonMessage {
     SBASMessageType = 13;
     GPSCnavType = 14;
     RTCMMessageType = 15;
+    TimeOffsetType = 16;
   }
 
   required uint64 sourceID = 1;
@@ -172,10 +173,32 @@ message NavMonMessage {
         required uint32 sigid = 6;
   }
 
+
   message RTCMMessage {
 	required bytes contents =5;
   }
 
+  message GNSSOffset
+  {
+        required uint32 gnssid = 1;
+
+        required int32 offsetNS = 2;
+        required uint32 tAcc = 3;
+        required bool valid = 4;
+        optional int32 leapS = 5;
+        required uint32 tow = 6;
+        optional uint32 wn = 7;
+        optional uint32 nT = 8;
+        optional uint32 n4 = 9;
+
+  }
+  
+
+  message TimeOffsetMessage
+  {
+       required uint32 itow = 1;
+       repeated GNSSOffset offsets = 2;
+  }
 
 
   optional GalileoInav gi=5;
@@ -192,5 +215,6 @@ message NavMonMessage {
   optional UbloxJammingStats ujs = 16;
   optional SBASMessage sbm = 17;
   optional GPSCnav gpsc = 18;
-  optional RTCMMessage rm = 19;   
+  optional RTCMMessage rm = 19;
+  optional TimeOffsetMessage to = 20;
 }

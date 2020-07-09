@@ -446,6 +446,53 @@ static string format_serial(basic_string<uint8_t> payload)
                             payload[8]);
 }
 
+// these are four structs to capture Ublox F9P time offset stats
+namespace {
+struct TIMEGAL
+{
+  uint32_t itow;
+  uint32_t galTow;
+  int32_t fGalTow;
+  int16_t galWno;
+  int8_t leapS;
+  uint8_t valid;
+  uint32_t tAcc;          
+} __attribute__((packed));
+
+struct TIMEBDS
+{
+  uint32_t itow;
+  uint32_t sow;
+  int32_t fSow;
+  int16_t week;
+  int8_t leapS;
+  uint8_t valid;
+  uint32_t tAcc;          
+} __attribute__((packed));
+
+struct TIMEGLO
+{
+  uint32_t itow;
+  uint32_t tod;
+  int32_t fTod;
+  uint16_t nT;
+  uint8_t n4;
+  uint8_t valid;
+  uint32_t tAcc;          
+} __attribute__((packed));
+
+struct TIMEGPS
+{
+  uint32_t itow;
+  int32_t ftow;
+  int16_t week;
+  int8_t leapS;
+  uint8_t valid;
+  uint32_t tAcc;          
+} __attribute__((packed));
+
+}
+
 // ubxtool device srcid
 int main(int argc, char** argv)
 {
@@ -672,9 +719,9 @@ int main(int argc, char** argv)
         }
       }
       else { // UBX-CFG-VALSET
-
+        //                                 vers  ram   res   res    
         msg = buildUbxMessage(0x06, 0x8a, {0x00, 0x01, 0x00, 0x00,
-              0x1f,0x00,0x31,0x10, doGPS,
+              0x1f,0x00,0x31,0x10, doGPS,   // 
               0x01,0x00,0x31,0x10, doGPS,
               0x03,0x00,0x31,0x10, doGPS,
 
@@ -899,7 +946,20 @@ int main(int argc, char** argv)
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-CLOCK"<<endl; } // clock details
       enableUBXMessageOnPort(fd, 0x01, 0x22, ubxport, 16); // UBX-NAV-CLOCK
 
-      
+      if(version9) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-CLOCK"<<endl; } // GPS time solution
+        enableUBXMessageOnPort(fd, 0x01, 0x20, ubxport, 16); // UBX-NAV-TIMEGPS
+        
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-CLOCK"<<endl; } // GLONASS time solution
+        enableUBXMessageOnPort(fd, 0x01, 0x23, ubxport, 16); // UBX-NAV-TIMEGLO
+	
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-CLOCK"<<endl; } // Beidou time solution
+        enableUBXMessageOnPort(fd, 0x01, 0x24, ubxport, 16); // UBX-NAV-TIMEBDS
+	
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-CLOCK"<<endl; } // Galileo time solution
+        enableUBXMessageOnPort(fd, 0x01, 0x25, ubxport, 16); // UBX-NAV-TIMEGAL
+      }
+            
       if(!version9 && !m8t && !fuzzPositionMeters) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling debugging data"<<endl; } // RF doppler
         enableUBXMessageOnPort(fd, 0x03, 0x10, ubxport, 4);
@@ -948,12 +1008,73 @@ int main(int argc, char** argv)
   ns.launch();
   
   cerr<<humanTimeNow()<<" Entering main loop"<<endl;
+
+  struct TIMEXState
+  {
+    TIMEGAL gal;
+    TIMEGPS gps;
+    TIMEGLO glo;
+    TIMEBDS bds;
+    void transmitIfComplete(NMMSender& ns)
+    {
+      if(!(gal.itow && gal.itow == bds.itow && bds.itow == glo.itow && glo.itow == gps.itow))
+        return;
+      
+      NavMonMessage nmm;
+      nmm.set_sourceid(g_srcid);
+      nmm.set_localutcseconds(g_gnssutc.tv_sec);
+      nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
+      
+      nmm.set_type(NavMonMessage::TimeOffsetType);
+      nmm.mutable_to()->set_itow(gps.itow);
+
+      auto no = nmm.mutable_to()->add_offsets();
+      no->set_gnssid(0);
+      no->set_offsetns(gps.ftow);
+      no->set_tacc(gps.tAcc);
+      no->set_tow(gps.itow); // this is for consistency
+      no->set_leaps(gps.leapS);
+      no->set_wn(gps.week);
+      no->set_valid(gps.valid);
+
+      no = nmm.mutable_to()->add_offsets();
+      no->set_gnssid(2);
+      no->set_offsetns(gal.fGalTow);
+      no->set_tacc(gal.tAcc);
+      no->set_leaps(gal.leapS);
+      no->set_wn(gal.galWno);
+      no->set_valid(gal.valid);
+      no->set_tow(gal.galTow);
+      
+      no = nmm.mutable_to()->add_offsets();
+      no->set_gnssid(3);
+      no->set_offsetns(bds.fSow);
+      no->set_tacc(bds.tAcc);
+      no->set_leaps(bds.leapS);
+      no->set_wn(bds.week);
+      no->set_valid(bds.valid);
+      no->set_tow(bds.sow);
+
+      no = nmm.mutable_to()->add_offsets();
+      no->set_gnssid(6);
+      no->set_offsetns(glo.fTod);
+      no->set_tacc(glo.tAcc);
+      no->set_nt(glo.nT);
+      no->set_n4(glo.n4);
+      no->set_valid(glo.valid);
+      no->set_tow(glo.tod);
+
+      ns.emitNMM(nmm);
+      gal.itow = 0;
+    }
+  } tstate;
+  
   for(;;) {
     try {
       auto [msg, timestamp] = getUBXMessage(fd, nullptr);
       (void)timestamp;
       auto payload = msg.getPayload();
-
+      
       if(msg.getClass() == 0x01 && msg.getType() == 0x07) {  // UBX-NAV-PVT
         struct PVT
         {
@@ -1042,10 +1163,7 @@ int main(int argc, char** argv)
         if(doDEBUG)
           cerr<<humanTimeNow()<<" Serial number from stream "<< serialno <<endl;
       }
-
-      
-      
-      if(msg.getClass() == 0x02 && msg.getType() == 0x15) {  // RAWX, the doppler stuff
+      else       if(msg.getClass() == 0x02 && msg.getType() == 0x15) {  // RAWX, the doppler stuff
         //        if (doDEBUG) { cerr<<humanTimeNow()<<" Got "<<(int)payload[11] <<" measurements "<<endl; }
         double rcvTow;
         memcpy(&rcvTow, &payload[0], 8);
