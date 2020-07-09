@@ -96,7 +96,7 @@ Running in Docker
 -----------------
 
 We publish official Docker images for galmon on
-[docker hub](https://hub.docker.com/r/faucet/faucet) for multiple architectures.
+[docker hub](https://hub.docker.com/r/galmon/galmon) for multiple architectures.
 
 To run a container with a shell in there (this will also expose a port so you
 can view the UI too and assumes a ublox GPS device too -
