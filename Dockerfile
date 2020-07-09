@@ -1,4 +1,4 @@
-FROM ubuntu:disco
+FROM ubuntu:eoan
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV LC_ALL C.UTF-8

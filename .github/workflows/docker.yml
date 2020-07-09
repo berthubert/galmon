@@ -1,0 +1,32 @@
+name: Build and publish Docker image
+
+on:
+  push:
+    branches: master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Checkout submodules
+        run: git submodule update --init --recursive
+      - name: Set up docker buildx
+        id: buildx
+        uses: crazy-max/ghaction-docker-buildx@v3
+        with:
+          buildx-version: latest
+          qemu-version: latest
+      - name: Login to docker registry
+        run: |
+          docker login --username ${{ secrets.DOCKER_USERNAME }} --password ${{ secrets.DOCKER_TOKEN }}
+      - name: Run buildx
+        run: |
+          docker buildx build \
+            --tag galmon/galmon \
+            --platform linux/386,linux/amd64,linux/arm/v7,linux/arm64/v8 \
+            --output "type=registry" \
+            --build-arg MAKE_FLAGS=-j1 \
+            --file Dockerfile \
+            .
