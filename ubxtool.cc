@@ -946,18 +946,18 @@ int main(int argc, char** argv)
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-CLOCK"<<endl; } // clock details
       enableUBXMessageOnPort(fd, 0x01, 0x22, ubxport, 16); // UBX-NAV-CLOCK
 
-      if(version9) {
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-CLOCK"<<endl; } // GPS time solution
-        enableUBXMessageOnPort(fd, 0x01, 0x20, ubxport, 16); // UBX-NAV-TIMEGPS
-        
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-CLOCK"<<endl; } // GLONASS time solution
-        enableUBXMessageOnPort(fd, 0x01, 0x23, ubxport, 16); // UBX-NAV-TIMEGLO
+      if(1) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling/disabling UBX-NAV-TIMEGPS"<<endl; } // GPS time solution
+        enableUBXMessageOnPort(fd, 0x01, 0x20, ubxport, doGPS ? 16 : 0); // UBX-NAV-TIMEGPS
+
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling/disabling "<< doGlonass<< " UBX-NAV-TIMEGLO"<<endl; } // GLONASS time solution
+        enableUBXMessageOnPort(fd, 0x01, 0x23, ubxport, doGlonass ? 16 : 0); // UBX-NAV-TIMEGLO
 	
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-CLOCK"<<endl; } // Beidou time solution
-        enableUBXMessageOnPort(fd, 0x01, 0x24, ubxport, 16); // UBX-NAV-TIMEBDS
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling/disabling UBX-NAV-TIMEBDS"<<endl; } // Beidou time solution
+        enableUBXMessageOnPort(fd, 0x01, 0x24, ubxport, doBeidou ? 16 : 0); // UBX-NAV-TIMEBDS
 	
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-CLOCK"<<endl; } // Galileo time solution
-        enableUBXMessageOnPort(fd, 0x01, 0x25, ubxport, 16); // UBX-NAV-TIMEGAL
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling/disabling UBX-NAV-TIMEGAL"<<endl; } // Galileo time solution
+        enableUBXMessageOnPort(fd, 0x01, 0x25, ubxport, doGalileo ? 16 : 0); // UBX-NAV-TIMEGAL
       }
             
       if(!version9 && !m8t && !fuzzPositionMeters) {
@@ -1015,11 +1015,28 @@ int main(int argc, char** argv)
     TIMEGPS gps;
     TIMEGLO glo;
     TIMEBDS bds;
+    bool doGlonass, doGalileo, doBeidou, doGPS;
     void transmitIfComplete(NMMSender& ns)
     {
-      if(!(gal.itow && gal.itow == bds.itow && bds.itow == glo.itow && glo.itow == gps.itow))
+      vector<int> itows;
+      if(doGlonass)
+        itows.push_back(glo.itow);
+      if(doGalileo)
+        itows.push_back(gal.itow);
+      if(doBeidou)
+        itows.push_back(bds.itow);
+      if(doGPS)
+        itows.push_back(gps.itow);
+
+      if(itows.empty())
         return;
-      
+      if(itows[0] == 0)
+        return;
+        
+      for(const auto& itow : itows)
+        if(itow != itows[0])
+           return;
+        
       NavMonMessage nmm;
       nmm.set_sourceid(g_srcid);
       nmm.set_localutcseconds(g_gnssutc.tv_sec);
@@ -1028,46 +1045,60 @@ int main(int argc, char** argv)
       nmm.set_type(NavMonMessage::TimeOffsetType);
       nmm.mutable_to()->set_itow(gps.itow);
 
-      auto no = nmm.mutable_to()->add_offsets();
-      no->set_gnssid(0);
-      no->set_offsetns(gps.ftow);
-      no->set_tacc(gps.tAcc);
-      no->set_tow(gps.itow); // this is for consistency
-      no->set_leaps(gps.leapS);
-      no->set_wn(gps.week);
-      no->set_valid(gps.valid);
-
-      no = nmm.mutable_to()->add_offsets();
-      no->set_gnssid(2);
-      no->set_offsetns(gal.fGalTow);
-      no->set_tacc(gal.tAcc);
-      no->set_leaps(gal.leapS);
-      no->set_wn(gal.galWno);
-      no->set_valid(gal.valid);
-      no->set_tow(gal.galTow);
+      NavMonMessage::GNSSOffset* no;
+      if(doGPS) {
+        no = nmm.mutable_to()->add_offsets();
+        no->set_gnssid(0);
+        no->set_offsetns(gps.ftow);
+        no->set_tacc(gps.tAcc);
+        no->set_tow(gps.itow); // this is for consistency
+        no->set_leaps(gps.leapS);
+        no->set_wn(gps.week);
+        no->set_valid(gps.valid);
+      }
       
-      no = nmm.mutable_to()->add_offsets();
-      no->set_gnssid(3);
-      no->set_offsetns(bds.fSow);
-      no->set_tacc(bds.tAcc);
-      no->set_leaps(bds.leapS);
-      no->set_wn(bds.week);
-      no->set_valid(bds.valid);
-      no->set_tow(bds.sow);
-
-      no = nmm.mutable_to()->add_offsets();
-      no->set_gnssid(6);
-      no->set_offsetns(glo.fTod);
-      no->set_tacc(glo.tAcc);
-      no->set_nt(glo.nT);
-      no->set_n4(glo.n4);
-      no->set_valid(glo.valid);
-      no->set_tow(glo.tod);
-
+      if(doGalileo) {
+        no = nmm.mutable_to()->add_offsets();
+        no->set_gnssid(2);
+        no->set_offsetns(gal.fGalTow);
+        no->set_tacc(gal.tAcc);
+        no->set_leaps(gal.leapS);
+        no->set_wn(gal.galWno);
+        no->set_valid(gal.valid);
+        no->set_tow(gal.galTow);
+      }
+      
+      if(doBeidou) {
+        no = nmm.mutable_to()->add_offsets();
+        no->set_gnssid(3);
+        no->set_offsetns(bds.fSow);
+        no->set_tacc(bds.tAcc);
+        no->set_leaps(bds.leapS);
+        no->set_wn(bds.week);
+        no->set_valid(bds.valid);
+        no->set_tow(bds.sow);
+      }
+      
+      if(doGlonass) {
+        no = nmm.mutable_to()->add_offsets();
+        no->set_gnssid(6);
+        no->set_offsetns(glo.fTod);
+        no->set_tacc(glo.tAcc);
+        no->set_nt(glo.nT);
+        no->set_n4(glo.n4);
+        no->set_valid(glo.valid);
+        no->set_tow(glo.tod);
+      }
       ns.emitNMM(nmm);
       gal.itow = 0;
+      gps.itow = 0;
+      glo.itow = 0;
+      bds.itow = 0;
     }
   } tstate;
+  
+  tstate.doGPS = doGPS; tstate.doGalileo = doGalileo; tstate.doGlonass = doGlonass;
+  tstate.doBeidou = doBeidou;
   
   for(;;) {
     try {
@@ -1833,13 +1864,13 @@ int main(int argc, char** argv)
       else
       if(msg.getClass() == 0x01 && msg.getType() == 0x24) { // UBX-NAV-TIMEBDS
         memcpy(&tstate.bds, &payload[0], sizeof(TIMEBDS));
-        //        cerr << "TIMEBDS itow: "<<tstate.bds.itow<<", fSow: "<<tstate.bds.fSow<<", tAcc: "<<tstate.bds.tAcc<< ", valid: "<< !!tstate.bds.valid  << endl;
+//        cerr << "TIMEBDS itow: "<<tstate.bds.itow<<", fSow: "<<tstate.bds.fSow<<", tAcc: "<<tstate.bds.tAcc<< ", valid: "<< !!tstate.bds.valid  << endl;
         tstate.transmitIfComplete(ns);
       }
       else
       if(msg.getClass() == 0x01 && msg.getType() == 0x23) { // UBX-NAV-TIMEGLO
         memcpy(&tstate.glo, &payload[0], sizeof(TIMEGLO));
-        //        cerr << "TIMEGLO itow: "<<tstate.glo.itow<<", fTod: "<<tstate.glo.fTod<<", tAcc: "<<tstate.glo.tAcc<< ", valid: "<<!!tstate.glo.valid<<endl;
+//        cerr << "TIMEGLO itow: "<<tstate.glo.itow<<", fTod: "<<tstate.glo.fTod<<", tAcc: "<<tstate.glo.tAcc<< ", valid: "<<!!tstate.glo.valid<<endl;
         tstate.transmitIfComplete(ns);
       }
       else
