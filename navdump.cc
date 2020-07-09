@@ -1172,10 +1172,12 @@ try
       cout<< nmm.sr().gnsssv() << " beacon "<<hexstring <<" code "<<(int)nmm.sr().code()<<" params "<< makeHexDump(nmm.sr().params()) <<endl;
     }
     else if(nmm.type() == NavMonMessage::TimeOffsetType) {
-      cout<<" got a time-offset message with "<< nmm.to().offsets().size()<<" offsets"<<endl;
+      etstamp();
+      cout<<" got a time-offset message with "<< nmm.to().offsets().size()<<" offsets: ";
       for(const auto& o : nmm.to().offsets()) {
-        cout << o.gnssid()<<" " << o.offsetns() << " ";
+        cout << "gnssid "<<o.gnssid()<<" offset " << o.offsetns() << " +- "<<o.tacc()<<" ("<<o.valid()<<") , ";
       }
+      cout<<endl;
             
     }
     else {
