@@ -955,9 +955,11 @@ int main(int argc, char** argv)
 	
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling/disabling UBX-NAV-TIMEBDS"<<endl; } // Beidou time solution
         enableUBXMessageOnPort(fd, 0x01, 0x24, ubxport, doBeidou ? 16 : 0); // UBX-NAV-TIMEBDS
-	
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling/disabling UBX-NAV-TIMEGAL"<<endl; } // Galileo time solution
-        enableUBXMessageOnPort(fd, 0x01, 0x25, ubxport, doGalileo ? 16 : 0); // UBX-NAV-TIMEGAL
+
+        if(mods.find("NEO-M8P") ==string::npos) { 
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling/disabling UBX-NAV-TIMEGAL"<<endl; } // Galileo time solution
+          enableUBXMessageOnPort(fd, 0x01, 0x25, ubxport, doGalileo ? 16 : 0); // UBX-NAV-TIMEGAL
+        }
       }
             
       if(!version9 && !m8t && !fuzzPositionMeters) {
