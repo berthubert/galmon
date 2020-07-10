@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
-#include <zstd.h> // can't easily be moved to zstdwrap.cc, trust me
+#include <zstd.h> // apt-get install libzstd-dev if you miss this. 
+// can't easily be moved to zstdwrap.cc, trust me
 #include <functional>
 #include <thread>
 #include <atomic>
