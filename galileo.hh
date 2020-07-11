@@ -222,7 +222,9 @@ struct GalileoMessage : GPSLikeEphemeris
   // pair of nanosecond, nanosecond/s 
   std::pair<double, double> getGPSOffset(int tow, int wn) const
   {
-    int dw = (int)(uint8_t)wn - (int)(uint8_t) wn0g;
+    int dw = (int)(wn%64) - (int)(wn0g%64);
+    if(dw > 31)
+      dw = 31- dw;
     int delta = dw*7*86400  + tow - getT0g(); // NOT ephemeris age tricks
 
     // 2^-35  2^-51   3600
@@ -266,8 +268,8 @@ struct GalileoMessage : GPSLikeEphemeris
     sf3 = getbitu(&page[0], 44, 1);
     sf4 = getbitu(&page[0], 45, 1);
     sf5 = getbitu(&page[0], 46, 1);
-    BGDE1E5a = getbits(&page[0], 47, 10);
-    BGDE1E5b = getbits(&page[0], 57, 10);
+    BGDE1E5a = getbits(&page[0], 47, 10); // 2^-32 s
+    BGDE1E5b = getbits(&page[0], 57, 10); // 2^-32 s
     
     e5bhs = getbitu(&page[0], 67, 2);
     e1bhs = getbitu(&page[0], 69, 2);

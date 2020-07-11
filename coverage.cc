@@ -87,6 +87,7 @@ covmap_t emitCoverage(const vector<Point>& sats)
     double phi = M_PI* latitude / 180;
     double longsteps = 1 + 360.0 * cos(phi);
     double step = 4*180.0 / longsteps;
+    // this does sorta equi-distanced measurements
     vector<tuple<double, int, int, int, double, double, double, double, double, double,double, double, double>> latvect;
     for(double longitude = -180; longitude < 180; longitude += step) { // east - west
       Point p;

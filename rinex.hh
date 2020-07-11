@@ -109,7 +109,8 @@ E01 2019 09 21 23 30 00-6.949011585675E-04-7.943867785798E-12 0.000000000000E+00
 
   d_ofs<<"\n    ";
   emit(numSisa(e.sisa));
-  int health=0;
+  int health=0; // there are more bits in here, it is not just health, also signal
+  // bits 8/9 encode the signal, so I/NAV, or F/NAV or equivalent
   health |= e.e1bdvs;
   health |= (e.e1bhs << 2);
   // don't have e5advs

@@ -69,8 +69,23 @@ static int getBaudrate(int baud)
     throw std::runtime_error("Unknown baudrate "+to_string(baud));
 }
 
-static int g_baudval;
+static int getBaudrateFromSymbol(int baud)
+{
+  if(baud==B115200)
+    return 115200;
+  else if(baud==B57600)
+    return 57600;
+  else if(baud==B38400)
+    return 38400;
+  else if(baud==B19200)
+    return 19200;
+  else if(baud==B9600)
+    return 9600;
+  else
+    throw std::runtime_error("Unknown baudrate symbol "+to_string(baud));
+}
 
+static int g_baudval;
 
 /* inav schedule:
 1) Find plausible start time of next cycle
@@ -167,8 +182,10 @@ std::pair<UBXMessage, struct timeval> getUBXMessage(int fd, double* timeout)
     marker[0] = marker[1];
     int res = readn2Timeout(fd, marker+1, 1, timeout);
 
-    if(res < 0)
+    if(res < 0) {
+      cerr<<"Readn2Timeout failed: "<<strerror(errno)<<endl;
       throw EofException();
+    }
     
     //    if (doDEBUG) { cerr<<humanTimeNow()<<" marker now: "<< (int)marker[0]<<" " <<(int)marker[1]<<endl; }
     if(marker[0]==0xb5 && marker[1]==0x62) { // bingo
@@ -347,6 +364,48 @@ void readSome(int fd)
 
 struct termios g_oldtio;
 
+int getCurrentBaudrate(int fd)
+{
+  struct termios tio;
+  if(tcgetattr(fd, &tio)) { /* save current port settings */
+    perror("tcgetattr");
+    exit(-1);
+  }
+  return cfgetospeed(&tio);
+
+}
+
+void doTermios(int fd, bool doRTSCTS)
+{
+  struct termios newtio;
+  if(tcgetattr(fd, &g_oldtio)) { /* save current port settings */
+    perror("tcgetattr");
+    exit(-1);
+  }
+
+  bzero(&newtio, sizeof(newtio));                                         
+  newtio.c_cflag = CS8 | CLOCAL | CREAD;             
+  if (doRTSCTS) {
+    if(doDEBUG) { cerr<<humanTimeNow()<<" will enable RTSCTS"<<endl; }
+    newtio.c_cflag |= CRTSCTS;
+  }
+  newtio.c_iflag = IGNPAR;                                                
+  newtio.c_oflag = 0;                                                     
+  
+  /* set input mode (non-canonical, no echo,...) */                       
+  newtio.c_lflag = 0;                                                     
+    
+  newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */         
+  newtio.c_cc[VMIN]     = 4;   /* blocking read until 5 chars received */ 
+  
+  cfsetspeed(&newtio, g_baudval);
+  if(tcsetattr(fd, TCSANOW, &newtio)) {
+    perror("tcsetattr");
+    exit(-1);
+  }
+  if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - tty set"<<endl; }
+}
+
 int initFD(const char* fname, bool doRTSCTS)
 {
   int fd;
@@ -359,37 +418,14 @@ int initFD(const char* fname, bool doRTSCTS)
     if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - open("<<fname<<")"<<endl; }
     fd = open(fname, O_RDWR | O_NOCTTY );
     if (fd <0 ) {
-      throw runtime_error("Opening file "+string(fname));
+      throw runtime_error("Opening file "+string(fname)+": "+strerror(errno));
     }
     if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - open successful"<<endl; }
 
-    struct termios newtio;
-    if(tcgetattr(fd, &g_oldtio)) { /* save current port settings */
-      perror("tcgetattr");
-      exit(-1);
-    }
+    if(!g_baudval)
+      g_baudval = getCurrentBaudrate(fd);
 
-    bzero(&newtio, sizeof(newtio));                                         
-    newtio.c_cflag = CS8 | CLOCAL | CREAD;             
-    if (doRTSCTS) {
-      if(doDEBUG) { cerr<<humanTimeNow()<<" will enable RTSCTS"<<endl; }
-      newtio.c_cflag |= CRTSCTS;
-    }
-    newtio.c_iflag = IGNPAR;                                                
-    newtio.c_oflag = 0;                                                     
-    
-    /* set input mode (non-canonical, no echo,...) */                       
-    newtio.c_lflag = 0;                                                     
-    
-    newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */         
-    newtio.c_cc[VMIN]     = 4;   /* blocking read until 5 chars received */ 
-    
-    cfsetspeed(&newtio, g_baudval);
-    if(tcsetattr(fd, TCSANOW, &newtio)) {
-      perror("tcsetattr");
-      exit(-1);
-    }
-    if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - tty set"<<endl; }
+    doTermios(fd, doRTSCTS);
   }
   else {
     g_fromFile = true;
@@ -409,6 +445,53 @@ static string format_serial(basic_string<uint8_t> payload)
                             payload[4], payload[5],
                             payload[6], payload[7],
                             payload[8]);
+}
+
+// these are four structs to capture Ublox F9P time offset stats
+namespace {
+struct TIMEGAL
+{
+  uint32_t itow;
+  uint32_t galTow;
+  int32_t fGalTow;
+  int16_t galWno;
+  int8_t leapS;
+  uint8_t valid;
+  uint32_t tAcc;          
+} __attribute__((packed));
+
+struct TIMEBDS
+{
+  uint32_t itow;
+  uint32_t sow;
+  int32_t fSow;
+  int16_t week;
+  int8_t leapS;
+  uint8_t valid;
+  uint32_t tAcc;          
+} __attribute__((packed));
+
+struct TIMEGLO
+{
+  uint32_t itow;
+  uint32_t tod;
+  int32_t fTod;
+  uint16_t nT;
+  uint8_t n4;
+  uint8_t valid;
+  uint32_t tAcc;          
+} __attribute__((packed));
+
+struct TIMEGPS
+{
+  uint32_t itow;
+  int32_t ftow;
+  int16_t week;
+  int8_t leapS;
+  uint8_t valid;
+  uint32_t tAcc;          
+} __attribute__((packed));
+
 }
 
 // ubxtool device srcid
@@ -431,7 +514,8 @@ int main(int argc, char** argv)
   vector<string> destinations;
   string portName;
   int ubxport=3;
-  int baudrate=115200;
+  int baudrate=0;
+  int newbaudrate=0;
   unsigned int fuzzPositionMeters=0;
   string owner;
   string remark;
@@ -451,6 +535,7 @@ int main(int argc, char** argv)
   app.add_option("--station", g_srcid, "Station id");
   app.add_option("--ubxport,-u", ubxport, "UBX port to enable messages on (usb=3)");
   app.add_option("--baud,-b", baudrate, "Baudrate for serial connection");
+  app.add_option("--newbaud,-n", newbaudrate, "Attempt to change to this baudrate for serial connection");  
   app.add_flag("--keep-nmea,-k", doKeepNMEA, "Don't disable NMEA");
   app.add_flag("--fake-fix", doFakeFix, "Inject locally generated fake fix data");
   app.add_option("--fuzz-position,-f", fuzzPositionMeters, "Fuzz position by this many meters");
@@ -482,7 +567,8 @@ int main(int argc, char** argv)
     exit(1);
   }
 
-  g_baudval = getBaudrate(baudrate);
+  if(baudrate)
+    g_baudval = getBaudrate(baudrate);
 
   if(!(doGPS || doGalileo || doGlonass || doBeidou)) {
     cerr<<"Enable at least one of --gps, --galileo, --glonass, --beidou"<<endl;
@@ -504,7 +590,8 @@ int main(int argc, char** argv)
     ns.addDestination(1);
   
   int fd = initFD(portName.c_str(), doRTSCTS);
-  
+  if(!baudrate)
+    baudrate = getBaudrateFromSymbol(g_baudval);
 
   if(doFakeFix) // hack
     version9 = true;
@@ -633,9 +720,9 @@ int main(int argc, char** argv)
         }
       }
       else { // UBX-CFG-VALSET
-
+        //                                 vers  ram   res   res    
         msg = buildUbxMessage(0x06, 0x8a, {0x00, 0x01, 0x00, 0x00,
-              0x1f,0x00,0x31,0x10, doGPS,
+              0x1f,0x00,0x31,0x10, doGPS,   // 
               0x01,0x00,0x31,0x10, doGPS,
               0x03,0x00,0x31,0x10, doGPS,
 
@@ -769,32 +856,52 @@ int main(int argc, char** argv)
         }
       }
       
-       
-      if(!doKeepNMEA) {
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Disabling NMEA"<<endl; }
+
+      if(!doKeepNMEA || (newbaudrate && newbaudrate != baudrate)) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Changing port settings (newbaudrate="<<newbaudrate<<", baudrate="<<baudrate<<", keepNMEA="<<doKeepNMEA<<")"<<endl; }
         
+        uint8_t outproto = 0x01;
+        if(doKeepNMEA)
+          outproto += 0x02;
+          
         if(ubxport == 1 || ubxport == 2) {
           /* Ublox UART[1] or UART2 port, so encode baudrate and serial settings */
+          int actbaud = newbaudrate ? newbaudrate : baudrate;
           msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,
             0xC0 /* 8 bit */,
             0x08 /* No parity */,
             0x00,0x00,
-            (unsigned char)((baudrate) & 0xFF),
-            (unsigned char)((baudrate>>8) & 0xFF),
-            (unsigned char)((baudrate>>16) & 0xFF),
-            (unsigned char)((baudrate>>24) & 0xFF),
-            0x03,0x00,0x01,0x00,
+            (unsigned char)((actbaud) & 0xFF),
+            (unsigned char)((actbaud>>8) & 0xFF),
+            (unsigned char)((actbaud>>16) & 0xFF),
+            (unsigned char)((actbaud>>24) & 0xFF),
+            // in in   out      out      // 0x01 = ublox, 0x02 = nmea
+            0x03,0x00,outproto,0x00,
+            // flags   res  res
             0x00,0x00,0x00,0x00
           });
         }
-        else {
-          msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x01,0x00,0x00,0x00,0x00,0x00});
+        else {                              //   port                 res   tx-ready  res  res  res  res  res  res  res res   in   in     out  out  res   res  res res 
+          msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,outproto,0x00,0x00,0x00,0x00,0x00});
         }
-        if(sendAndWaitForUBXAckNack(fd, 10, msg, 0x06, 0x00)) { // disable NMEA
-          if (doDEBUG) { cerr<<humanTimeNow()<<" NMEA disabled"<<endl; }
+
+        if(newbaudrate && newbaudrate != baudrate) {
+          for(int n=0; n < 3; ++n) {
+            cerr<<humanTimeNow()<<" Sending new baudrate "<<n<<".. "<<endl;
+            writen2(fd, &msg[0], msg.size());
+            // there won't be an ack
+            usleep(100000);
+          }
+          g_baudval = getBaudrate(newbaudrate);
+          doTermios(fd, false);          
         }
         else {
-          if (doDEBUG) { cerr<<humanTimeNow()<<" Got NACK disabling NMEA"<<endl; }
+          if(sendAndWaitForUBXAckNack(fd, 10, msg, 0x06, 0x00)) { // disable NMEA
+            if (doDEBUG) { cerr<<humanTimeNow()<<" ACK for new port/protocol settings"<<endl; }
+          }
+          else {
+            if (doDEBUG) { cerr<<humanTimeNow()<<" Got NACK for port/protocol settings"<<endl; }
+          }
         }
       }
       if (doDEBUG) { cerr<<humanTimeNow()<<" Polling port settings"<<endl; } // UBX-CFG-PRT, 0x03 == USB
@@ -815,9 +922,11 @@ int main(int argc, char** argv)
         cerr<<"Got timeout waiting for ack of port protocol poll, no problem"<<endl;
       }
 
-      
-      if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RLM"<<endl; } // SAR
-      enableUBXMessageOnPort(fd, 0x02, 0x59, ubxport); // UBX-RXM-RLM
+
+      if(mods.find("NEO-M8P") ==string::npos) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RLM"<<endl; } // SAR
+        enableUBXMessageOnPort(fd, 0x02, 0x59, ubxport); // UBX-RXM-RLM
+      }
 
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-MON-HW"<<endl; } // SAR
       enableUBXMessageOnPort(fd, 0x0A, 0x09, ubxport, 16); // UBX-MON-HW
@@ -838,7 +947,20 @@ int main(int argc, char** argv)
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-CLOCK"<<endl; } // clock details
       enableUBXMessageOnPort(fd, 0x01, 0x22, ubxport, 16); // UBX-NAV-CLOCK
 
-      
+      if(1) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling/disabling UBX-NAV-TIMEGPS"<<endl; } // GPS time solution
+        enableUBXMessageOnPort(fd, 0x01, 0x20, ubxport, doGPS ? 16 : 0); // UBX-NAV-TIMEGPS
+
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling/disabling "<< doGlonass<< " UBX-NAV-TIMEGLO"<<endl; } // GLONASS time solution
+        enableUBXMessageOnPort(fd, 0x01, 0x23, ubxport, doGlonass ? 16 : 0); // UBX-NAV-TIMEGLO
+	
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling/disabling UBX-NAV-TIMEBDS"<<endl; } // Beidou time solution
+        enableUBXMessageOnPort(fd, 0x01, 0x24, ubxport, doBeidou ? 16 : 0); // UBX-NAV-TIMEBDS
+	
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling/disabling UBX-NAV-TIMEGAL"<<endl; } // Galileo time solution
+        enableUBXMessageOnPort(fd, 0x01, 0x25, ubxport, doGalileo ? 16 : 0); // UBX-NAV-TIMEGAL
+      }
+            
       if(!version9 && !m8t && !fuzzPositionMeters) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling debugging data"<<endl; } // RF doppler
         enableUBXMessageOnPort(fd, 0x03, 0x10, ubxport, 4);
@@ -887,12 +1009,104 @@ int main(int argc, char** argv)
   ns.launch();
   
   cerr<<humanTimeNow()<<" Entering main loop"<<endl;
+
+  struct TIMEXState
+  {
+    TIMEGAL gal;
+    TIMEGPS gps;
+    TIMEGLO glo;
+    TIMEBDS bds;
+    bool doGlonass, doGalileo, doBeidou, doGPS;
+    void transmitIfComplete(NMMSender& ns)
+    {
+      vector<int> itows;
+      if(doGlonass)
+        itows.push_back(glo.itow);
+      if(doGalileo)
+        itows.push_back(gal.itow);
+      if(doBeidou)
+        itows.push_back(bds.itow);
+      if(doGPS)
+        itows.push_back(gps.itow);
+
+      if(itows.empty())
+        return;
+      if(itows[0] == 0)
+        return;
+        
+      for(const auto& itow : itows)
+        if(itow != itows[0])
+           return;
+        
+      NavMonMessage nmm;
+      nmm.set_sourceid(g_srcid);
+      nmm.set_localutcseconds(g_gnssutc.tv_sec);
+      nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
+      
+      nmm.set_type(NavMonMessage::TimeOffsetType);
+      nmm.mutable_to()->set_itow(gps.itow);
+
+      NavMonMessage::GNSSOffset* no;
+      if(doGPS) {
+        no = nmm.mutable_to()->add_offsets();
+        no->set_gnssid(0);
+        no->set_offsetns(gps.ftow);
+        no->set_tacc(gps.tAcc);
+        no->set_tow(gps.itow); // this is for consistency
+        no->set_leaps(gps.leapS);
+        no->set_wn(gps.week);
+        no->set_valid(gps.valid);
+      }
+      
+      if(doGalileo) {
+        no = nmm.mutable_to()->add_offsets();
+        no->set_gnssid(2);
+        no->set_offsetns(gal.fGalTow);
+        no->set_tacc(gal.tAcc);
+        no->set_leaps(gal.leapS);
+        no->set_wn(gal.galWno);
+        no->set_valid(gal.valid);
+        no->set_tow(gal.galTow);
+      }
+      
+      if(doBeidou) {
+        no = nmm.mutable_to()->add_offsets();
+        no->set_gnssid(3);
+        no->set_offsetns(bds.fSow);
+        no->set_tacc(bds.tAcc);
+        no->set_leaps(bds.leapS);
+        no->set_wn(bds.week);
+        no->set_valid(bds.valid);
+        no->set_tow(bds.sow);
+      }
+      
+      if(doGlonass) {
+        no = nmm.mutable_to()->add_offsets();
+        no->set_gnssid(6);
+        no->set_offsetns(glo.fTod);
+        no->set_tacc(glo.tAcc);
+        no->set_nt(glo.nT);
+        no->set_n4(glo.n4);
+        no->set_valid(glo.valid);
+        no->set_tow(glo.tod);
+      }
+      ns.emitNMM(nmm);
+      gal.itow = 0;
+      gps.itow = 0;
+      glo.itow = 0;
+      bds.itow = 0;
+    }
+  } tstate;
+  
+  tstate.doGPS = doGPS; tstate.doGalileo = doGalileo; tstate.doGlonass = doGlonass;
+  tstate.doBeidou = doBeidou;
+  
   for(;;) {
     try {
       auto [msg, timestamp] = getUBXMessage(fd, nullptr);
       (void)timestamp;
       auto payload = msg.getPayload();
-
+      
       if(msg.getClass() == 0x01 && msg.getType() == 0x07) {  // UBX-NAV-PVT
         struct PVT
         {
@@ -978,12 +1192,10 @@ int main(int argc, char** argv)
 
       if(msg.getClass() == 0x27 && msg.getType() == 0x03) { // serial
         serialno = format_serial(payload);
-        cerr<<humanTimeNow()<<" Serial number from stream "<< serialno <<endl;
+        if(doDEBUG)
+          cerr<<humanTimeNow()<<" Serial number from stream "<< serialno <<endl;
       }
-
-      
-      
-      if(msg.getClass() == 0x02 && msg.getType() == 0x15) {  // RAWX, the doppler stuff
+      else       if(msg.getClass() == 0x02 && msg.getType() == 0x15) {  // RAWX, the doppler stuff
         //        if (doDEBUG) { cerr<<humanTimeNow()<<" Got "<<(int)payload[11] <<" measurements "<<endl; }
         double rcvTow;
         memcpy(&rcvTow, &payload[0], 8);
@@ -1504,8 +1716,6 @@ int main(int argc, char** argv)
         }
       }
       else if(msg.getClass() == 0x02 && msg.getType() == 0x59) { // UBX-RXM-RLM
-        int type = (int)payload[1];      
-        int sv = (int)payload[2];
 
         NavMonMessage nmm;
         nmm.set_sourceid(g_srcid);
@@ -1513,34 +1723,29 @@ int main(int argc, char** argv)
         nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
         
         nmm.set_type(NavMonMessage::SARResponseType);
+
+        // short version:
+        //   0         1   2    3      4   -  11    12     13,14 15
+        // version, type, sv, reserved beacon id  msg-code param res2
+
+        // long version:
+        //   0         1   2    3      4   -  11    12     13-24  25
+        // version, type, sv, reserved beacon id  msg-code params res2
+        
         nmm.mutable_sr()->set_gnssid(2); // Galileo only for now
-        nmm.mutable_sr()->set_gnsssv(sv);
-        nmm.mutable_sr()->set_sigid(0); // we should fill this in later
+        nmm.mutable_sr()->set_gnsssv(payload[2]);
+        nmm.mutable_sr()->set_sigid(1); // 
         nmm.mutable_sr()->set_type(payload[1]);
         nmm.mutable_sr()->set_identifier(string((char*)payload.c_str()+4, 8));
         nmm.mutable_sr()->set_code(payload[12]);
         nmm.mutable_sr()->set_params(string((char*)payload.c_str()+13, payload.size()-14));
+
         
         string hexstring;
-        for(int n = 0; n < 15; ++n)
+        for(int n = 0; n < 15; ++n)                                   
           hexstring+=fmt::sprintf("%x", (int)getbitu(payload.c_str(), 36 + 4*n, 4));
 
-        if (doDEBUG) { cerr<<humanTimeNow()<<" "<<humanTime(g_gnssutc.tv_sec)<<" SAR RLM type "<<type<<" from gal sv " << sv << " beacon "<<hexstring <<" code "<<(int)payload[12]<<" params "<<payload[12] + 256*payload[13]<<endl; }
-
-      //      wk.emitLine(sv, "SAR "+hexstring);
-      //      cout<<"SAR: sv = "<< (int)msg[2] <<" ";
-      //      for(int n=4; n < 12; ++n)
-      //        fmt::printf("%02x", (int)msg[n]);
-
-      //      for(int n = 0; n < 15; ++n)
-      //        fmt::printf("%x", (int)getbitu(msg.c_str(), 36 + 4*n, 4));
-      
-      //      cout << " Type: "<< (int) msg[12] <<"\n";
-      //      cout<<"Parameter: (len = "<<msg.length()<<") ";
-      //      for(unsigned int n = 13; n < msg.length(); ++n)
-      //        fmt::printf("%02x ", (int)msg[n]);
-      //      cout<<"\n";
-
+        ns.emitNMM(nmm);
       }
       else if(msg.getClass()==39 && msg.getType()==0) {
         NavMonMessage nmm;
@@ -1652,6 +1857,29 @@ int main(int argc, char** argv)
         nmm.mutable_ujs()->set_jamind(mhw.jamInd);
         ns.emitNMM(nmm);
       }
+      else if(msg.getClass() == 0x01 && msg.getType() == 0x25) { // UBX-NAV-TIMEGAL
+        memcpy(&tstate.gal, &payload[0], sizeof(TIMEGAL));
+        //        cerr << "TIMEGAL itow: "<<tstate.gal.itow<<", fGalTow: "<<tstate.gal.fGalTow<<", tAcc: "<<tstate.gal.tAcc<< ", valid: "<< !!tstate.gal.valid<< endl;
+        tstate.transmitIfComplete(ns);
+      }
+      else
+      if(msg.getClass() == 0x01 && msg.getType() == 0x24) { // UBX-NAV-TIMEBDS
+        memcpy(&tstate.bds, &payload[0], sizeof(TIMEBDS));
+//        cerr << "TIMEBDS itow: "<<tstate.bds.itow<<", fSow: "<<tstate.bds.fSow<<", tAcc: "<<tstate.bds.tAcc<< ", valid: "<< !!tstate.bds.valid  << endl;
+        tstate.transmitIfComplete(ns);
+      }
+      else
+      if(msg.getClass() == 0x01 && msg.getType() == 0x23) { // UBX-NAV-TIMEGLO
+        memcpy(&tstate.glo, &payload[0], sizeof(TIMEGLO));
+//        cerr << "TIMEGLO itow: "<<tstate.glo.itow<<", fTod: "<<tstate.glo.fTod<<", tAcc: "<<tstate.glo.tAcc<< ", valid: "<<!!tstate.glo.valid<<endl;
+        tstate.transmitIfComplete(ns);
+      }
+      else
+      if(msg.getClass() == 0x01 && msg.getType() == 0x20) { // UBX-NAV-TIMEGPS
+        memcpy(&tstate.gps, &payload[0], sizeof(TIMEGPS));
+        //        cerr << "TIMEGPS itow: "<<tstate.gps.itow<<", ftow: "<<tstate.gps.ftow<<", tAcc: "<<tstate.gps.tAcc<< ", valid: "<< !!tstate.gps.valid<<endl;
+        tstate.transmitIfComplete(ns);
+      }
       else 
         if (doDEBUG) { cerr<<humanTimeNow()<<" Unknown UBX message of class "<<(int) msg.getClass() <<" and type "<< (int) msg.getType()<< " of "<<payload.size()<<" bytes"<<endl; }
 
@@ -1661,10 +1889,10 @@ int main(int argc, char** argv)
       if (doDEBUG) { cerr<<humanTimeNow()<<" Bad UBX checksum, skipping message"<<endl; }
     }
     catch(EofException& em) {
-      cerr<<"EOF, break"<<endl;
       break;
     }
   }
+  cerr<<"Done after reading "<<lseek(fd, 0, SEEK_CUR)<<" bytes, flushing buffers.."<<endl;
   if(!g_fromFile)
     tcsetattr(fd, TCSANOW, &g_oldtio);                                          
 }                                                                         

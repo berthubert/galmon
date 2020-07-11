@@ -310,7 +310,23 @@ try
     
     // I am so sorry
     if(bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
-      cerr<<"Bad magic"<<endl;
+      cerr<<"Bad magic: "<<makeHexDump(string(bert, 4))<<endl;
+      int res;
+      for(int s=0;;++s) {
+        cerr<<"Skipping character hunting for good magic.. "<<s<<endl;
+        bert[0] = bert[1];
+        bert[1] = bert[2];
+        bert[2] = bert[3];
+        res = readn2(0, bert + 3, 1);
+        if(res != 1)
+          break;
+        if(bert[0]=='b' && bert[1]=='e' && bert[2] =='r' && bert[3]=='t')
+          break;
+      }
+      if(res != 1) {
+        cerr<<"EOF2, res = "<<res<<endl;
+        break;
+      }
     }
     
     uint16_t len;
@@ -653,17 +669,32 @@ try
       etstamp();
       RTCMMessage rm;
       rm.parse(nmm.rm().contents());
+      cout<<" rtcm-msg "<<rm.type<<" ";
       if(rm.type == 1057 || rm.type == 1240) {
+        cout<<"iod-ssr "<<rm.ssrIOD<<" ";
         for(const auto& ed : rm.d_ephs) {
-          cout<<makeSatPartialName(ed.id)<<":  iode "<< ed.iod<<" ("<< ed.radial<<", "<<ed.along<<", "<<ed.cross<<") mm -> (";
+          cout<<makeSatIDName(ed.id)<<":  iode "<< ed.iod<<" ("<< ed.radial<<", "<<ed.along<<", "<<ed.cross<<") mm -> (";
           cout<< ed.dradial<<", "<<ed.dalong<<", "<<ed.dcross<< ") mm/s\n";
         }
       }
       else if(rm.type == 1058 || rm.type == 1241) {
+        cout<<"iod-ssr "<<rm.ssrIOD<<" ";
         for(const auto& cd : rm.d_clocks) {
-          cout<<makeSatPartialName(cd.id)<<":  dclock0 "<< cd.dclock0 <<" dclock1 " << cd.dclock1 <<" dclock2 "<< cd.dclock2 << endl;
+          cout<<makeSatIDName(cd.id)<<":  dclock0 "<< cd.dclock0 <<" dclock1 " << cd.dclock1 <<" dclock2 "<< cd.dclock2 << endl;
         }
       }
+      else if (rm.type == 1060 || rm.type == 1243) {
+        for(const auto& ed : rm.d_ephs) {
+          cout<<makeSatIDName(ed.id)<<":  iode "<< ed.iod<<" ("<< ed.radial<<", "<<ed.along<<", "<<ed.cross<<") mm -> (";
+          cout<< ed.dradial<<", "<<ed.dalong<<", "<<ed.dcross<< ") mm/s\n";
+        }
+
+        for(const auto& cd : rm.d_clocks) {
+          cout<<makeSatIDName(cd.id)<<":  dclock0 "<< cd.dclock0 <<" dclock1 " << cd.dclock1 <<" dclock2 "<< cd.dclock2 << endl;
+        }
+      }
+      else
+        cout<<endl;
 
     }
     else if(nmm.type() == NavMonMessage::GPSCnavType) {
@@ -1127,6 +1158,27 @@ try
         
       }
       cout<<endl;
+    }
+    else if(nmm.type() == NavMonMessage::SARResponseType) {    
+      etstamp();
+
+      string hexstring;
+      string id = nmm.sr().identifier();
+      for(int n = 0; n < 15; ++n)
+        hexstring+=fmt::sprintf("%x", (int)getbitu((unsigned char*)id.c_str(), 4 + 4*n, 4));
+
+      
+      cout<<" SAR RLM type "<< nmm.sr().type() <<" from gal sv ";
+      cout<< nmm.sr().gnsssv() << " beacon "<<hexstring <<" code "<<(int)nmm.sr().code()<<" params "<< makeHexDump(nmm.sr().params()) <<endl;
+    }
+    else if(nmm.type() == NavMonMessage::TimeOffsetType) {
+      etstamp();
+      cout<<" got a time-offset message with "<< nmm.to().offsets().size()<<" offsets: ";
+      for(const auto& o : nmm.to().offsets()) {
+        cout << "gnssid "<<o.gnssid()<<" offset " << o.offsetns() << " +- "<<o.tacc()<<" ("<<o.valid()<<") , ";
+      }
+      cout<<endl;
+            
     }
     else {
       etstamp();

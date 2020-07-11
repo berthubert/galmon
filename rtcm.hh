@@ -31,10 +31,11 @@ struct RTCMMessage
   {
     SatID id;
     // in millimeters
-    double radial, along, cross;
-    double dradial, dalong, dcross;
+    double radial, along, cross;   // mm
+    double dradial, dalong, dcross; // mm/s
     int iod;
     int sow;
+    int udi;
   };
   struct ClockDelta
   {
@@ -42,6 +43,9 @@ struct RTCMMessage
     double dclock0; // in meters
     double dclock1;
     double dclock2;
+    int sow;
+    int udi;
+    int iod{-1};
   };
 
   std::vector<EphemerisDelta> d_ephs;

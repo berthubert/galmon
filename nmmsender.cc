@@ -58,24 +58,23 @@ void NMMSender::sendTCPThread(Destination* d)
         bool hadMessage=false;
         int msgnum = 0;
 
-        for(;;) {
+        for(;;) { 
           uint32_t num;
           // read acks
-          for(;;) {
-            int res = read(s, &num, 4);
-            if(res < 0) {
+          for(; zsc ;) { // only do this for compressed protocol
+            try {
+              readn2(s, &num, 4); // this will give us 4, or throw
+              num = ntohl(num);
+              unacked.erase(num);
+            }
+            catch(EofException& ee) {
+              throw std::runtime_error("EOF while reading acks");
+            }
+            catch(std::exception& e) {
               if(errno != EAGAIN)
                 unixDie("Reading acknowledgements in nmmsender");
               break;
             }
-            if(res==0)
-              throw std::runtime_error("EOF while reading acks");
-            if(res==4) {
-              num = ntohl(num);
-              unacked.erase(num);
-            }
-            else
-              throw std::runtime_error("Partial read of "+to_string(res)+" bytes");
           }
 
           
@@ -111,12 +110,14 @@ void NMMSender::sendTCPThread(Destination* d)
               zsc->flush();
 
               if(time(0) - connStartTime > 10 && unacked.size() > 1000)
-                throw std::runtime_error("Too many messages unacked, recycling connection");
+                throw std::runtime_error("Too many messages unacked ("+to_string(unacked.size())+"), recycling connection");
 
 
               
             }
             hadMessage = false;
+            if(d_pleaseQuit) 
+              return;
             usleep(100000);
 #if defined(TCP_CORK)
 	    /* linux-only: has an implied 200ms timeout */

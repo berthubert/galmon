@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "best-tle", "iod", "eph-age-m", "latest-disco", "time-disco", "sisa", "health", "alma-dist", "delta-utc", "sources", "hqsources", "db", "rtcm-eph-delta-cm","prres", "elev", "last-seen-s"];    
+    var columns = ["sv", "best-tle", "iod", "eph-age-m", "latest-disco", "time-disco", "sisa", "health", "alma-dist", "delta-utc", "sources", "db", "rtcm-eph-delta-cm","rtcm-clock-dclock0", "prres", "elev", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -27,6 +27,9 @@ function maketable(str, arr)
                 return "ΔHz";
             if(column == "rtcm-eph-delta-cm")
                 return "Δrtcm";
+            if(column == "rtcm-clock-dclock0")
+                return "Δclk";
+
             if(column == "delta-gps")
                 return "ΔGPS ns";
             if(column == "delta-utc")
@@ -68,6 +71,18 @@ function maketable(str, arr)
                     else
                         ret.value="";
                 }
+                else if(column == "rtcm-clock-dclock0") {
+                    if(row[column] != null) {
+                        if(Math.abs(row[column]) > 150)
+                            ret.color="#ff2222";
+                        else if(Math.abs(row[column]) > 100) 
+                            ret.color="#ff4444";
+                        ret.value = row[column].toFixed(1)+" cm";
+                    }
+                    else
+                        ret.value="";
+                }
+
                 else if(column == "aodc/e") {
                     if(row["aodc"] != null && row["aode"] != null)
                         ret.value = row["aodc"]+"/"+row["aode"];

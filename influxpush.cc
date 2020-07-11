@@ -13,9 +13,8 @@ InfluxPusher::InfluxPusher(std::string_view dbname) : d_dbname(dbname)
 
 void InfluxPusher::queueValue(const std::string& line)
 {
-  d_buffer.insert(line);
-  //  if(d_buffer.insert(line).second)
-  //  cout<<line;
+  if(!d_buffer.insert(line).second)
+    d_numdedupmsmts++;
   checkSend();
 }
 
@@ -41,6 +40,9 @@ void InfluxPusher::addValueObserver(int src, string_view name, const initializer
   buffer+= " ";
   bool lefirst=true;
   for(const auto& v : values) {
+    if(!v.first) // trick to null out certain fields
+      continue;
+    d_numvalues++;
     if(!lefirst) {
       buffer +=",";
     }
@@ -48,41 +50,85 @@ void InfluxPusher::addValueObserver(int src, string_view name, const initializer
     buffer += string(v.first) + "="+to_string(v.second);
   }
   buffer += " " + to_string((uint64_t)(t* 1000000000))+"\n";
-
+  d_nummsmts++;
+  d_msmtmap[(string)name]++;
   queueValue(buffer);
 }
 
-  
-void InfluxPusher::addValue(const SatID& id, string_view name, const initializer_list<pair<const char*, double>>& values, double t, std::optional<int> src, std::optional<string> tag)
+
+void InfluxPusher::addValue(const SatID& id, string_view name, const initializer_list<pair<const char*, var_t>>& values, double t, std::optional<int> src, std::optional<string> tag)
+{
+
+  vector<pair<string,var_t>> tags{{"sv", id.sv}, {"gnssid", id.gnss}, {"sigid", id.sigid}};
+
+  if(src) {
+    tags.push_back({*tag, *src});
+  }
+  addValue(tags, name, values, t);
+}
+
+void InfluxPusher::addValue(const vector<pair<string,var_t>>& tags, string_view name, const initializer_list<pair<const char*, var_t>>& values, double t)
 {
   if(d_mute)
     return;
 
   if(t > 2200000000 || t < 0) {
-    cerr<<"Unable to store item "<<name<<" for sv "<<id.gnss<<","<<id.sv<<": time out of range "<<t<<endl;
+    cerr<<"Unable to store item "<<name<<" for ";
+    //    for(const auto& t: tags)
+    //      cerr<<t.first<<"="<<t.second<<" ";
+    cerr<<": time out of range "<<t<<endl;
     return;
   }
   for(const auto& p : values) {
-    if(isnan(p.second))
-      return;
+    if(auto ptr = std::get_if<double>(&p.second))
+      if(isnan(*ptr))
+        return;
   }
 
-  string buffer = string(name) +",gnssid="+to_string(id.gnss)+",sv=" +to_string(id.sv)+",sigid="+to_string(id.sigid);
-  if(src)
-    buffer += ","+*tag+"="+to_string(*src);
+  string buffer = string(name);
+  for(const auto& t : tags) {
+    buffer += ","+t.first + "=";
+    std::visit([&buffer](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, string>) {
+                      // string tags really don't need a "
+                       buffer += arg;
+          }
+        else {
+          // resist the urge to do integer tags, it sucks
+          buffer += to_string(arg);
+        }
+      }, t.second);
+  }
   
   buffer+= " ";
   bool lefirst=true;
   for(const auto& v : values) {
+    if(!v.first) // trick to null out certain fields
+      continue;
+
+    d_numvalues++;
     if(!lefirst) {
       buffer +=",";
     }
     lefirst=false;
-    buffer += string(v.first) + "="+to_string(v.second);
+    buffer += string(v.first) + "=";
+
+    std::visit([&buffer](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, string>)
+                       buffer += "\""+arg+"\"";
+        else {
+          buffer += to_string(arg);
+          if constexpr (!std::is_same_v<T, double>)
+                         buffer+="i";
+        }
+      }, v.second);
   }
   buffer += " " + to_string((uint64_t)(t*1000000000))+"\n";
+  d_nummsmts++;
+  d_msmtmap[(string)name]++;
   queueValue(buffer);
-  
 }
 
 

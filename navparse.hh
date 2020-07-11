@@ -61,6 +61,7 @@ struct SVStat
   map<int, SBASCombo> sbas;
 
   RTCMMessage::EphemerisDelta rtcmEphDelta;
+  RTCMMessage::ClockDelta rtcmClockDelta;
   
   const GPSLikeEphemeris& liveIOD() const;
   const GPSLikeEphemeris& prevIOD() const;

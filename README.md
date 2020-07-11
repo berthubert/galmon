@@ -92,21 +92,29 @@ library installed. If you get an error about 'wslay', do the following, and run 
 echo WSLAY=-lwslay > Makefile.local
 ```
 
-Build in Docker
----------------
+Running in Docker
+-----------------
 
-To build it in Docker:
+We publish official Docker images for galmon on
+[docker hub](https://hub.docker.com/r/faucet/faucet) for multiple architectures.
 
-```
-git clone https://github.com/ahupowerdns/galmon.git --recursive
-docker build -t galmon --build-arg MAKE_FLAGS=-j2 .
-```
-
-To run a container with a shell in there (this will also expose a port so you can view the UI too and assumes a ublox GPS device too - you may need to tweak as necessary):
+To run a container with a shell in there (this will also expose a port so you
+can view the UI too and assumes a ublox GPS device too -
+you may need to tweak as necessary):
 
 ```
-docker run -it --rm --device=/dev/ttyACM0 -p 10000:10000 galmon
+docker run -it --rm --device=/dev/ttyACM0 -p 10000:10000 galmon/galmon
 ```
+
+Running a daemonized docker container reporting data to a remote server
+might look like:
+
+```
+docker run -d --restart=always --device=/dev/ttyACM0 --name=galmon galmon/galmon /galmon/ubxtool --wait --port /dev/ttyACM0 --gps --galileo --glonass --destination [server] --station [station-id] --owner [owner]
+```
+
+To make your docker container update automatically you could use a tool such as
+[watchtower](https://containrrr.github.io/watchtower/).
 
 Build `ubxtool` in Docker
 -------------------------
@@ -288,14 +296,26 @@ The software can interpret SP3 files, good sources:
 Uncompress and concatenate all downloaded files into 'all.sp3' and run
 'navdump ' on collected protobuf, and it will output 'sp3.csv' with fit data.
 
+To get SP3 GBM from GFZ Potsdam for GPS week number 2111:
+
+```
+WN=2111
+lftp -c "mget ftp://ftp.gfz-potsdam.de/GNSS/products/mgnss/${WN}/gbm*sp3.Z"
+```
+
+
 RTCM
 ----
 RTCM is the Radio Technical Commission for Maritime Services, and
-confusingly, also the name of a protocol. This project can parse RTCM 10403.1 
-messages, and currently processes State Space Representation (SSR) messages,
-specifically types 1057/1240 (GPS/Galileo Orbit corrections to broadcast
-ephemeris) and 1058/1241 (GPS/Galileo Clock corrections to broadcast
-ephemeris).
+confusingly, also the name of a protocol. 
+
+This protocol is proprietary, but search for a file called `RTCM3.2.pdf` or
+`104-2013-SC104-STD - Vers. 3.2.docx` and you might find a copy. 
+
+This project can parse RTCM 10403.1 messages, and currently processes State
+Space Representation (SSR) messages, specifically types 1057/1240
+(GPS/Galileo Orbit corrections to broadcast ephemeris) and 1058/1241
+(GPS/Galileo Clock corrections to broadcast ephemeris).
 
 RTCM messages need to be converted to protobuf format, and the `rtcmtool` is
 provided for this purpose.
@@ -308,6 +328,17 @@ $ ntripclient ntrip:CLKA0_DEU1/user:password@navcast.spaceopal.com:2101 | ./rtcm
 
 User and password can be obtained from https://spaceopal.com/navcast/ - the
 Galileo operating company. 
+
+The IGS also offers excellent streams, but without Galileo. Information is
+[here](http://www.igs.org/rts/products). A typical commandline is:
+
+```
+$ ntripclient ntrip:IGS01/user:password@products.igs-ip.net:2101 | ./rtcmtool --station x --destination y
+```
+
+User and password can be requested through http://www.igs.org/rts/access
+
+An interesting list is here: http://products.igs-ip.net/
 
 There are many other sources of RTCM but currently not many offer the SSR
 messages we can use.
@@ -335,7 +366,13 @@ Tooling
    stdout or to a navrecv server. This is the equivalent of 'ubxtool'
    except for submitting RTCM messages. 
 
+Sample command lines
+--------------------
+Look at old data:
 
+```
+$ ./navcat storage "2020-01-01 00:00" "2020-01-02 00:00" | ./navdump  
+```
 
 Global coverage (via volunteers)
 --------------------------------

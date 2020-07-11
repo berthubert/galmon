@@ -37,8 +37,7 @@ public:
   {
     for(auto& d : d_dests) {
       if(!d->dst.empty()) {
-        std::thread t(&NMMSender::sendTCPThread, this, d.get());
-        t.detach();
+        d_thread.emplace_back(std::move(std::make_unique<std::thread>(&NMMSender::sendTCPThread, this, d.get())));
       }
     }
   }
@@ -48,7 +47,17 @@ public:
   void emitNMM(const NavMonMessage& nmm);
   bool d_debug{false};
   bool d_compress{false}; // set BEFORE launch
-
+  bool d_pleaseQuit{false};
+  ~NMMSender()
+  {
+    if(!d_thread.empty()) {
+      d_pleaseQuit = true;
+      for(auto& t : d_thread)
+        t->join();
+    }
+  }
+  
 private:
   std::vector<std::unique_ptr<Destination>> d_dests;
+  std::vector<std::unique_ptr<std::thread>> d_thread;
 };

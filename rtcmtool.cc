@@ -14,7 +14,7 @@ bool RTCMReader::get(RTCMFrame& rf)
 {
   int c;
   while( ((c=fgetc(d_fp)) != -1) && c != 211) {
-    cerr<<"Skipped.. "<<endl;
+    cerr<<"Skipped, not yet 211 character "<<endl;
     continue;
   }
 
@@ -149,7 +149,7 @@ int main(int argc, char** argv)
   RTCMReader rr(0);
   RTCMFrame rf;
   while(rr.get(rf)) {
-    //    cout<<"Got a "<<rf.payload.size()<<" byte frame"<<endl;
+    //    cerr<<"Got a "<<rf.payload.size()<<" byte frame"<<endl;
     RTCMMessage rm;
     NavMonMessage nmm;
     struct timespec ts;
