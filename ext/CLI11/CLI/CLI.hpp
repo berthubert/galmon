@@ -1,16 +1,36 @@
-#pragma once
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
 
-// Distributed under the 3-Clause BSD License.  See accompanying
-// file LICENSE or https://github.com/CLIUtils/CLI11 for details.
+#pragma once
 
 // CLI Library includes
 // Order is important for combiner script
 
-#include "CLI/Error.hpp"
-#include "CLI/TypeTools.hpp"
-#include "CLI/StringTools.hpp"
-#include "CLI/Split.hpp"
-#include "CLI/Ini.hpp"
-#include "CLI/Validators.hpp"
-#include "CLI/Option.hpp"
-#include "CLI/App.hpp"
+#include "Version.hpp"
+
+#include "Macros.hpp"
+
+#include "StringTools.hpp"
+
+#include "Error.hpp"
+
+#include "TypeTools.hpp"
+
+#include "Split.hpp"
+
+#include "ConfigFwd.hpp"
+
+#include "Validators.hpp"
+
+#include "FormatterFwd.hpp"
+
+#include "Option.hpp"
+
+#include "App.hpp"
+
+#include "Config.hpp"
+
+#include "Formatter.hpp"
