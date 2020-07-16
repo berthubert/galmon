@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include "navmon.hh"
 #include <vector>
+#include "galileo.hh"
+
 struct RTCMFrame
 {
   std::string payload;
@@ -50,5 +52,6 @@ struct RTCMMessage
 
   std::vector<EphemerisDelta> d_ephs;
   std::vector<ClockDelta> d_clocks;
-  
+  GalileoMessage d_gm;
+  int d_sv;
 };

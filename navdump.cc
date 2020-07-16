@@ -535,7 +535,13 @@ try
         if(gm.alma3.e1bhs != 0) {
           cout <<" gm.tow "<<gm.tow<<" gmwtypes.tow "<< gmwtypes[{sv,9}].tow <<" ";
         }
-        cout<<"  "<<gmwtypes[{sv,9}].alma3.svid <<" af0 "<<gm.alma3.af0<<" af1 "<< gm.alma3.af1 <<" e5bhs "<< gm.alma3.e5bhs<<" e1bhs "<< gm.alma3.e1bhs <<" a0g " << gm.a0g <<" a1g "<< gm.a1g <<" t0g "<<gm.t0g <<" wn0g "<<gm.wn0g;
+        cout<<"  "<<gmwtypes[{sv,9}].alma3.svid <<" af0 "<<gm.alma3.af0<<" af1 "<< gm.alma3.af1 <<" e5bhs "<< gm.alma3.e5bhs<<" e1bhs "<< gm.alma3.e1bhs <<" a0g " << gm.a0g <<" a1g "<< gm.a1g <<" t0g "<<gm.t0g <<" wn0g "<<gm.wn0g <<" delta-gps "<< gm.getGPSOffset(gm.tow, gm.wn).first<<"ns";
+
+        int dw = (int)(gm.wn%64) - (int)(gm.wn0g);
+        if(dw > 31)
+          dw = 31- dw;
+        int delta = dw*7*86400  + gm.tow - gm.getT0g(); // NOT ephemeris age tricks
+        cout<<" wn%64 "<< (gm.wn%64) << " dw " << dw <<" delta " << delta;
       }
       
       cout<<endl;      
@@ -561,7 +567,7 @@ try
       if(frame == 1) {
 
         gpswn = gs.wn;
-        cout << "gpshealth = "<<(int)gs.gpshealth<<", wn "<<gs.wn << " t0c "<<gs.t0c << " af0 " << gs.af0 << " af1 " << gs.af1 <<" af2 " << gs.af2;
+        cout << "gpshealth = "<<(int)gs.gpshealth<<", wn "<<gs.wn << " t0c "<<gs.t0c << " af0 " << gs.af0 << " af1 " << gs.af1 <<" af2 " << (int)gs.af2;
         if(auto iter = oldgs1s.find(sv); iter != oldgs1s.end() && iter->second.t0c != gs.t0c) {
           auto oldOffset = getGPSAtomicOffset(gs.tow, iter->second);
           auto newOffset = getGPSAtomicOffset(gs.tow, gs);
@@ -693,8 +699,25 @@ try
           cout<<makeSatIDName(cd.id)<<":  dclock0 "<< cd.dclock0 <<" dclock1 " << cd.dclock1 <<" dclock2 "<< cd.dclock2 << endl;
         }
       }
-      else
-        cout<<endl;
+      else if(rm.type == 1045 || rm.type == 1046) {
+        
+        SatID sid;
+        sid.gnss = 2;
+        sid.sv = rm.d_sv;
+        sid.sigid = (rm.type == 1045) ? 5 : 1;
+        
+        cout<< makeSatIDName(sid)<<" ";
+        if(rm.type == 1045)
+          cout<<"F/NAV ";
+        else
+          cout <<"I/NAV ";
+        
+        cout <<" iode " << rm.d_gm.iodnav << " sisa " << (unsigned int) rm.d_gm.sisa << " af0 "<<rm.d_gm.af0 <<" af1 " << rm.d_gm.af1 <<" af2 " << (int) rm.d_gm.af2 << endl;
+      }
+      else {
+        cout<<" len " << nmm.rm().contents().size() << endl;
+        
+      }
 
     }
     else if(nmm.type() == NavMonMessage::GPSCnavType) {
@@ -746,7 +769,7 @@ try
           cout<<"  Timejump: "<<oldOffset.first - newOffset.first<<" after "<<(bm.getT0c() - msgs[sv].getT0c() )<<" seconds";
         }
         msgs[sv]=bm;
-        cout<<" wn "<<bm.wn<<" t0c "<<(int)bm.t0c<<" aodc "<< (int)bm.aodc <<" aode "<< (int)bm.aode <<" sath1 "<< (int)bm.sath1 << " urai "<<(int)bm.urai << " af0 "<<bm.a0 <<" af1 " <<bm.a1 <<" af2 "<<bm.a2;
+        cout<<" wn "<<bm.wn<<" t0c "<<(int)bm.t0c<<" aodc "<< (int)bm.aodc <<" aode "<< (int)bm.aode <<" sath1 "<< (int)bm.sath1 << " urai "<<(int)bm.urai << " af0 "<<bm.a0 <<" af1 " <<bm.a1 <<" af2 "<< (int)bm.a2;
         auto offset = bm.getAtomicOffset();
         cout<< ", "<<offset.first<<"ns " << (offset.second * 3600) <<" ns/hour "<< ephAge(bm.sow, bm.t0c*8);
       }

@@ -84,8 +84,8 @@ These measurements are tagged by gnssid, sv
     * tow
     * udi
   * rtcm-clock-correction
-    * dclock0
-    * dclock1
+    * dclock0: in meters
+    * dclock1: meters/s
     * dclock2
     * ssr-iod
     * ssr-provider

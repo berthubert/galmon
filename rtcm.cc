@@ -9,10 +9,23 @@ void RTCMMessage::parse(const std::string& str)
   auto gbu=[&str](int offset, int bits) {
     return getbitu((const unsigned char*)str.c_str(), offset, bits);
   };
+  auto gbum=[&str](int& offset, int bits) {
+    unsigned int ret = getbitu((const unsigned char*)str.c_str(), offset, bits);
+    offset += bits;
+    return ret;
+  };
+  
   auto gbs=[&str](int offset, int bits) {
     return getbits((const unsigned char*)str.c_str(), offset, bits);
   };
-    
+  
+  auto gbsm=[&str](int& offset, int bits) {
+    int ret = getbits((const unsigned char*)str.c_str(), offset, bits);
+    offset += bits;
+    return ret;
+  };
+  
+  
   type = gbu(0, 12);
   //  cout<<"Message number: "<<type << " of size "<<str.size()<<"\n";
   if(type == 1057 || type == 1240) {
@@ -165,5 +178,31 @@ DF 385: Full seconds since the beginning of the GPS week
       d_clocks.push_back(cd);
     }
   }
+  else if(type == 1045 || type == 1046) { // F/NAV or I/NAV respectively ephemeris
+    int off=12;
+    d_sv = gbum(off, 6);
+    d_gm.wn = gbum(off, 12);
+    d_gm.iodnav = gbum(off, 10);
+    d_gm.sisa = gbum(off, 8);
+    off += 14;
+    d_gm.t0c = gbum(off, 14);
+    d_gm.af2 = gbsm(off, 6);
+    d_gm.af1 = gbsm(off, 21);
+    d_gm.af0 = gbsm(off, 31);
+    
+      /*
+    setbitu(rtcm->buff,i,12,1045     ); i+=12;
+    setbitu(rtcm->buff,i, 6,prn      ); i+= 6;
+    setbitu(rtcm->buff,i,12,week     ); i+=12;
+    setbitu(rtcm->buff,i,10,eph->iode); i+=10;
+    setbitu(rtcm->buff,i, 8,eph->sva ); i+= 8;
+    setbits(rtcm->buff,i,14,idot     ); i+=14;
+    setbitu(rtcm->buff,i,14,toc      ); i+=14;
+    setbits(rtcm->buff,i, 6,af2      ); i+= 6;
+    setbits(rtcm->buff,i,21,af1      ); i+=21;
+    setbits(rtcm->buff,i,31,af0      ); i+=31;
+      */
+      
 
+  }
 }

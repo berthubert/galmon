@@ -13,10 +13,14 @@ using namespace std;
 bool RTCMReader::get(RTCMFrame& rf)
 {
   int c;
+  bool skipped=false;
   while( ((c=fgetc(d_fp)) != -1) && c != 211) {
-    cerr<<"Skipped, not yet 211 character "<<endl;
+    skipped=true;
+    cerr<<".";
     continue;
   }
+  if(skipped)
+    cerr<<endl;
 
   if(c != 211) {
     cerr<<"EOF"<<endl;
@@ -148,6 +152,7 @@ int main(int argc, char** argv)
   
   RTCMReader rr(0);
   RTCMFrame rf;
+  cerr<<"Station "<<g_srcid<<endl;
   while(rr.get(rf)) {
     //    cerr<<"Got a "<<rf.payload.size()<<" byte frame"<<endl;
     RTCMMessage rm;
