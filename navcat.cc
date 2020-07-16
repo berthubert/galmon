@@ -55,7 +55,7 @@ vector<uint64_t> getSources(string_view dirname)
 }
 
 
-void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
+void sendProtobuf(string_view dir, vector<uint64_t> stations, time_t startTime, time_t stopTime=0)
 {
   timespec start;
   start.tv_sec = startTime;
@@ -67,7 +67,7 @@ void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
 
   for(;;) {
     cerr<<"Gathering data"<<endl;
-    auto srcs = getSources(dir);
+    vector<uint64_t> srcs = stations.empty() ? getSources(dir) : stations;
     rnmms.clear();
     for(const auto& src: srcs) {
       string fname = getPath(dir, start.tv_sec, src);
@@ -127,32 +127,35 @@ void sendProtobuf(string_view dir, time_t startTime, time_t stopTime=0)
 int main(int argc, char** argv)
 {
   bool doVERSION{false};
-  /*
+
   CLI::App app(program);
-
+  string beginarg, endarg, storage;
+  app.add_option("--storage,-s", storage, "Location of storage files");  
+  vector<uint64_t> stations;
   app.add_flag("--version", doVERSION, "show program version and copyright");
-  app.allow_extras(true); // allow bare positional parameters
-  try {
-    app.parse(argc, argv);
-  } catch(const CLI::Error &e) {
-    return app.exit(e);
-  }
+  app.add_option("--begin,-b", beginarg, "Begin time (2020-01-01 00:00, or 12:30)")->required();
+  app.add_option("--end,-e", endarg, "End time. Now if omitted");
+  app.add_option("--stations", stations, "only send data from listed stations");
 
+  CLI11_PARSE(app, argc, argv);
+
+  
   if(doVERSION) {
     showVersion(program, g_gitHash);
     exit(0);
   }
-  */
-  signal(SIGPIPE, SIG_IGN);
-  if(argc < 3) {
-    cout<<"Syntax: navcat storage start stop"<<endl;
-    cout<<"Example: ./navcat storage \"2020-01-01 00:00\" \"2020-01-02 00:00\" | ./navdump  "<<endl;
-    return(EXIT_FAILURE);
-  }
-  time_t startTime = parseTime(argv[2]);
-  time_t stopTime = parseTime(argv[3]);
+
+  time_t startTime = parseTime(beginarg);
+  
+  time_t stopTime = endarg.empty()  ? time(0) :  parseTime(endarg);
 
   cerr<<"Emitting from "<<humanTime(startTime) << " to " << humanTime(stopTime) << endl;
-  sendProtobuf(argv[1], startTime, stopTime);
-  
+  if(!stations.empty()) {
+    cerr<<"Restricting to stations:";
+    for(const auto& s : stations)
+      cerr<<" "<<s;
+    cerr<<endl;
+}
+  sendProtobuf(storage, stations, startTime, stopTime);
+    
 }
