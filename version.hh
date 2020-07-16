@@ -1,6 +1,6 @@
 #pragma once
 
-void showVersion(char *pname, const char *hash) {
+void showVersion(const char *pname, const char *hash) {
   std::cout <<"galmon tools (" <<pname <<") " <<hash <<std::endl;
   std::cout <<"built date " <<__DATE__ <<std::endl;
   std::cout <<"(C) AHU Holding BV - bert@hubertnet.nl - https://berthub.eu/" <<std::endl;
