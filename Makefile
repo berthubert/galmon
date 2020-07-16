@@ -25,7 +25,7 @@ endif
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
 PROGRAMS = navparse ubxtool navnexus navcat navrecv navdump testrunner navdisplay tlecatch reporter sp3feed \
-	galmonmon rinreport rtcmtool
+	galmonmon rinreport rtcmtool gndate
 
 all: navmon.pb.cc $(PROGRAMS)
 
@@ -126,6 +126,10 @@ ubxtool: navmon.pb.o ubxtool.o ubx.o bits.o ext/fmt-6.1.2/src/format.o galileo.o
 
 testrunner: navmon.pb.o testrunner.o ubx.o bits.o ext/fmt-6.1.2/src/format.o galileo.o  gps.o beidou.o ephemeris.o sp3.o osen.o navmon.o rinex.o githash.o
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -lprotobuf -lz 
+
+gndate: gndate.o githash.o ext/fmt-6.1.2/src/format.o navmon.o
+	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib
+	
 
 check: testrunner
 	./testrunner
