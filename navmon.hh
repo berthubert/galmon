@@ -76,6 +76,11 @@ uint64_t utcFromGST(int wn, int tow);
 double utcFromGST(int wn, double tow);
 double utcFromGPS(int wn, double tow);
 
+void getGPSDateFromUTC(time_t t, int& wn, int& tow);
+void getGalDateFromUTC(time_t t, int& wn, int& tow);
+
+
 std::string makeHexDump(const std::string& str);
 size_t writen2(int fd, const void *buf, size_t count);
 void unixDie(const std::string& reason);
+time_t parseTime(std::string_view in);

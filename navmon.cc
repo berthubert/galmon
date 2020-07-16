@@ -9,7 +9,7 @@
 #include <signal.h>
 #include <sys/poll.h>
 #include <iostream>
-
+#include <vector>
 using namespace std;
 
 using Clock = std::chrono::steady_clock; 
@@ -280,6 +280,20 @@ std::string makeSatPartialName(const SatID& satid)
   return fmt::sprintf("%c%02d", getGNSSChar(satid.gnss), satid.sv);
 }
 
+void getGPSDateFromUTC(time_t t, int& wn, int& tow)
+{
+  t -= 315964800;
+  t += 18;
+  wn = t/(7*86400);
+  tow = t%(7*86400);
+}
+void getGalDateFromUTC(time_t t, int& wn, int& tow)
+{
+  t -= 935280000;
+  t += 18;
+  wn = t/(7*86400);
+  tow = t%(7*86400);
+}
 
 int g_dtLS{18}, g_dtLSBeidou{4};
 uint64_t utcFromGST(int wn, int tow)
@@ -356,3 +370,29 @@ void unixDie(const std::string& reason)
 {
   throw std::runtime_error(reason+": "+strerror(errno));
 }
+
+time_t parseTime(std::string_view in)
+{
+  time_t now=time(0);
+
+  vector<string> formats({"%Y-%m-%d %H:%M", "%Y%m%d %H%M", "%H:%M", "%H%M"});
+  for(const auto& f : formats) {
+    struct tm tm;
+    memset(&tm, 0, sizeof(tm));
+
+    localtime_r(&now, &tm);
+    tm.tm_isdst = -1;
+    tm.tm_sec = 0;
+    char* res = strptime(&in[0], f.c_str(), &tm);
+    if(res && !*res) {
+      //      cerr<<"Matched on "<<f<<endl;
+      return mktime(&tm);
+    }
+  }
+
+  string err="Can only parse on";
+  for(const auto& f : formats)
+    err += " "+ f;
+  throw runtime_error(err);
+}
+

@@ -26,28 +26,6 @@ using namespace std;
 
 extern const char* g_gitHash;
 
-time_t parseTime(std::string_view in)
-{
-  time_t now=time(0);
-
-  vector<string> formats({"%Y-%m-%d %H:%M", "%Y%m%d %H%M", "%H:%M", "%H%M"});
-  for(const auto& f : formats) {
-    struct tm tm;
-    memset(&tm, 0, sizeof(tm));
-
-    localtime_r(&now, &tm);
-    tm.tm_isdst = -1;
-    tm.tm_sec = 0;
-    char* res = strptime(&in[0], f.c_str(), &tm);
-    if(res && !*res) {
-      cerr<<"Matched on "<<f<<endl;
-      return mktime(&tm);
-    }
-  }
-  
-  throw runtime_error("Can only parse %Y-%m-%d %H:%M");
-}
-
 
 vector<uint64_t> getSources(string_view dirname)
 {
