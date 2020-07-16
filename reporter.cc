@@ -110,11 +110,13 @@ int main(int argc, char **argv)
   string beginarg, endarg;
   string sp3src("default");
   int gnssid=2;
+  int rtcmsrc=300;
   app.add_flag("--version", doVERSION, "show program version and copyright");
   app.add_option("--period,-p", periodarg, "period over which to report (1h, 1w)");
   app.add_option("--begin,-b", beginarg, "Beginning");
   app.add_option("--end,-e", endarg, "End");
   app.add_option("--sp3src", sp3src, "Identifier of SP3 source");
+  app.add_option("--rtcmsrc", rtcmsrc, "Identifier of RTCM source");
   app.add_option("--sigid,-s", sigid, "Signal identifier. 1 or 5 for Galileo.");
   app.add_option("--gnssid,-g", gnssid, "gnssid, 0 GPS, 2 Galileo");
   app.add_option("--influxdb", influxDBName, "Name of influxdb database");
@@ -204,7 +206,7 @@ int main(int argc, char **argv)
   ///////////////////// rtcm-eph
 
   
-  string rtcmQuery = "select mean(\"radial\") from \"rtcm-eph-correction\" where "+period+" and sigid='"+to_string(sigid)+"' and gnssid='"+to_string(gnssid)+"' group by gnssid,sv,sigid,time(10m)";
+  string rtcmQuery = "select mean(\"radial\") from \"rtcm-eph-correction\" where "+period+" and sigid='"+to_string(sigid)+"' and gnssid='"+to_string(gnssid)+"' and src='"+to_string(rtcmsrc)+"' group by gnssid,sv,sigid,time(10m)";
   cout<<"rtcmquery: "<<rtcmQuery<<endl;
   res = mc.getURL(url + mc.urlEncode(rtcmQuery));
   j = nlohmann::json::parse(res);
@@ -231,7 +233,7 @@ int main(int argc, char **argv)
   ///////////////////// rtcm-clock
 
   
-  string rtcmClockQuery = "select mean(\"dclock0\") from \"rtcm-clock-correction\" where "+period+" and sigid='"+to_string(sigid)+"' and gnssid='"+to_string(gnssid)+"' group by gnssid,sv,sigid,time(10m)";
+  string rtcmClockQuery = "select mean(\"dclock0\") from \"rtcm-clock-correction\" where "+period+" and sigid='"+to_string(sigid)+"' and gnssid='"+to_string(gnssid)+"' and src='"+to_string(rtcmsrc)+"' group by gnssid,sv,sigid,time(10m)";
   cout<<"rtcmquery: "<<rtcmClockQuery<<endl;
   res = mc.getURL(url + mc.urlEncode(rtcmClockQuery));
   j = nlohmann::json::parse(res);
@@ -242,7 +244,8 @@ int main(int argc, char **argv)
       for(const auto& v : sv["values"]) {
         try {
           auto val = (double) v[1]; // might trigger an exception
-          g_stats[id][(int)v[0]].rtcmDClock = val;
+          if(g_stats.count(id)) // we have some bad data it appears
+            g_stats[id][(int)v[0]].rtcmDClock = val;
         }
         catch(...){ continue; }
       }
@@ -537,6 +540,7 @@ int main(int argc, char **argv)
   int totunobserved=0;
   int totripe = 0,  totexpired = 0;
   Stats totRTCM;
+  ofstream texstream("stats.tex");
   for(const auto& sv : g_stats) {
 
     int napa=0, unhealthy=0, healthy=0, testing=0, ripe=0, expired=0;
@@ -587,6 +591,7 @@ int main(int argc, char **argv)
     totripe += ripe;
     totexpired += expired;
     int liveInterval=0;
+
     for(const auto i : sv.second)
       if(i.second.sisa.has_value())
         liveInterval++;
@@ -604,6 +609,16 @@ int main(int argc, char **argv)
                        100.0*ripe/maxintervals,
                        100.0*expired/maxintervals);
 
+    texstream << fmt::sprintf("%s & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%%\\\\",
+                       makeSatPartialName(sv.first),
+                       100.0*(maxintervals-liveInterval)/maxintervals,
+                       100.0*unhealthy/maxintervals,
+                       100.0*healthy/maxintervals,
+                       100.0*testing/maxintervals,
+                       100.0*napa/maxintervals,
+                       100.0*ripe/maxintervals,
+                             100.0*expired/maxintervals) << endl;
+    
     if(!rtcm.empty()) 
       cout<<fmt::sprintf(", %.1f - %.1f - %.1f cm",
                          rtcm.done().quantile(0.10)/10, rtcm.done().median()/10, rtcm.done().quantile(0.9)/10);
@@ -631,6 +646,17 @@ int main(int argc, char **argv)
                      100.0*totnapa/maxintervals/g_stats.size(),
                      100.0*totripe/maxintervals/g_stats.size(),
                      100.0*totexpired/maxintervals/g_stats.size());
+
+  texstream<<fmt::sprintf("Tot & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%%\\\\",
+                     100.0*(totunobserved)/maxintervals/g_stats.size(),
+                     100.0*totunhealthy/maxintervals/g_stats.size(),
+                     100.0*tothealthy/maxintervals/g_stats.size(),
+                     100.0*tottesting/maxintervals/g_stats.size(),
+                     100.0*totnapa/maxintervals/g_stats.size(),
+                     100.0*totripe/maxintervals/g_stats.size(),
+                          100.0*totexpired/maxintervals/g_stats.size()) <<endl;
+
+
   if(!totRTCM.empty())
     cout<<fmt::sprintf(", %.1f - %.1f - %.1f cm",
                        totRTCM.done().quantile(0.10)/10, totRTCM.done().median()/10, totRTCM.done().quantile(0.9)/10);
