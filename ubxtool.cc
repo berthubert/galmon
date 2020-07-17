@@ -940,8 +940,10 @@ int main(int argc, char** argv)
         enableUBXMessageOnPort(fd, 0x0d, 0x04, ubxport, 2);       
       }
 
-      if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RAWX"<<endl; } // RF doppler
-      enableUBXMessageOnPort(fd, 0x02, 0x15, ubxport, 8); // RXM-RAWX
+      if(mods.find("NEO-M9N") == string::npos) {
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RAWX"<<endl; } // RF doppler
+        enableUBXMessageOnPort(fd, 0x02, 0x15, ubxport, 8); // RXM-RAWX
+      }
 
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-CLOCK"<<endl; } // clock details
       enableUBXMessageOnPort(fd, 0x01, 0x22, ubxport, 16); // UBX-NAV-CLOCK
