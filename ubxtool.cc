@@ -502,7 +502,7 @@ int main(int argc, char** argv)
   CLI::App app(program);
     
 
-  bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{true}, doReset{false}, doWait{true}, doRTSCTS{true}, doSBAS{false};
+  bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{false}, doReset{false}, doWait{true}, doRTSCTS{true}, doSBAS{false};
   bool doFakeFix{false};
   bool doKeepNMEA{false};
   bool doSTDOUT=false;
