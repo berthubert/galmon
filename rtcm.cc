@@ -1,11 +1,12 @@
 #include "rtcm.hh"
 #include "bits.hh"
 #include <iostream>
-
+#include <string.h>
 using namespace std;
 
 void RTCMMessage::parse(const std::string& str)
 {
+  memset(&d_gm, 0, sizeof(d_gm));
   auto gbu=[&str](int offset, int bits) {
     return getbitu((const unsigned char*)str.c_str(), offset, bits);
   };
@@ -184,13 +185,23 @@ DF 385: Full seconds since the beginning of the GPS week
     d_gm.wn = gbum(off, 12);
     d_gm.iodnav = gbum(off, 10);
     d_gm.sisa = gbum(off, 8);
+    // skip idot
     off += 14;
     d_gm.t0c = gbum(off, 14);
     d_gm.af2 = gbsm(off, 6);
     d_gm.af1 = gbsm(off, 21);
     d_gm.af0 = gbsm(off, 31);
-    
-      /*
+    off += 16 + 16 + 32 + 16 + 32 + 16 + 32 + 14 +16+ 32 +16 + 32 + 16 + 32 +24;
+    d_gm.BGDE1E5a = gbsm(off, 10);
+    if(type == 1046) { // I/NAV
+      d_gm.BGDE1E5b = gbsm(off, 10);
+    }
+    else {
+      d_gm.BGDE1E5b = 9999999;
+    }
+
+    // thank you RTKLIB:
+#if 0
     setbitu(rtcm->buff,i,12,1045     ); i+=12;
     setbitu(rtcm->buff,i, 6,prn      ); i+= 6;
     setbitu(rtcm->buff,i,12,week     ); i+=12;
@@ -201,7 +212,36 @@ DF 385: Full seconds since the beginning of the GPS week
     setbits(rtcm->buff,i, 6,af2      ); i+= 6;
     setbits(rtcm->buff,i,21,af1      ); i+=21;
     setbits(rtcm->buff,i,31,af0      ); i+=31;
-      */
+
+    setbits(rtcm->buff,i,16,crs      ); i+=16;
+    setbits(rtcm->buff,i,16,deln     ); i+=16;
+    setbits(rtcm->buff,i,32,M0       ); i+=32;
+    setbits(rtcm->buff,i,16,cuc      ); i+=16;
+    setbitu(rtcm->buff,i,32,e        ); i+=32;
+    setbits(rtcm->buff,i,16,cus      ); i+=16;
+    setbitu(rtcm->buff,i,32,sqrtA    ); i+=32;
+    setbitu(rtcm->buff,i,14,toe      ); i+=14;
+    setbits(rtcm->buff,i,16,cic      ); i+=16;
+    setbits(rtcm->buff,i,32,OMG0     ); i+=32;
+    setbits(rtcm->buff,i,16,cis      ); i+=16;
+    setbits(rtcm->buff,i,32,i0       ); i+=32;
+    setbits(rtcm->buff,i,16,crc      ); i+=16;
+    setbits(rtcm->buff,i,32,omg      ); i+=32;
+    setbits(rtcm->buff,i,24,OMGd     ); i+=24;
+    setbits(rtcm->buff,i,10,bgd1     ); i+=10;
+
+1045:  F/NAV
+    setbitu(rtcm->buff,i, 2,oshs     ); i+= 2; /* E5a SVH */
+    setbitu(rtcm->buff,i, 1,osdvs    ); i+= 1; /* E5a DVS */
+    setbitu(rtcm->buff,i, 7,0        ); i+= 7; /* reserved */
+1046:  I/NAV
+    setbits(rtcm->buff,i,10,bgd2     ); i+=10;
+    setbitu(rtcm->buff,i, 2,oshs1    ); i+= 2; /* E5b SVH */
+    setbitu(rtcm->buff,i, 1,osdvs1   ); i+= 1; /* E5b DVS */
+    setbitu(rtcm->buff,i, 2,oshs2    ); i+= 2; /* E1 SVH */
+    setbitu(rtcm->buff,i, 1,osdvs2   ); i+= 1; /* E1 DVS */
+
+#endif
       
 
   }
