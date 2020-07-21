@@ -101,6 +101,11 @@ TLERepo::Match TLERepo::getBestMatch(time_t now, double x, double y, double z, T
       //      cerr<<"TLE error: "<<se.what()<<endl;
       continue;
     }
+    catch(DecayedException& se) {
+      //      cerr<<"TLE error: "<<se.what()<<endl;
+      continue;
+    }
+
   }
   if(distances.empty())
     return TLERepo::Match();
