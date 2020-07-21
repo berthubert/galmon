@@ -18,6 +18,9 @@ struct RINEXEntry
   int health;
   int toe;
   int tow;
+  double af0, af1, af2;
+  double clkflags;
+  double BGDE1E5a, BGDE1E5b;
 };
 
 class RINEXReader
@@ -69,7 +72,8 @@ E01 2019 09 21 23 30 00-6.949011585675E-04-7.943867785798E-12 0.000000000000E+00
   time_t then = utcFromGST(e.wn, (int)e.tow);
   struct tm tm;
   gmtime_r(&then, &tm);
-  
+
+  // 0
   d_ofs << makeSatPartialName(sid)<<" " << fmt::sprintf("%04d %02d %02d %02d %02d %02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 
   emit(ldexp(e.af0, -34));
@@ -77,40 +81,48 @@ E01 2019 09 21 23 30 00-6.949011585675E-04-7.943867785798E-12 0.000000000000E+00
   emit(ldexp(e.af2, -59));
   d_ofs<<"\n    ";
 
+  // 1
   emit(e.iodnav);
   emit(e.getCrs());
   emit(e.getDeltan());
   emit(e.getM0());
   d_ofs<<"\n    ";
 
-
+  // 2
   emit(e.getCuc());
   emit(e.getE());
   emit(e.getCus());
   emit(e.getSqrtA());
   d_ofs<<"\n    ";
 
+  // 3
   emit(e.getT0e());
   emit(e.getCic());
   emit(e.getOmega0());
   emit(e.getCis());
 
   d_ofs<<"\n    ";
+
+  // 4
   emit(e.getI0());
   emit(e.getCrc());
   emit(e.getOmega());
   emit(e.getOmegadot());
 
   d_ofs<<"\n    ";
+
+  // 5 
   emit(e.getIdot());
-  emit(257);
+               
+  emit(257);   // bit 0 = I/NAV E1, bit 1 = F/NAV E5a, bit 2 = I/NAV E5b
+               // bit 8 = E1,E5a clock aka F/NAV, bit 9 = E1,E5b aka I/NAV
   emit(e.wn + 1024); // so it aligns with GPS
 
 
+  // 6
   d_ofs<<"\n    ";
   emit(numSisa(e.sisa));
-  int health=0; // there are more bits in here, it is not just health, also signal
-  // bits 8/9 encode the signal, so I/NAV, or F/NAV or equivalent
+  int health=0; 
   health |= e.e1bdvs;
   health |= (e.e1bhs << 2);
   // don't have e5advs
@@ -121,6 +133,7 @@ E01 2019 09 21 23 30 00-6.949011585675E-04-7.943867785798E-12 0.000000000000E+00
   emit(ldexp(e.BGDE1E5a, -32));
   emit(ldexp(e.BGDE1E5b, -32));
 
+  // 7
   d_ofs<<"\n    ";
   emit(e.tow); // XXX
 

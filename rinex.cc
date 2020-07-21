@@ -61,6 +61,22 @@ RINEXReader::~RINEXReader()
     gzclose(d_fp);
 }
 
+/* RINEX format.. is very special. This extracts a value from a line
+   where it should be noted values can be and often are back to back
+*/
+
+static double getRINEXValue(char* line, int offset)
+{
+  char* ptr=line+offset+19;
+  char tmp = *ptr;
+  *ptr = 0;
+  double ret;
+  sscanf(line + offset, "%lf", &ret);
+  //  cout<<"'"<<string(line+offset)<<"'\n";
+  *ptr = tmp;
+  return ret;
+}
+
 bool RINEXReader::get(RINEXEntry& entry)
 {
   char line[300];
@@ -79,7 +95,7 @@ G02 2019 12 16 00 00 00-3.670863807201E-04-7.389644451905E-12 0.000000000000E+00
   */
   
 
-  //  SV   YR  MN DY HR MN SS_______________====================______________________
+  //  SV   YR  MN DY HR MN SS___________________===================___________________
   //  G02 2019 12 16 00 00 00-3.670863807201E-04-7.389644451905E-12 0.000000000000E+00
 
   for(;;) {
@@ -115,7 +131,8 @@ G02 2019 12 16 00 00 00-3.670863807201E-04-7.389644451905E-12 0.000000000000E+00
       continue;
 
     }
-    
+
+    char tmp=line[24];
     line[24]=0;
     char gnss;
     if(sscanf(line, "%c%02d %d %d %d %d %d %d",
@@ -123,52 +140,45 @@ G02 2019 12 16 00 00 00-3.670863807201E-04-7.389644451905E-12 0.000000000000E+00
               &tm.tm_hour, &tm.tm_min, &tm.tm_sec) != 8) {
       throw std::runtime_error("Failed to parse '"+string(line)+"'");
     }
-
+    line[24]=tmp;
     bool skip=false;
-    /*
-    if(tm.tm_year != 2019 || tm.tm_mon != 7)
-      skip=true;
-
-    if((entry.sv == 33 || entry.sv == 36 || entry.sv == 13 || entry.sv == 15)
-       && tm.tm_mon < 3)
-      skip = true;
-    */
     tm.tm_mon -= 1;
     tm.tm_year -= 1900;
 
     entry.t=timegm(&tm);
 
-    // skip 5 lines, store 6th
-    for(int n=0 ; n < 6; ++n) {
+    // af0, af1, af2
+    entry.af0 = getRINEXValue(line, 23);
+    entry.af1 = getRINEXValue(line, 42);
+    entry.af2 = getRINEXValue(line, 61);
+    
+    // 5 lines of which we store a bit, store 6th
+    for(int n=1 ; n < 7; ++n) {
       if(!gzgets(d_fp, line, sizeof(line))) 
         return false;
-      if(n==2) {
-        line[23]=0;
-        double toe;
-        sscanf(line+4, "%lf", &toe);
+      if(n==3) { 
+        double toe = getRINEXValue(line, 4);
         entry.toe = toe;
+      }
+      if(n==5) {
+        entry.clkflags = getRINEXValue(line, 23);
+      }
+      if(n==6) {
+        entry.BGDE1E5a = getRINEXValue(line, 42);
+        entry.BGDE1E5b = getRINEXValue(line, 61);
       }
       //      cerr<<"Line "<<n<<": "<<line;
     }
-    char tmp=line[23];
-    line[23]=0;
-    sscanf(line+4, "%lf", &entry.sisa);
-    line[23]=tmp;
-
-    tmp=line[42];
-    line[42]=0;
-
-    double health;
-    sscanf(line+23, "%lf", &health);
+    // line 6
+    entry.sisa = getRINEXValue(line, 4);
+    double health = getRINEXValue(line, 23);
     entry.health = health; // yeah..
     
-    //last line
+    //last line, number 7
     if(!gzgets(d_fp, line, sizeof(line)))
       return false;
 
-    line[23]=0;
-    double tow;
-    sscanf(line+4, "%lf", &tow);
+    double tow = getRINEXValue(line, 4);
     entry.tow = tow;
     
     if(skip)
