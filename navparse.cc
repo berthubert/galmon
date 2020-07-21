@@ -2503,6 +2503,50 @@ try
           
         }
       }
+      else if(rm.type == 1045 || rm.type == 1046) { // Galileo Ephemeris
+        // rm.d_gm will now contain an at least partially filled out Galileo ephemeris
+        // 1045 is F/NAV, 1046 is I/NAV
+        // we have no real need for the I/NAV since we have that in spades
+
+        if(rm.type == 1045) {
+          const auto& eg = rm.d_gm;
+          SatID id;
+          id.gnss = 2;
+          id.sv = rm.d_sv;
+          id.sigid = 6; // seems reasonable for E5a
+
+          static map<pair<int, int>, int> lastT0e;
+
+          pair<int, int> key(nmm.sourceid(), rm.d_sv);
+          if(!lastT0e.count(key) || lastT0e[key] != eg.t0e) {
+            idb.addValue(id, "ephemeris-actual", {
+              {"iod", eg.getIOD()}, 
+                {"t0e", eg.t0e},
+                  {"sqrta", eg.sqrtA},
+                    {"e", eg.e},
+                      {"cuc", eg.cuc},
+                        {"cus", eg.cus},
+                          {"crc", eg.crc},
+                            {"crs", eg.crs},
+                              {"m0", eg.m0},
+                                {"deltan", eg.deltan},
+                                  {"i0", eg.i0},
+                                    {"cic", eg.cic},
+                                      {"cis", eg.cis},
+                                        {"omegadot", eg.omegadot},
+                                          {"omega0", eg.omega0},
+                                            {"idot", eg.idot},
+                                              {"af0", eg.af0},
+                                                {"af1", eg.af1},
+                                                  {"af2", eg.af2},
+                                                    {"t0c", eg.t0c},
+                                                      {"omega", eg.omega}}, nmm.localutcseconds(), nmm.sourceid());
+          }
+          lastT0e[key] = eg.t0e;
+        }
+        
+      }
+
       for(const auto& cd : rm.d_clocks) {
         auto iter = g_svstats.find(cd.id);
         if(iter != g_svstats.end())

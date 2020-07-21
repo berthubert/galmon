@@ -185,13 +185,33 @@ DF 385: Full seconds since the beginning of the GPS week
     d_gm.wn = gbum(off, 12);
     d_gm.iodnav = gbum(off, 10);
     d_gm.sisa = gbum(off, 8);
-    // skip idot
-    off += 14;
+    d_gm.idot = gbsm(off, 14);
     d_gm.t0c = gbum(off, 14);
     d_gm.af2 = gbsm(off, 6);
     d_gm.af1 = gbsm(off, 21);
     d_gm.af0 = gbsm(off, 31);
-    off += 16 + 16 + 32 + 16 + 32 + 16 + 32 + 14 +16+ 32 +16 + 32 + 16 + 32 +24;
+    //
+    d_gm.crs = gbsm(off, 16);
+    d_gm.deltan = gbsm(off, 16);
+    d_gm.m0 = gbsm(off, 32);
+    d_gm.cuc = gbsm(off, 16);
+    d_gm.e = gbum(off, 32);
+    d_gm.cus = gbsm(off, 16);
+    d_gm.sqrtA = gbum(off, 32);
+    d_gm.t0e = gbum(off, 14); 
+    //
+
+    d_gm.cic = gbsm(off, 16);
+    d_gm.omega0 = gbsm(off, 32);
+    d_gm.cis = gbsm(off, 16);
+    d_gm.i0 = gbsm(off, 32);
+    d_gm.crc = gbsm(off, 16);
+    d_gm.omega = gbsm(off, 32);
+    d_gm.omegadot = gbsm(off, 24);
+
+    //     16 + 16 + 32 + 16 + 32 + 16 + 32 + 14 +
+    //     crs deln  M0  cuc   e   cus  sqrA toe  cic OM0 cis i0   crc  omeg omegdot  
+    //    off +=                                         16+ 32 +16 + 32 + 16 + 32 +24;
     d_gm.BGDE1E5a = gbsm(off, 10);
     if(type == 1046) { // I/NAV
       d_gm.BGDE1E5b = gbsm(off, 10);
