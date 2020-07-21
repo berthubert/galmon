@@ -25,7 +25,7 @@ endif
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
 PROGRAMS = navparse ubxtool navnexus navcat navrecv navdump testrunner navdisplay tlecatch reporter sp3feed \
-	galmonmon rinreport rtcmtool gndate
+	galmonmon rinreport rinjoin rtcmtool gndate
 
 all: navmon.pb.cc $(PROGRAMS)
 
@@ -117,6 +117,10 @@ tlecatch: tlecatch.o $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) gith
 rinreport: rinreport.o rinex.o githash.o navmon.o ext/fmt-6.1.2/src/format.o  ephemeris.o osen.o
 	$(CXX) -std=gnu++17 $^ -o $@ -lz -pthread
 
+rinjoin: rinjoin.o rinex.o githash.o navmon.o ext/fmt-6.1.2/src/format.o  ephemeris.o osen.o
+	$(CXX) -std=gnu++17 $^ -o $@ -lz -pthread
+
+
 rtcmtool: rtcmtool.o navmon.pb.o githash.o ext/fmt-6.1.2/src/format.o  bits.o nmmsender.o $(SIMPLESOCKETS)  navmon.o rtcm.o zstdwrap.o
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -lz -pthread -lprotobuf -lzstd
 
@@ -129,7 +133,6 @@ testrunner: navmon.pb.o testrunner.o ubx.o bits.o ext/fmt-6.1.2/src/format.o gal
 
 gndate: gndate.o githash.o ext/fmt-6.1.2/src/format.o navmon.o
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib
-	
 
 check: testrunner
 	./testrunner
