@@ -275,16 +275,26 @@ The software can interpret SP3 files, good sources:
      to have less of a delay than the ESA ESM series.
    * GBU = ultra rapid, still a few days delay, but much more recent.
 
-Uncompress and concatenate all downloaded files into 'all.sp3' and run
-'navdump ' on collected protobuf, and it will output 'sp3.csv' with fit data.
-
 To get SP3 GBM from GFZ Potsdam for GPS week number 2111:
 
 ```
 WN=2111
 lftp -c "mget ftp://ftp.gfz-potsdam.de/GNSS/products/mgnss/${WN}/gbm*sp3.Z"
+gunzip gbm*sp3
 ```
 
+To feed data, use: 
+
+```
+./sp3feed --sp3src=gbm --influxdb=galileo gbm*sp3
+```
+
+This will populate the sp3 tables in the database. A subsequent run of
+`reporter`, while setting the `--sp3src` parameter, will provide SP3
+deviation statistics, and fill out the `sp3delta` table in there, which
+stores deviations from the SP3 provided position, per sp3src.
+
+Further interesting (ephemeris) data is on http://mgex.igs.org/IGS_MGEX_Products.php
 
 RTCM
 ----
