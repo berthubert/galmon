@@ -4,14 +4,17 @@ galileo/GPS/GLONASS/BeiDou open source monitoring. GPL3 licensed.
 
 Live website: https://galmon.eu/
 
-Theoretically multi-vendor, although currently only the U-blox 8 and 9
-chipsets are supported.  Navilock NL-8012U receiver works really well, as
-does the U-blox evaluation kit for the 8MT.  In addition, many stations have
-reported success with this very cheap [AliExpress sourced
-device](https://www.aliexpress.com/item/32816656706.html).  The best and
-most high-end receiver, which does all bands, all the time, is the Ublox
-F9P, several of us use the
-[ArdusimpleRTK2B](https://www.ardusimple.com/simplertk2b/) board.
+Multi-vendor, with support for U-blox 8 and 9 chipsets and many Septentrio
+devices.  Navilock NL-8012U receiver works really well, as does the U-blox
+evaluation kit for the 8MT.  In addition, many stations have reported
+success with this very cheap [AliExpress sourced
+device](https://www.aliexpress.com/item/32816656706.html).  
+
+For ublox, there is good support for the F9P, several of us use the
+[ArdusimpleRTK2B](https://www.ardusimple.com/simplertk2b/) board. It adds
+the Galileo E5b band.
+
+Septentrio devices support even more bands.
 
 An annotated presentation about our project aimed at GNSS professionals can
 be found [here](https://berthub.eu/galileo/The%20galmon.eu%20project.pdf). 
@@ -29,9 +32,10 @@ guidelines](https://github.com/ahupowerdns/galmon/blob/master/Operator.md).
 Highlights
 ----------
 
+ * Support for Septentrio and U-blox.
  * Processes raw frames/strings/words from GPS, GLONASS, BeiDou and Galileo
- * All-band support (E1, E5b, B1I, B2I, Glonass L1, Glonass L2, GPS L1C/A)
-   so far, GPS L2C and Galileo E5a pending).
+ * All-band support (E1, E5a, E5b, B1I, B2I, Glonass L1, Glonass L2, GPS L1C/A)
+   so far.
  * Calculate ephemeris positions
  * Comparison of ephemerides to independent SP3 data to determine SISE
    * Globally, locally, worst user location
@@ -118,9 +122,14 @@ To make your docker container update automatically you could use a tool such as
 
 Running
 -------
-
+On u-blox: 
 Once compiled, run for example `./ubxtool --wait --port /dev/ttyACM0
 --station 1 --stdout --galileo | ./navparse --bind [::1]:10000`
+
+For Septentrio, try: `nc 192.168.1.1 29000 | ./septool --station x --stdout |
+./navparse --bind [::1]:10000`, assuming your Septentrio can be reached on
+192.168.1.1.1 and you have defined an SBF stream on port 29000. For more
+details, please see below.
 
 Next up, browse to http://[::1]:10000 (or try http://localhost:10000/ and
 you should be in business. ubxtool changes (non-permanently) the
@@ -159,6 +168,10 @@ Tooling:
  * ubxtool: can configure a u-blox 8 chipset, parses its output & will
    convert it into a protbuf stream of GNSS NAV frames + metadata
    Adds 64-bit timestamps plus origin information to each message
+ * septool: ingests the Septentrio binary format (SBF) and converts it to our
+   protobuf format. Supports same protocol as ubxtool.
+ * rtcmtool: ingest ntripclient output, decodes RTCM messages and converts
+   them to our protobuf format
  * xtool: if you have another chipset, build something that extracts NAV
    frames & metadata. Not done yet.
  * navrecv: receives GNSS NAV frames and stores them on disk, split out per
