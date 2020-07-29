@@ -700,19 +700,27 @@ try
         }
       }
       else if(rm.type == 1045 || rm.type == 1046) {
-        
+        static ofstream af0inavstr("af0inav.csv"), af0fnavstr("af0fnav.csv"), bgdstr("bgdstr.csv");
         SatID sid;
         sid.gnss = 2;
         sid.sv = rm.d_sv;
         sid.sigid = (rm.type == 1045) ? 5 : 1;
         
         cout<< makeSatIDName(sid)<<" ";
-        if(rm.type == 1045)
-          cout<<"F/NAV ";
-        else
-          cout <<"I/NAV ";
-        
-        cout <<" iode " << rm.d_gm.iodnav << " sisa " << (unsigned int) rm.d_gm.sisa << " af0 "<<rm.d_gm.af0 <<" af1 " << rm.d_gm.af1 <<" af2 " << (int) rm.d_gm.af2 << endl;
+        if(rm.type == 1045) {
+          af0fnavstr << nmm.localutcseconds()<<" " << rm.d_sv <<" " << rm.d_gm.t0c << " " << rm.d_gm.af0 << "\n";
+          cout<<"F/NAV";
+        }
+        else {
+          af0inavstr << nmm.localutcseconds() <<" " << rm.d_sv <<" " <<rm.d_gm.t0c<<" "<< rm.d_gm.af0 << "\n";
+          bgdstr << nmm.localutcseconds() <<" " << rm.d_sv<<" " <<rm.d_gm.BGDE1E5a <<" " << rm.d_gm.BGDE1E5b << "\n";
+          cout <<"I/NAV";
+        }
+
+        cout <<" iode " << rm.d_gm.iodnav << " sisa " << (unsigned int) rm.d_gm.sisa << " t0c " << rm.d_gm.t0c << " af0 "<<rm.d_gm.af0 <<" af1 " << rm.d_gm.af1 <<" af2 " << (int) rm.d_gm.af2 << " BGDE1E5a " << rm.d_gm.BGDE1E5a;
+        if(rm.type == 1046) // I/NAV
+          cout <<" BGDE1E5b "<< rm.d_gm.BGDE1E5b;
+        cout<<endl;
       }
       else {
         cout<<" len " << nmm.rm().contents().size() << endl;

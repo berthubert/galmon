@@ -131,9 +131,37 @@ Observer and SV measurements:
    * ele: calculated elevation for SV from this receiver
    * prres: pseudorange residual according to receiver
    * qi: 0-7, quality indicator according to receiver
+   * used: did the receiver use this SV?
  * ubx\_jamming
    * noise\_per\_ms: the Ublox noisePerMS field
    * agccnt: the Ublox automatic gain correction "count"
    * jamind: The Ublox jamming indicator
    * flag: The Ublox jamming flag field
+
+Fed by separate tool:
+
+SP3 design, tagged by GNSSID, SV:
+ * sp3\_data:
+   * x
+   * y
+   * z
+   * clk
+   * provider
+
+ephemeris, tagged by GNSSID, SV, SIGID:
+ * active-ephemeris
+   * all the raw parameters
+
+GDOP/PDOP stats?
+ * covdop
+   * lat
+   * lon
+   * cov5
+   * cov10
+   * cov20
+   * hdop5
+   * hdop10
+   * hdop20
+
+etc
 

@@ -295,10 +295,6 @@ void SVStat::reportNewEphemeris(const SatID& id, InfluxPusher& idb)
   
   if(gnss==2) {
     const auto& eg = ephgalmsg;
-
-    idb.addValue(id, "ephemeris-actual", {
-        {"iod", eg.getIOD()}}, satUTCTime(id));
-    
     
     idb.addValue(id, "ephemeris-actual", {
         {"iod", eg.getIOD()}, 
@@ -629,10 +625,11 @@ try
   string localAddress("127.0.0.1:29599");
   string htmlDir("./html");
   string influxDBName("null");
-
+  bool doGalileoReportSpeedup{false};
   bool doLogRFData{false};
   app.add_flag("--version", doVERSION, "show program version and copyright");
   app.add_flag("--log-rf-data", doLogRFData, "store per station RF/correlator data");
+  app.add_flag("--gal-report-speedup", doGalileoReportSpeedup, "skip debugging data, glonass, beidou, SBAS");
   app.add_option("--bind,-b", localAddress, "Address to bind to");
   app.add_option("--html", htmlDir, "Where to source the HTML & JavaScript");
   app.add_option("--influxdb", influxDBName, "Name of influxdb database");
@@ -651,7 +648,7 @@ try
   //  feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW ); 
 
   
-  //  g_tles.parseFile("active.txt");
+  // g_tles.parseFile("active.txt");
 
   g_tles.parseFile("galileo.txt");
   g_tles.parseFile("glo-ops.txt");
@@ -1994,7 +1991,19 @@ try
               auto newOffset = svstat.galmsg.getAtomicOffset(svstat.tow());
               svstat.timeDisco = oldOffset.first - newOffset.first;
               if(fabs(svstat.timeDisco) < 10000)
-                idb.addValue(id, "clock_jump_ns", {{"value", svstat.timeDisco}}, satUTCTime(id));
+                idb.addValue(id, "clock_jump_ns", {
+                    {"jump", svstat.timeDisco},
+                    {"duration", ephAge(svstat.galmsg.t0c * 60, oldgm.t0c * 60)},
+                    {"old-af0", oldgm.af0},
+                    {"old-af1", oldgm.af1},
+                    {"old-af2", oldgm.af2},
+                    {"old-t0c", oldgm.t0c * 60},
+                    {"new-af0", svstat.galmsg.af0},
+                    {"new-af1", svstat.galmsg.af1},
+                    {"new-af2", svstat.galmsg.af2},
+                    {"new-t0c", svstat.galmsg.t0c * 60}
+
+                  }, satUTCTime(id));
             }
           }
         }
@@ -2288,7 +2297,8 @@ try
     }
 
     else if(nmm.type()== NavMonMessage::DebuggingType) {
-      //      continue; // speedup
+      if(doGalileoReportSpeedup)
+        continue; // speedup
       
       auto ret =  parseTrkMeas(basic_string<uint8_t>((const uint8_t*)nmm.dm().payload().c_str(), nmm.dm().payload().size()));
       for(const auto& tss : ret) {
@@ -2382,8 +2392,22 @@ try
           auto oldOffset = getGPSAtomicOffset(gm.tow, oldgm);
           auto newOffset = getGPSAtomicOffset(gm.tow, gm);
           svstat.timeDisco = oldOffset.first - newOffset.first;
-          if(fabs(svstat.timeDisco) < 10000)
-            idb.addValue(id, "clock_jump_ns", {{"value", svstat.timeDisco}}, satUTCTime(id));
+          if(fabs(svstat.timeDisco) < 10000) {
+            idb.addValue(id, "clock_jump_ns", {
+                    {"jump", svstat.timeDisco},
+                    {"duration", ephAge(gm.t0c * 16, oldgm.t0c * 16)},
+                    {"old-af0", oldgm.af0},
+                    {"old-af1", oldgm.af1},
+                    {"old-af2", oldgm.af2},
+                    {"old-t0c", oldgm.t0c * 16},
+                    {"new-af0", gm.af0},
+                    {"new-af1", gm.af1},
+                    {"new-af2", gm.af2},
+                    {"new-t0c", gm.t0c * 16}
+
+                  }, satUTCTime(id));
+
+          }
         }
       }
       else if(frame==2) {
@@ -2435,7 +2459,8 @@ try
       if(rm.type == 1057 || rm.type == 1240) {
         for(const auto& ed : rm.d_ephs) {
           auto iter = g_svstats.find(ed.id);
-          if(iter != g_svstats.end() && iter->second.completeIOD()  && iter->second.liveIOD().getIOD() == ed.iod)
+          // XXX NAVCAST ONLY
+          if(iter != g_svstats.end() && iter->second.completeIOD()  && iter->second.liveIOD().getIOD() == ed.iod && nmm.sourceid()==300)
             iter->second.rtcmEphDelta = ed;
           
           idb.addValue(ed.id, "rtcm-eph-correction", {
@@ -2461,7 +2486,7 @@ try
 
         for(const auto& cd : rm.d_clocks) {
           auto iter = g_svstats.find(cd.id);
-          if(iter != g_svstats.end())
+          if(iter != g_svstats.end() && nmm.sourceid()==300) /// XXX wrong
             iter->second.rtcmClockDelta = cd;
 
           idb.addValue(cd.id, "rtcm-clock-correction", {
@@ -2481,7 +2506,7 @@ try
       else if(rm.type == 1060 || rm.type == 1243) {
         for(const auto& ed : rm.d_ephs) {
           auto iter = g_svstats.find(ed.id);
-          if(iter != g_svstats.end() && iter->second.completeIOD()  && iter->second.liveIOD().getIOD() == ed.iod)
+          if(iter != g_svstats.end() && iter->second.completeIOD()  && iter->second.liveIOD().getIOD() == ed.iod && nmm.sourceid()==300)
             iter->second.rtcmEphDelta = ed;
           
           idb.addValue(ed.id, "rtcm-eph-correction", {
@@ -2549,7 +2574,7 @@ try
 
       for(const auto& cd : rm.d_clocks) {
         auto iter = g_svstats.find(cd.id);
-        if(iter != g_svstats.end())
+        if(iter != g_svstats.end() && nmm.sourceid()==300)
           iter->second.rtcmClockDelta = cd;
         
         idb.addValue(cd.id, "rtcm-clock-correction", {
@@ -2588,7 +2613,9 @@ try
       
     }
     else if(nmm.type()== NavMonMessage::BeidouInavTypeD1) {
-      //      continue; // XXX speedup
+      //      if(doGalileoReportSpeedup)
+      //  continue; // speedup
+            
     try {
       SatID id{nmm.bid1().gnssid(), nmm.bid1().gnsssv(), nmm.bid1().sigid()};
 
@@ -2687,7 +2714,9 @@ try
       */
     }
     else if(nmm.type()== NavMonMessage::GlonassInavType) {
-      //      continue; // XXX speedup
+      //      if(doGalileoReportSpeedup)
+      //  continue; // speedup
+
       SatID id{nmm.gloi().gnssid(), nmm.gloi().gnsssv(), nmm.gloi().sigid()};
       auto& svstat = g_svstats[id];
       svstat.gnss = id.gnss;
@@ -2754,7 +2783,9 @@ try
       //      cout<<"GLONASS R"<<id.second<<" str "<<strno<<endl;
     }
     else if(nmm.type() == NavMonMessage::SBASMessageType) {
-      //      continue; // XXX speedup
+      if(doGalileoReportSpeedup)
+        continue; // speedup
+
       auto& sb = g_sbas[nmm.sbm().gnsssv()];
 
       sb.perrecv[nmm.sourceid()].last_seen = nmm.localutcseconds();

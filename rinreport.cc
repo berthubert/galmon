@@ -85,8 +85,6 @@ auto worker(HanderOuter<string>* ho)
 
 int main(int argc, char** argv)
 {
-
-
   ifstream filefile(argv[1]);
   string fname;
   deque<string> files;
