@@ -324,6 +324,19 @@ string makeHexDump(const string& str)
   return ret;
 }
 
+string makeHexDump(const basic_string<uint8_t>& str)
+{
+  char tmp[5];
+  string ret;
+  ret.reserve((int)(str.size()*2.2));
+
+  for(string::size_type n=0;n<str.size();++n) {
+    snprintf(tmp, sizeof(tmp), "%02x ", (unsigned char)str[n]);
+    ret+=tmp;
+  }
+  return ret;
+}
+
 std::string sbasName(int prn)
 {
   string sbas;

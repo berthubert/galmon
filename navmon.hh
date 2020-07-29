@@ -81,6 +81,7 @@ void getGalDateFromUTC(time_t t, int& wn, int& tow);
 
 
 std::string makeHexDump(const std::string& str);
+std::string makeHexDump(const std::basic_string<uint8_t>& str);
 size_t writen2(int fd, const void *buf, size_t count);
 void unixDie(const std::string& reason);
 time_t parseTime(std::string_view in);
