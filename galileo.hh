@@ -40,6 +40,8 @@ struct GalileoMessage : GPSLikeEphemeris
     return wtype;
   }
 
+  int parseFnav(std::basic_string_view<uint8_t> page);
+  
   uint8_t sparetime{0};
   uint16_t wn{0};  
   uint32_t tow{0}; 
@@ -63,13 +65,13 @@ struct GalileoMessage : GPSLikeEphemeris
   {
   }
 
-  uint8_t e5bhs{0}, e1bhs{0};
+  uint8_t e5ahs{0}, e5bhs{0}, e1bhs{0};
   uint8_t gpshealth{0};
   uint16_t ai0{0};
   int16_t ai1{0}, ai2{0};
   bool sf1{0}, sf2{0}, sf3{0}, sf4{0}, sf5{0};
   int BGDE1E5a{0}, BGDE1E5b{0};
-  bool e5bdvs{false}, e1bdvs{false};
+  bool e5advs{false}, e5bdvs{false}, e1bdvs{false};
   bool disturb1{false}, disturb2{false}, disturb3{false}, disturb4{false}, disturb5{false};
   
   //                     
