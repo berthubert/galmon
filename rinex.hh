@@ -18,6 +18,7 @@ struct RINEXEntry
   int health;
   int toe;
   int tow;
+  int iodnav;
   double af0, af1, af2;
   double clkflags;
   double BGDE1E5a, BGDE1E5b;
