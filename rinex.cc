@@ -156,6 +156,9 @@ G02 2019 12 16 00 00 00-3.670863807201E-04-7.389644451905E-12 0.000000000000E+00
     for(int n=1 ; n < 7; ++n) {
       if(!gzgets(d_fp, line, sizeof(line))) 
         return false;
+      if(n==1) {
+        entry.iodnav = getRINEXValue(line, 4);
+      }
       if(n==3) { 
         double toe = getRINEXValue(line, 4);
         entry.toe = toe;
