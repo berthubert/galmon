@@ -546,6 +546,32 @@ try
       
       cout<<endl;      
     }
+    else if(nmm.type() == NavMonMessage::GalileoFnavType) {
+      basic_string<uint8_t> fnav((uint8_t*)nmm.gf().contents().c_str(), nmm.gf().contents().size());
+      int sv = nmm.gf().gnsssv();
+      if(!svfilter.check(2, sv, nmm.gf().sigid()))
+        continue;
+      etstamp();
+      GalileoMessage gm;
+      gm.parseFnav(fnav);
+      cout<<"gal F/NAV wtype "<< (int)gm.wtype << " for "<<nmm.gf().gnssid()<<","<<nmm.gf().gnsssv()<<","<<nmm.gf().sigid();
+      if(gm.wtype ==1 || gm.wtype == 2 || gm.wtype == 3 || gm.wtype == 4)
+        cout<<" iodnav " <<gm.iodnav <<" tow " << gm.tow;
+      if(gm.wtype == 1) {
+        cout <<" af0 "<<gm.af0 << " af1 "<<gm.af1 <<" af2 "<< (int)gm.af2;
+      }
+      if(gm.wtype == 2) {
+        cout <<" sqrtA "<<gm.sqrtA;
+      }
+      if(gm.wtype == 3) {
+        cout <<" t0e "<<gm.t0e;
+      }
+      if(gm.wtype == 4) {
+        cout <<" dtLS "<<(int)gm.dtLS;
+      }
+
+      cout<<endl;
+    }
     else if(nmm.type() == NavMonMessage::GPSInavType) {
       int sv = nmm.gpsi().gnsssv();
 
@@ -701,6 +727,13 @@ try
       }
       else if(rm.type == 1045 || rm.type == 1046) {
         static ofstream af0inavstr("af0inav.csv"), af0fnavstr("af0fnav.csv"), bgdstr("bgdstr.csv");
+        static bool first{true};
+
+        if(first) {
+          af0inavstr<<"timestamp sv wn t0c af0 af1\n";
+          af0fnavstr<<"timestamp sv wn t0c af0 af1\n";
+          first=false;
+        }
         SatID sid;
         sid.gnss = 2;
         sid.sv = rm.d_sv;
@@ -708,11 +741,11 @@ try
         
         cout<< makeSatIDName(sid)<<" ";
         if(rm.type == 1045) {
-          af0fnavstr << nmm.localutcseconds()<<" " << rm.d_sv <<" " << rm.d_gm.t0c << " " << rm.d_gm.af0 << "\n";
+          af0fnavstr << nmm.localutcseconds()<<" " << rm.d_sv <<" " << rm.d_gm.wn<<" "<< rm.d_gm.t0c << " " << rm.d_gm.af0 << " " << rm.d_gm.af1<<"\n";
           cout<<"F/NAV";
         }
         else {
-          af0inavstr << nmm.localutcseconds() <<" " << rm.d_sv <<" " <<rm.d_gm.t0c<<" "<< rm.d_gm.af0 << "\n";
+          af0inavstr << nmm.localutcseconds() <<" " << rm.d_sv <<" " << rm.d_gm.wn<<" "<<rm.d_gm.t0c<<" "<< rm.d_gm.af0 << " " << rm.d_gm.af1<<"\n";
           bgdstr << nmm.localutcseconds() <<" " << rm.d_sv<<" " <<rm.d_gm.BGDE1E5a <<" " << rm.d_gm.BGDE1E5b << "\n";
           cout <<"I/NAV";
         }
