@@ -242,6 +242,47 @@ This also works for `navparse` for the pretty website and influx storage, `nc 12
 if you have an influxdb running on localhost with a galileo database in there.
 The default URL is http://127.0.0.1:29599/ 
 
+Septentrio specifics
+--------------------
+Unlike `ubxtool`, our `septool` does not (re)configure your Septentrio
+device. Instead, the tool expects Septentrio Binary Format (SBF) on input,
+and that this stream includes at least the following messages:
+
+ * MeasEpoch
+ * PVTCartesian
+
+We currently parse and understand:
+ * GALRawFNAV
+ * GALRawINAV
+
+Support will be added soon for:
+ * GPSRawCA
+ * GPSRawL2C
+ * GPSRawL5
+ * GLORawCA
+ * BDSRaw
+ * BDSRawB1C
+ * BDSRawB2a
+
+A typical invocation of `septool` looks like this:
+
+```
+nc 192.168.1.1 29000 | ./septool --station x --destination galmon-eu-server.example.com
+```
+
+Or to test, try:
+
+```
+nc 192.168.1.1 29000 | ./septool --station x --stdout | ./navdump
+```
+
+This is assuming that you can reach your Septentrio on 192.168.1.1 and that
+you have defined a TCP server stream on port 29000. 
+
+Septool will also accept input from a serial port or basically anything that
+can provide SBF. Please let us know if our tooling can make your life
+easier.
+
 Internals
 ---------
 The transport format consists of repeats of:
