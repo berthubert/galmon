@@ -45,7 +45,7 @@ using namespace std;
 
 extern const char* g_gitHash;
 
-struct ObserverPosition
+struct ObserverFacts
 {
   Point pos;
   double groundSpeed{-1};
@@ -65,7 +65,7 @@ struct ObserverPosition
   string remark;
   time_t lastSeen{0};
 };
-std::map<int, ObserverPosition> g_srcpos;
+std::map<int, ObserverFacts> g_srcpos;
 
 struct SBASAndReceiverStatus
 {
@@ -1901,31 +1901,6 @@ try
       else
         sigid = 1;  // default to E1B
       SatID id={2,(uint32_t)sv,(uint32_t)sigid};
-      /*
-      struct DedupKey
-      {
-        SatID id;
-        int wn;
-        int tow;
-        basic_string<uint8_t> contents;
-        bool operator<(const DedupKey& rhs) const
-        {
-          return tie(id, wn, tow, contents) <
-            tie(rhs.id, rhs.wn, rhs.tow, rhs.contents);
-        }
-      };
-
-      static set<DedupKey> s_dedup;
-      DedupKey dk{id, (int)nmm.gi().gnsswn(), (int)nmm.gi().gnsstow(), inav};
-      if(s_dedup.insert(dk).second == false) {
-        //        cout<<"Dedup"<<endl;
-        continue;
-      }
-      if(s_dedup.size() > 10000)
-        s_dedup.clear();
-      */
-      // XXX conversion, may be vital
-      // g_svstats[id].wn = nmm.gi().gnsswn();
       
       auto& svstat = g_svstats[id];
       svstat.gnss = id.gnss;
@@ -1956,22 +1931,15 @@ try
           if(w > 1 && svstat.galmsgTyped[w-1].iodnav != svstat.galmsgTyped[w].iodnav)
             break;
         }
-        if(w==5) {
+        if(w==5) { // have complete new ephemeris
           if(svstat.ephgalmsg.iodnav != svstat.galmsgTyped[1].iodnav) {
             svstat.oldephgalmsg = svstat.ephgalmsg;
             svstat.ephgalmsg = svstat.galmsgTyped[wtype];
             svstat.reportNewEphemeris(id, idb);
           }
         }
-        
       }
 
-      
-      // XXX conversion possibly vital
-      //      g_svstats[id].tow = nmm.gi().gnsstow();
-
-      //      g_svstats[id].perrecv[nmm.sourceid()].wn = nmm.gi().gnsswn();
-      //      g_svstats[id].perrecv[nmm.sourceid()].tow = nmm.gi().gnsstow();
       g_svstats[id].perrecv[nmm.sourceid()].t = nmm.localutcseconds();
 
       if(wtype >=1 && wtype <= 4) { // ephemeris 
@@ -2078,18 +2046,127 @@ try
             }, satUTCTime(id));
           
         }
+    }
+    else if(nmm.type() == NavMonMessage::GalileoFnavType) {
+      basic_string<uint8_t> fnav((uint8_t*)nmm.gf().contents().c_str(), nmm.gf().contents().size());
+      int sv = nmm.gf().gnsssv();
+      SatID id={2,(uint32_t)sv,6}; // E5a
+      
+      auto& svstat = g_svstats[id];
+      svstat.gnss = id.gnss;
+      auto oldgm = svstat.galmsg;
 
-        // CONVERSION XXX
-#if 0        
-        for(auto& ent : g_svstats) {
-          //        fmt::printf("%2d\t", ent.first);
-          id=ent.first;
-          if(ent.second.completeIOD() && ent.second.prevIOD.first >= 0) {
+      auto& gm = svstat.galmsg;
+      unsigned int wtype = gm.parseFnav(fnav);
 
-            ent.second.clearPrev();          
+      
+      if(wtype == 1 && svstat.galmsgTyped.count(1)) {
+        const auto& old5gm = svstat.galmsgTyped[1];
+        if(make_tuple(old5gm.e5ahs, old5gm.e1bhs, old5gm.e5advs, old5gm.e1bdvs) !=
+           make_tuple(gm.e5ahs, gm.e1bhs, gm.e5advs, gm.e1bdvs)) {
+          cout<<humanTime(id.gnss, svstat.wn(), svstat.tow())<<" src "<<nmm.sourceid()<<" Galileo "<<id.sv <<" sigid "<<id.sigid<<" change in health: ["<<humanBhs(old5gm.e5ahs)<<", "<<humanBhs(old5gm.e1bhs)<<", "<<(int)old5gm.e5advs <<", " << (int)old5gm.e1bdvs<<"] -> ["<< humanBhs(gm.e5ahs)<<", "<< humanBhs(gm.e1bhs)<<", "<< (int)gm.e5advs <<", " << (int)gm.e1bdvs<<"], lastseen "<<ephAge(old5gm.tow, gm.tow)/3600.0 <<" hours"<<endl;
+        }
+      }
+      
+      svstat.galmsgTyped[wtype] = gm;
+
+      if(wtype == 1 || wtype == 2 || wtype == 3 || wtype == 4) {
+        idb.addValue(id, "ephemeris", {{"iod-live", svstat.galmsg.iodnav},
+              {"eph-age", ephAge(gm.tow, gm.getT0e())}}, satUTCTime(id));
+
+        int w = 2;
+        for(; w < 5; ++w) {
+          if(!svstat.galmsgTyped.count(w))
+            break;
+          if(w > 2 && svstat.galmsgTyped[w-1].iodnav != svstat.galmsgTyped[w].iodnav)
+            break;
+        }
+        if(w==5) { // have complete new ephemeris
+
+          if(svstat.ephgalmsg.iodnav != svstat.galmsgTyped[2].iodnav) {
+            cout<<"New F/NAV ephemeris for "<<makeSatIDName(id)<<" iod " << svstat.galmsgTyped[2].iodnav << " t0e " << svstat.galmsgTyped[3].t0e <<endl;
+            svstat.oldephgalmsg = svstat.ephgalmsg;
+            svstat.ephgalmsg = svstat.galmsgTyped[wtype];
+            svstat.reportNewEphemeris(id, idb);
           }
         }
-#endif
+      }
+
+      g_svstats[id].perrecv[nmm.sourceid()].t = nmm.localutcseconds();
+
+      if(wtype >=1 && wtype <= 4) { // ephemeris 
+        if(wtype == 1) {
+          idb.addValue(id, "sisa", {{"value", g_svstats[id].galmsg.sisa}}, satUTCTime(id));
+
+          idb.addValue(id, "galbgd", {
+              {"BGDE1E5a", g_svstats[id].galmsg.BGDE1E5a},
+                }, satUTCTime(id));
+          
+          
+          idb.addValue(id, "galhealth", {
+                {"e5ahs", g_svstats[id].galmsg.e5bhs},
+                  {"e5advs", g_svstats[id].galmsg.e5bdvs}
+                    }, satUTCTime(id));
+
+          
+          idb.addValue(id, "clock", {{"offset_ns", svstat.galmsg.getAtomicOffset(svstat.tow()).first}, 
+                  {"t0c", g_svstats[id].galmsg.t0c*60}, // getT0c()??
+                {"af0", g_svstats[id].galmsg.af0},
+                  {"af1", g_svstats[id].galmsg.af1},
+                    {"af2", g_svstats[id].galmsg.af2}}, satUTCTime(id)); 
+       
+          if(oldgm.af0 && oldgm.t0c != svstat.galmsg.t0c) {
+            auto oldOffset = oldgm.getAtomicOffset(svstat.tow());
+            auto newOffset = svstat.galmsg.getAtomicOffset(svstat.tow());
+            svstat.timeDisco = oldOffset.first - newOffset.first;
+            if(fabs(svstat.timeDisco) < 10000)
+              idb.addValue(id, "clock_jump_ns", {
+                  {"jump", svstat.timeDisco},
+                    {"duration", ephAge(svstat.galmsg.t0c * 60, oldgm.t0c * 60)},
+                    {"old-af0", oldgm.af0},
+                    {"old-af1", oldgm.af1},
+                    {"old-af2", oldgm.af2},
+                    {"old-t0c", oldgm.t0c * 60},
+                    {"new-af0", svstat.galmsg.af0},
+                    {"new-af1", svstat.galmsg.af1},
+                    {"new-af2", svstat.galmsg.af2},
+                    {"new-t0c", svstat.galmsg.t0c * 60}
+
+                  }, satUTCTime(id));
+          }
+
+          idb.addValue(id, "iono", {
+              {"ai0", g_svstats[id].galmsg.ai0},
+                {"ai1", g_svstats[id].galmsg.ai1},
+                  {"ai2", g_svstats[id].galmsg.ai2},
+                    {"sf1", g_svstats[id].galmsg.sf1},
+                      {"sf2", g_svstats[id].galmsg.sf2},
+                        {"sf3", g_svstats[id].galmsg.sf3},
+                          {"sf4", g_svstats[id].galmsg.sf4},
+                            {"sf5", g_svstats[id].galmsg.sf5}}, satUTCTime(id));
+          
+        }
+      }
+      else if(wtype == 4) {
+        const auto& sv = g_svstats[id];
+        g_GSTUTCOffset = sv.galmsg.getUTCOffset(sv.tow(), sv.wn()).first;
+        idb.addValue(id, "utcoffset", {
+            {"a0", sv.galmsg.a0},
+              {"a1", sv.galmsg.a1},
+                {"t0t", sv.galmsg.t0t},
+                  {"delta", g_GSTUTCOffset}
+          },
+          satUTCTime(id));
+          
+        g_dtLS = sv.galmsg.dtLS;
+        g_GSTGPSOffset = gm.getGPSOffset(gm.tow, gm.wn).first;
+        idb.addValue(id, "gpsoffset", {{"a0g", g_svstats[id].galmsg.a0g},
+              {"a1g", g_svstats[id].galmsg.a1g},
+                {"t0g", g_svstats[id].galmsg.t0g},
+                  {"wn0g", g_svstats[id].galmsg.wn0g},
+                    {"delta", g_GSTGPSOffset}
+          }, satUTCTime(id));
+      }
     }
     else if(nmm.type() == NavMonMessage::ObserverPositionType) {
       g_srcpos[nmm.sourceid()].lastSeen = nmm.localutcseconds();
@@ -2932,3 +3009,33 @@ catch(std::exception& e)
 {
   cerr<<"Exiting because of fatal error "<<e.what()<<endl;
 }
+
+
+// dedup techniques
+#if 0
+      /*
+      struct DedupKey
+      {
+        SatID id;
+        int wn;
+        int tow;
+        basic_string<uint8_t> contents;
+        bool operator<(const DedupKey& rhs) const
+        {
+          return tie(id, wn, tow, contents) <
+            tie(rhs.id, rhs.wn, rhs.tow, rhs.contents);
+        }
+      };
+
+      static set<DedupKey> s_dedup;
+      DedupKey dk{id, (int)nmm.gf().gnsswn(), (int)nmm.gf().gnsstow(), inav};
+      if(s_dedup.insert(dk).second == false) {
+        //        cout<<"Dedup"<<endl;
+        continue;
+      }
+      if(s_dedup.size() > 10000)
+        s_dedup.clear();
+      */
+      // XXX conversion, may be vital
+      // g_svstats[id].wn = nmm.gf().gnsswn();
+#endif
