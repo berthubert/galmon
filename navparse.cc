@@ -2047,6 +2047,9 @@ try
           
         }
     }
+    else if(nmm.type() == NavMonMessage::GalileoCnavType) {
+      // ... no idea what this contains
+    }
     else if(nmm.type() == NavMonMessage::GalileoFnavType) {
       basic_string<uint8_t> fnav((uint8_t*)nmm.gf().contents().c_str(), nmm.gf().contents().size());
       int sv = nmm.gf().gnsssv();
