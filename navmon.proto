@@ -18,7 +18,8 @@ message NavMonMessage {
     GPSCnavType = 14;
     RTCMMessageType = 15;
     TimeOffsetType = 16;
-    GalileoFnavType = 17;    
+    GalileoFnavType = 17;
+    GalileoCnavType = 18;
   }
 
   required uint64 sourceID = 1;
@@ -38,6 +39,15 @@ message NavMonMessage {
   }
 
 message GalileoFnav {
+	required uint32 gnssWN =1;
+  	required uint32 gnssTOW =2; // INTEGERS!
+
+	required uint32 gnssID =3;
+	required uint32 gnssSV =4;
+	required bytes contents =5;
+        required uint32 sigid = 6;        
+  }
+  message GalileoCnav {
 	required uint32 gnssWN =1;
   	required uint32 gnssTOW =2; // INTEGERS!
 
@@ -229,4 +239,5 @@ message GalileoFnav {
   optional RTCMMessage rm = 19;
   optional TimeOffsetMessage to = 20;
   optional GalileoFnav gf=21;
+  optional GalileoCnav gc=22;
 }

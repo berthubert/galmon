@@ -546,6 +546,15 @@ try
       
       cout<<endl;      
     }
+    else if(nmm.type() == NavMonMessage::GalileoCnavType) {
+      basic_string<uint8_t> cnav((uint8_t*)nmm.gf().contents().c_str(), nmm.gf().contents().size());
+      int sv = nmm.gc().gnsssv();
+      if(!svfilter.check(2, sv, nmm.gc().sigid()))
+        continue;
+      etstamp();
+      cout << "C/NAV for " << nmm.gf().gnssid()<<","<<nmm.gf().gnsssv()<<","<<nmm.gf().sigid() <<": "<< makeHexDump(cnav)<<endl;
+
+    }
     else if(nmm.type() == NavMonMessage::GalileoFnavType) {
       basic_string<uint8_t> fnav((uint8_t*)nmm.gf().contents().c_str(), nmm.gf().contents().size());
       int sv = nmm.gf().gnsssv();
