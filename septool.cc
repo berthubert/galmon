@@ -18,16 +18,28 @@ using namespace std;
 
 static int sepsig2ubx(int sep)
 {
-  if(sep == 17)
+  if(sep == 1) // GPS L1P
+    return 0;
+  else if(sep == 2) // GPS L2P
+    return 4;
+  else if(sep== 4) // GPS L5
+    return 7; // ??
+  else if(sep == 17)
     return 1; // Galileo E1
+  else if(sep == 19)
+    return 8; // Galileo E6
   else if(sep == 20)
     return 6; // Galileo E5a
   else if(sep==21)
     return 5; // Galileo E5b
+  else if(sep==22)
+    return 6; // Galileo "AltBoc"
+  
   else if(sep==0)
     return 0; // GPS L1
   else if(sep==3)
     return 4; // GPS L2c
+  else throw runtime_error("Asked to convert unknown Septentrio signal id "+to_string(sep));
   return -1;
 }
 
@@ -218,20 +230,10 @@ try
       nmm.mutable_gi()->set_gnsstow(si.towMsec/1000.0);
       nmm.mutable_gi()->set_gnssid(2);
       nmm.mutable_gi()->set_gnsssv(si.sv - 70);
-      nmm.mutable_gi()->set_sigid(sepsig2ubx(sigid));
       nmm.mutable_gi()->set_contents((const char*)&inav2[0], inav2.size());
-      
+      nmm.mutable_gi()->set_sigid(sepsig2ubx(sigid));
       ns.emitNMM( nmm);
-
-      /*     
-       gm.parse(inav2);
-      cerr<<"wtype "<<(int)gm.wtype;
-      if(gm.wtype == 4) {
-        cerr<<" iodnav " << gm.iodnav<<" t0c " << gm.t0c;
-        cerr<<" af0 "<< gm.af0 << " af1 " << gm.af1 <<" af2 " << (int) gm.af2 << endl;
-      }
-      cerr<<endl;
-      */
+      
     }
     else if(res.first.getID() == 5914) {
       // current time
@@ -246,7 +248,7 @@ try
     else if(res.first.getID() == 4018) { // GPS-L2C
 
     }
-    else if(res.first.getID() == 4022) {
+    else if(res.first.getID() == 4022) {  // F/NAV
       auto str = res.first.getPayload();
       struct SEPFnav
       {
@@ -294,9 +296,8 @@ try
       nmm.mutable_gf()->set_gnsstow(sf.towMsec/1000.0);
       nmm.mutable_gf()->set_gnssid(2);
       nmm.mutable_gf()->set_gnsssv(sf.sv - 70);
-      nmm.mutable_gf()->set_sigid(sepsig2ubx(sigid));
       nmm.mutable_gf()->set_contents((const char*)&payload[0], payload.size());
-      
+      nmm.mutable_gf()->set_sigid(sepsig2ubx(sigid));
       ns.emitNMM( nmm);
     }
     else if(res.first.getIDBare() == 4047) {
@@ -337,9 +338,9 @@ try
         
         nmm.set_type(NavMonMessage::ObserverDetailsType);
         nmm.mutable_od()->set_vendor("Septentrio");
-        nmm.mutable_od()->set_hwversion("mosaic-X5");
+        nmm.mutable_od()->set_hwversion("PolaRx5");
         nmm.mutable_od()->set_swversion("");
-        nmm.mutable_od()->set_serialno("3051231");
+        nmm.mutable_od()->set_serialno("3018468");
         nmm.mutable_od()->set_modules("");
         nmm.mutable_od()->set_clockoffsetns(0);
         nmm.mutable_od()->set_clockoffsetdriftns(0);
@@ -353,6 +354,59 @@ try
         ns.emitNMM( nmm);
       }
       
+    }
+    else if(res.first.getIDBare() == 4024) { // GALRawCNAV
+      struct SEPCnav
+      {
+        uint32_t towMsec;
+        uint16_t wn;
+        uint8_t sv;
+        uint8_t crcPassed;
+        uint8_t viterbiCount;
+        uint8_t src;
+        uint8_t ign1;
+        uint8_t rxChannel;
+        uint8_t navBits[48];
+      } __attribute__((packed));
+
+      SEPCnav sc;
+      auto str = res.first.getPayload();
+      memcpy(&sc, str.c_str(), sizeof(sc));
+      int sigid = sc.src & 31;
+      //      cerr<<"C/NAV tow "<<sc.towMsec /1000<<" wn "<<sc.wn <<" sv " << (int) sc.sv - 70<<" sigid " << sigid <<" ";
+      if(!sc.crcPassed) {
+        cerr<<"C/NAV CRC error, skipping"<<endl;
+        continue;
+      }
+
+      std::string cnav((char*)sc.navBits, 48);
+      // byte order adjustment
+      std::basic_string<uint8_t> payload;
+      
+      for(unsigned int i = 0 ; i < 12; ++i) {
+        payload.append(1, sc.navBits[4 * i + 3]);
+        payload.append(1, sc.navBits[4 * i + 2]);
+        payload.append(1, sc.navBits[4 * i + 1]);
+        payload.append(1, sc.navBits[4 * i + 0]);
+      }
+
+      NavMonMessage nmm;
+      double t = utcFromGST(sc.wn - 1024, sc.towMsec / 1000.0);
+      //      cerr<<t<< " " <<si.wn - 1024 <<" " <<si.towMsec /1000.0 <<" " << g_dtLS<<endl;
+      nmm.set_sourceid(g_srcid);
+      nmm.set_type(NavMonMessage::GalileoCnavType);
+
+      nmm.set_localutcseconds(t);
+      nmm.set_localutcnanoseconds(0); // yeah XXX
+            
+      nmm.mutable_gf()->set_gnsswn(sc.wn - 1024);
+      
+      nmm.mutable_gf()->set_gnsstow(sc.towMsec/1000.0);
+      nmm.mutable_gf()->set_gnssid(2);
+      nmm.mutable_gf()->set_gnsssv(sc.sv - 70);
+      nmm.mutable_gf()->set_contents((const char*)&payload[0], payload.size());
+      nmm.mutable_gf()->set_sigid(sepsig2ubx(sigid));
+      ns.emitNMM( nmm);
     }
     else if(res.first.getIDBare() == 4027) {
       auto str = res.first.getPayload();
@@ -421,10 +475,13 @@ try
           nmm.mutable_rd()->set_el(0);
           nmm.mutable_rd()->set_azi(0);
           nmm.mutable_rd()->set_prres(-1);
-          nmm.mutable_rd()->set_sigid(sepsig2ubx(sigid));
           nmm.mutable_rd()->set_qi(7);
-          
-          ns.emitNMM(nmm);
+                      
+          try {
+            nmm.mutable_rd()->set_sigid(sepsig2ubx(sigid));
+            ns.emitNMM(nmm);
+          }
+          catch(...){}
         }
         
         for(int m = 0 ; m < b1.n2; ++m) {
@@ -453,9 +510,10 @@ try
             nmm.mutable_rd()->set_azi(0);
             nmm.mutable_rd()->set_prres(0);
             nmm.mutable_rd()->set_qi(7);
-            nmm.mutable_rd()->set_sigid(sepsig2ubx(sigid));            
-            
-            ns.emitNMM(nmm);
+            try {
+              nmm.mutable_rd()->set_sigid(sepsig2ubx(sigid));            
+              ns.emitNMM(nmm);
+            }catch(...){} // might be unknown signal type
           }
         }
       }
