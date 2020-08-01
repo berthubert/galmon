@@ -258,7 +258,6 @@ function update()
       
 }
 
-console.log(window.location.href);
 var url = new URL(window.location.href);
 observer = url.searchParams.get("observer");
 
