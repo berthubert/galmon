@@ -288,6 +288,8 @@ function updateSats()
             let wantIt = false;
             if(d3.select("#GalE1").property("checked") && arr[n].gnssid==2 && arr[n].sigid == 1)
                 wantIt = true;
+            if(d3.select("#GalE5a").property("checked") && arr[n].gnssid==2 && arr[n].sigid == 6)
+                wantIt = true;
             if(d3.select("#GalE5b").property("checked") && arr[n].gnssid==2 && arr[n].sigid == 5)
                 wantIt = true;
             if(d3.select("#GPSL1CA").property("checked") && arr[n].gnssid==0 && arr[n].sigid == 0)
