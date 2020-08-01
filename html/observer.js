@@ -85,7 +85,6 @@ function componentDidMount() {
         .text(function(d) { return d + "°"; });
 
         sats.select('g.satellites').remove();
-    console.log(gnss_position);
     
         let points = sats
             .insert("g")
