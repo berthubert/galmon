@@ -176,15 +176,21 @@ void NMMSender::sendTCPThread(Destination* d)
 
 void NMMSender::emitNMM(const NavMonMessage& nmm)
 {
+  string out;
+  nmm.SerializeToString(& out);
+  emitNMM(out);
+}
+
+void NMMSender::emitNMM(const std::string& out)
+{
   for(auto& d : d_dests) {
-    d->emitNMM(nmm, d_compress);
+    d->emitNMM(out, d_compress);
   }
 }
 
-void NMMSender::Destination::emitNMM(const NavMonMessage& nmm, bool compressed)
+
+void NMMSender::Destination::emitNMM(const std::string& out, bool compressed)
 {
-  string out;
-  nmm.SerializeToString(& out);
   string msg;
   if(dst.empty() || !compressed)
     msg="bert";

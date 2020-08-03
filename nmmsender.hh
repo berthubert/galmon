@@ -16,7 +16,7 @@ class NMMSender
 
     std::deque<std::string> queue;
     std::mutex mut;
-    void emitNMM(const NavMonMessage& nmm, bool compress);
+    void emitNMM(const std::string& out, bool compress);
   };
   
 public:
@@ -45,6 +45,7 @@ public:
   void sendTCPThread(Destination* d);
 
   void emitNMM(const NavMonMessage& nmm);
+  void emitNMM(const std::string& out);
   bool d_debug{false};
   bool d_compress{false}; // set BEFORE launch
   bool d_pleaseQuit{false};
