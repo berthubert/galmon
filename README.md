@@ -334,7 +334,7 @@ To get SP3 GBM from GFZ Potsdam for GPS week number 2111:
 ```
 WN=2111
 lftp -c "mget ftp://ftp.gfz-potsdam.de/GNSS/products/mgnss/${WN}/gbm*sp3.Z"
-gunzip gbm*sp3
+gunzip gbm*sp3.Z
 ```
 
 To feed data, use: 
