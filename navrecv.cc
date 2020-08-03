@@ -225,6 +225,7 @@ void recvSession(int s, ComboAddress client)
       part = SRead(s, len);
       if(part.size() != len) {
         cerr<<"Mismatch, "<<part.size()<<", len "<<len<<endl;
+        // XX AND THEN WHAT??
       }
       out += part;
       
