@@ -132,6 +132,8 @@ try
   g_dtLS = 18;
   bool doVERSION{false}, doSTDOUT{false};
   CLI::App app(program);
+  string sourceaddr;
+  app.add_option("--source", sourceaddr, "Connect to this IP address:port to source SBF (otherwise stdin)");
   app.add_option("--destination,-d", destinations, "Send output to this IPv4/v6 address");
   app.add_option("--station", g_srcid, "Station id")->required();
   app.add_flag("--version", doVERSION, "show program version and copyright");
@@ -162,11 +164,23 @@ try
   if(doSTDOUT)
     ns.addDestination(1);
 
+  int srcfd=0;
+  if(!sourceaddr.empty()) {
+    ComboAddress src(sourceaddr);
+    
+    srcfd = socket(src.sin4.sin_family, SOCK_STREAM, 0);
+    if(srcfd < 0)
+      unixDie("making socket for SBF connection");
+    cerr<<"Connecting to "<< src.toStringWithPort()<<" to source data..";
+    SConnectWithTimeout(srcfd, src, 5);
+    cerr<<" done"<<endl;
+  }
+  
   ns.launch();
   cerr<<"Station "<<g_srcid<<endl;
   for(;;) {
     double to=1000;
-    auto res = getSEPMessage(0, &to);
+    auto res = getSEPMessage(srcfd, &to);
     if(res.first.getID() == 4023) { // I/NAV
       auto str = res.first.getPayload();
       struct SEPInav
@@ -246,6 +260,12 @@ try
 
     }
     else if(res.first.getID() == 4018) { // GPS-L2C
+
+    }
+    else if(res.first.getID() == 4019) { // GPS raw L5
+
+    }
+    else if(res.first.getID() == 4093) { // navic raw
 
     }
     else if(res.first.getID() == 4022) {  // F/NAV
@@ -399,13 +419,13 @@ try
       nmm.set_localutcseconds(t);
       nmm.set_localutcnanoseconds(0); // yeah XXX
             
-      nmm.mutable_gf()->set_gnsswn(sc.wn - 1024);
+      nmm.mutable_gc()->set_gnsswn(sc.wn - 1024);
       
-      nmm.mutable_gf()->set_gnsstow(sc.towMsec/1000.0);
-      nmm.mutable_gf()->set_gnssid(2);
-      nmm.mutable_gf()->set_gnsssv(sc.sv - 70);
-      nmm.mutable_gf()->set_contents((const char*)&payload[0], payload.size());
-      nmm.mutable_gf()->set_sigid(sepsig2ubx(sigid));
+      nmm.mutable_gc()->set_gnsstow(sc.towMsec/1000.0);
+      nmm.mutable_gc()->set_gnssid(2);
+      nmm.mutable_gc()->set_gnsssv(sc.sv - 70);
+      nmm.mutable_gc()->set_contents((const char*)&payload[0], payload.size());
+      nmm.mutable_gc()->set_sigid(sepsig2ubx(sigid));
       ns.emitNMM( nmm);
     }
     else if(res.first.getIDBare() == 4027) {
@@ -427,7 +447,7 @@ try
 
       struct Block1
       {
-        uint8_t rxchannel, type, sv, misc;
+        uint8_t rxchannel, type, sv, misc; // misc contains 4 bits of codeMSB
         uint32_t codeLSB;
         int32_t doppler;
         uint16_t carrierLSB;
@@ -482,6 +502,15 @@ try
             ns.emitNMM(nmm);
           }
           catch(...){}
+
+          /*
+          LSB of the pseudorange. The pseudorange expressed in meters
+            is computed as follows:
+            PR type1 [m] = ( CodeMSB *4294967296+ CodeLSB )*0.001
+
+            codeMSB hides in bits 0-3 of misc. 
+          */
+          
         }
         
         for(int m = 0 ; m < b1.n2; ++m) {
