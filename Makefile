@@ -25,7 +25,7 @@ endif
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
 PROGRAMS = navparse ubxtool navnexus navcat navrecv navdump testrunner navdisplay tlecatch reporter sp3feed \
-	galmonmon rinreport rinjoin rtcmtool gndate septool
+	galmonmon rinreport rinjoin rtcmtool gndate septool navmerge
 
 all: navmon.pb.cc $(PROGRAMS)
 
@@ -110,6 +110,10 @@ navcat: navcat.o ext/fmt-6.1.2/src/format.o  $(SIMPLESOCKETS) ubx.o bits.o navmo
 
 navrecv: navrecv.o ext/fmt-6.1.2/src/format.o $(SIMPLESOCKETS) navmon.pb.o storage.o githash.o zstdwrap.o navmon.o
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -pthread -lprotobuf -lzstd 
+
+navmerge: navmerge.o ext/fmt-6.1.2/src/format.o $(SIMPLESOCKETS) navmon.pb.o storage.o githash.o zstdwrap.o navmon.o nmmsender.o
+	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -pthread -lprotobuf -lzstd 
+
 
 tlecatch: tlecatch.o $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) githash.o
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -pthread -lprotobuf  
