@@ -24,7 +24,7 @@ jobs:
       - name: Run buildx
         run: |
           docker buildx build \
-            --tag galmon/galmon \
+            --tag berthubert/galmon \
             --platform linux/386,linux/amd64,linux/arm/v7,linux/arm64/v8 \
             --output "type=registry" \
             --build-arg MAKE_FLAGS=-j1 \
