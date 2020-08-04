@@ -107,14 +107,14 @@ can view the UI too and assumes a ublox GPS device too -
 you may need to tweak as necessary):
 
 ```
-docker run -it --rm --device=/dev/ttyACM0 -p 10000:10000 galmon/galmon
+docker run -it --rm --device=/dev/ttyACM0 -p 10000:10000 berthubert/galmon
 ```
 
 Running a daemonized docker container reporting data to a remote server
 might look like:
 
 ```
-docker run -d --restart=always --device=/dev/ttyACM0 --name=galmon galmon/galmon /galmon/ubxtool --wait --port /dev/ttyACM0 --gps --galileo --glonass --destination [server] --station [station-id] --owner [owner]
+docker run -d --restart=always --device=/dev/ttyACM0 --name=galmon berthubert/galmon ubxtool --wait --port /dev/ttyACM0 --gps --galileo --glonass --destination [server] --station [station-id] --owner [owner]
 ```
 
 To make your docker container update automatically you could use a tool such as
