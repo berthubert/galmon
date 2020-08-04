@@ -1,7 +1,7 @@
 #
 # First stage - builder
 #
-FROM ubuntu:eoan AS builder
+FROM ubuntu:focal AS builder
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV LC_ALL C.UTF-8
@@ -28,7 +28,7 @@ RUN prefix=/galmon make install
 #
 # Second stage - contains just the binaries
 #
-FROM ubuntu:eoan
+FROM ubuntu:focal
 RUN apt-get update && apt-get -y upgrade \
     && apt-get install -y libh2o0.13 libcurl4 libssl1.1 libprotobuf17 \
            libh2o-evloop0.13 libwslay1 libzstd1 \
