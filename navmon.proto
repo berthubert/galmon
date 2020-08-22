@@ -35,7 +35,12 @@ message NavMonMessage {
 	required uint32 gnssID =3;
 	required uint32 gnssSV =4;
 	required bytes contents =5;
-        optional uint32 sigid = 6;        
+        optional uint32 sigid = 6;
+        optional bytes reserved1 = 7;
+        optional bytes reserved2 = 8;
+        optional bytes sar = 9;
+        optional bytes spare = 10;
+        optional bytes crc = 11;      
   }
 
 message GalileoFnav {

@@ -3,6 +3,7 @@
 #include "fmt/format.h"
 #include "fmt/printf.h"
 #include "bits.hh"
+#include "navmon.hh"
 
 using namespace std;
 uint16_t calcUbxChecksum(uint8_t ubxClass, uint8_t ubxType, std::basic_string_view<uint8_t> str)
@@ -60,7 +61,12 @@ std::basic_string<uint8_t> buildUbxMessage(uint8_t ubxClass, uint8_t ubxType, st
   return msg;
 }
 
-basic_string<uint8_t> getInavFromSFRBXMsg(std::basic_string_view<uint8_t> msg)
+basic_string<uint8_t> getInavFromSFRBXMsg(std::basic_string_view<uint8_t> msg,
+                                          basic_string<uint8_t>& reserved1,
+                                          basic_string<uint8_t>& reserved2,
+                                          basic_string<uint8_t>& sar,
+                                          basic_string<uint8_t>& spare,
+                                          basic_string<uint8_t>& crc)
 {
   // byte order adjustment
   std::basic_string<uint8_t> payload;
@@ -74,10 +80,14 @@ basic_string<uint8_t> getInavFromSFRBXMsg(std::basic_string_view<uint8_t> msg)
   for (i=0,j=  4;i<15;i++,j+=8) setbitu(crc_buff,j,8,getbitu(payload.c_str()   ,i*8,8));
   for (i=0,j=118;i<11;i++,j+=8) setbitu(crc_buff,j,8,getbitu(payload.c_str()+16,i*8,8));
   if (rtk_crc24q(crc_buff,25) != getbitu(payload.c_str()+16,82,24)) {
-    cout << "CRC mismatch, " << rtk_crc24q(crc_buff, 25) << " != " << getbitu(payload.c_str()+16,82,24) <<endl;
+    cerr << "CRC mismatch, " << rtk_crc24q(crc_buff, 25) << " != " << getbitu(payload.c_str()+16,82,24) <<endl;
     throw CRCMismatch();
   }
 
+  crc.clear();
+  for(i=0; i < 3; ++i)
+    crc.append(1, getbitu(payload.c_str()+16,82+i*8,8));
+  
   std::basic_string<uint8_t> inav;
   
   for (i=0,j=2; i<14; i++, j+=8)
@@ -85,6 +95,21 @@ basic_string<uint8_t> getInavFromSFRBXMsg(std::basic_string_view<uint8_t> msg)
   for (i=0,j=2; i< 2; i++, j+=8)
     inav.append(1, (unsigned char)getbitu(payload.c_str()+16,j,8));
 
+  reserved1.clear();
+  for(i=0, j=18; i < 5 ; i++, j+=8)
+    reserved1.append(1, (unsigned char)getbitu(payload.c_str()+16, j, 8));
+  //  cerr<<"reserved1: "<<makeHexDump(reserved1)<<endl;
+
+  sar.clear();
+  for(i=0, j=58; i < 3 ; i++, j+=8) // you get 24 bits
+    sar.append(1, (unsigned char)getbitu(payload.c_str()+16, j, 8));
+
+  spare.clear();
+  spare.append(1, (unsigned char)getbitu(payload.c_str()+16, 80, 2));
+
+  reserved2.clear();
+  reserved2.append(1, (unsigned char)getbitu(payload.c_str()+16, 106, 8));
+  
   return inav;
 }
 

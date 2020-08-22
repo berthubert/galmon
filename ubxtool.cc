@@ -927,7 +927,7 @@ int main(int argc, char** argv)
         enableUBXMessageOnPort(fd, 0x02, 0x59, ubxport); // UBX-RXM-RLM
       }
 
-      if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-MON-HW"<<endl; } // SAR
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-MON-HW"<<endl; } 
       enableUBXMessageOnPort(fd, 0x0A, 0x09, ubxport, 16); // UBX-MON-HW
 
       
@@ -1385,7 +1385,8 @@ int main(int argc, char** argv)
             ns.emitNMM( nmm);            
           }
           else if(id.first ==2) { // GALILEO
-            auto inav = getInavFromSFRBXMsg(payload);
+            basic_string<uint8_t> reserved1, reserved2, sar, spare, crc;
+            auto inav = getInavFromSFRBXMsg(payload, reserved1, reserved2, sar, spare, crc);  
             unsigned int wtype = getbitu(&inav[0], 0, 6);
 
             uint32_t satTOW;
@@ -1466,6 +1467,11 @@ int main(int argc, char** argv)
             nmm.mutable_gi()->set_gnsssv(id.second);
             nmm.mutable_gi()->set_sigid(sigid);
             nmm.mutable_gi()->set_contents((const char*)&inav[0], inav.size());
+            nmm.mutable_gi()->set_reserved1((const char*)&reserved1[0], reserved1.size());
+            nmm.mutable_gi()->set_reserved2((const char*)&reserved2[0], reserved2.size());
+            nmm.mutable_gi()->set_sar((const char*)    &sar[0],   sar.size());
+            nmm.mutable_gi()->set_crc((const char*)    &crc[0],   crc.size());
+            nmm.mutable_gi()->set_spare((const char*)&spare[0], spare.size());
             
             ns.emitNMM( nmm);
           }
