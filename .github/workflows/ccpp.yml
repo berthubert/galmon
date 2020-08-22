@@ -4,15 +4,15 @@ on: [push]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-    
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
+      with:
+        submodules: "recursive"
     - name: deps
-      run: sudo apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev libzstd-dev
-    - name: submodules
-      run: git submodule update --init --recursive
+      run: |
+        sudo apt-get update
+        sudo apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev libzstd-dev
     - name: config
       run: echo WSLAY=-lwslay > Makefile.local
     - name: make
