@@ -392,6 +392,10 @@ try
       static map<int,GalileoMessage> oldEph;
       cout << "gal inav wtype "<<wtype<<" for "<<nmm.gi().gnssid()<<","<<nmm.gi().gnsssv()<<","<<nmm.gi().sigid()<<" pbwn "<<nmm.gi().gnsswn()<<" pbtow "<< nmm.gi().gnsstow();
       static uint32_t tow;
+      if(wtype >=1 && wtype <= 5) {
+        if(nmm.gi().has_reserved1())
+          cout<<" res1 "<<makeHexDump(nmm.gi().reserved1());
+      }
       if(wtype == 4) {
         //              2^-34       2^-46
         cout <<" iodnav "<<gm.iodnav <<" af0 "<<gm.af0 <<" af1 "<<gm.af1 <<", scaled: "<<ldexp(1.0*gm.af0, 19-34)<<", "<<ldexp(1.0*gm.af1, 38-46);
@@ -535,7 +539,7 @@ try
         if(gm.alma3.e1bhs != 0) {
           cout <<" gm.tow "<<gm.tow<<" gmwtypes.tow "<< gmwtypes[{sv,9}].tow <<" ";
         }
-        cout<<"  "<<gmwtypes[{sv,9}].alma3.svid <<" af0 "<<gm.alma3.af0<<" af1 "<< gm.alma3.af1 <<" e5bhs "<< gm.alma3.e5bhs<<" e1bhs "<< gm.alma3.e1bhs <<" a0g " << gm.a0g <<" a1g "<< gm.a1g <<" t0g "<<gm.t0g <<" wn0g "<<gm.wn0g <<" delta-gps "<< gm.getGPSOffset(gm.tow, gm.wn).first<<"ns";
+        cout<<"  alma3.sv "<<gmwtypes[{sv,9}].alma3.svid <<" af0 "<<gm.alma3.af0<<" af1 "<< gm.alma3.af1 <<" e5bhs "<< gm.alma3.e5bhs<<" e1bhs "<< gm.alma3.e1bhs <<" a0g " << gm.a0g <<" a1g "<< gm.a1g <<" t0g "<<gm.t0g <<" wn0g "<<gm.wn0g <<" delta-gps "<< gm.getGPSOffset(gm.tow, gm.wn).first<<"ns";
 
         int dw = (int)(gm.wn%64) - (int)(gm.wn0g);
         if(dw > 31)
