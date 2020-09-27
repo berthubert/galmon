@@ -166,23 +166,7 @@ std::optional<string> StateKeeper::reportState(string_view thing, string_view na
 
 
 StateKeeper g_sk;
-#if 0
-static std::string string_replace(const std::string& str, const std::string& match, 
-        const std::string& replacement, unsigned int max_replacements = UINT_MAX)
-{
-    size_t pos = 0;
-    std::string newstr = str;
-    unsigned int replacements = 0;
-    while ((pos = newstr.find(match, pos)) != std::string::npos
-            && replacements < max_replacements)
-    {
-         newstr.replace(pos, match.length(), replacement);
-         pos += replacement.length();
-         replacements++;
-    }
-    return newstr;
-}
-#endif 
+
 void sendTweet(const string& tweet)
 {
   string etweet = tweet;
