@@ -5,7 +5,7 @@
 #include <string>
 #include <tuple>
 #include <mutex>
-
+#include <limits.h>
 extern const char* g_gitHash;
 
 
@@ -18,6 +18,8 @@ std::string humanTimeNow();
 std::string humanTime(time_t t);
 std::string humanTimeShort(time_t t);
 std::string humanTime(time_t t, uint32_t nanoseconds);
+// influx ascii time format, in UTC
+std::string influxTime(time_t t);
 struct SatID
 {
   uint32_t gnss{255}; // these could all be 'int16_t' but leads to howling numbers of warnings with protobuf
@@ -85,3 +87,5 @@ std::string makeHexDump(const std::basic_string<uint8_t>& str);
 size_t writen2(int fd, const void *buf, size_t count);
 void unixDie(const std::string& reason);
 time_t parseTime(std::string_view in);
+std::string string_replace(const std::string& str, const std::string& match, 
+                           const std::string& replacement, unsigned int max_replacements = UINT_MAX);

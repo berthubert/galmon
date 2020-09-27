@@ -159,6 +159,18 @@ std::string humanTimeShort(time_t t)
   return buffer;
 }
 
+// influx ascii time format, in UTC
+std::string influxTime(time_t t)
+{
+  struct tm tm={0};
+  gmtime_r(&t, &tm);
+
+  char buffer[80];
+  std::string fmt = "%Y-%m-%d %H:%M:%S";
+  
+  strftime(buffer, sizeof(buffer), fmt.c_str(), &tm);
+  return buffer;
+}
 
 std::string humanTime(time_t t, uint32_t nanoseconds)
 {
@@ -388,7 +400,7 @@ time_t parseTime(std::string_view in)
 {
   time_t now=time(0);
 
-  vector<string> formats({"%Y-%m-%d %H:%M", "%Y%m%d %H%M", "%H:%M", "%H%M"});
+  vector<string> formats({"%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S", "%Y%m%d %H%M", "%H:%M", "%H%M"});
   for(const auto& f : formats) {
     struct tm tm;
     memset(&tm, 0, sizeof(tm));
@@ -405,7 +417,24 @@ time_t parseTime(std::string_view in)
 
   string err="Can only parse on";
   for(const auto& f : formats)
-    err += " "+ f;
+    err += " '"+ f+"'";
   throw runtime_error(err);
+}
+
+
+std::string string_replace(const std::string& str, const std::string& match, 
+        const std::string& replacement, unsigned int max_replacements)
+{
+    size_t pos = 0;
+    std::string newstr = str;
+    unsigned int replacements = 0;
+    while ((pos = newstr.find(match, pos)) != std::string::npos
+            && replacements < max_replacements)
+    {
+         newstr.replace(pos, match.length(), replacement);
+         pos += replacement.length();
+         replacements++;
+    }
+    return newstr;
 }
 
