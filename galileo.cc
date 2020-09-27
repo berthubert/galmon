@@ -43,7 +43,7 @@ int GalileoMessage::parseFnav(std::basic_string_view<uint8_t> page)
   
   wtype = gbum(6);
   if(wtype == 1) {
-    /*int sv = */    gbum(6);
+    /*int sv = */    (void)gbum(6);
     iodnav = gbum(10);
     t0c =    gbum(14);
     af0 =    gbsm(31);
