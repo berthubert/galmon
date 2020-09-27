@@ -111,10 +111,12 @@ int main(int argc, char **argv)
   string sp3src("default");
   int gnssid=2;
   int rtcmsrc=300;
+  int galwn=-1;
   app.add_flag("--version", doVERSION, "show program version and copyright");
   app.add_option("--period,-p", periodarg, "period over which to report (1h, 1w)");
   app.add_option("--begin,-b", beginarg, "Beginning");
   app.add_option("--end,-e", endarg, "End");
+  app.add_option("--gal-wn", galwn, "Galileo week number to report on");
   app.add_option("--sp3src", sp3src, "Identifier of SP3 source");
   app.add_option("--rtcmsrc", rtcmsrc, "Identifier of RTCM source");
   app.add_option("--sigid,-s", sigid, "Signal identifier. 1 or 5 for Galileo.");
@@ -131,7 +133,11 @@ int main(int argc, char **argv)
     exit(0);
   }
 
-  if(beginarg.empty() && endarg.empty()) 
+  if(galwn>= 0) {
+    time_t w = utcFromGST(galwn, 0);
+    period = "time >= '"+influxTime(w)+"' and time < '"+influxTime(w+7*86400) +"'";
+  }
+  else if(beginarg.empty() && endarg.empty()) 
     period = "time > now() - "+periodarg;
   else {
     period = "time > '"+ beginarg +"' and time <= '" + endarg +"'";
@@ -647,7 +653,7 @@ int main(int argc, char **argv)
                      100.0*totripe/maxintervals/g_stats.size(),
                      100.0*totexpired/maxintervals/g_stats.size());
 
-  texstream<<fmt::sprintf("Tot & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%%\\\\",
+  texstream<<fmt::sprintf("\\hline\nTot & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%% & %6.2f\\%%\\\\",
                      100.0*(totunobserved)/maxintervals/g_stats.size(),
                      100.0*totunhealthy/maxintervals/g_stats.size(),
                      100.0*tothealthy/maxintervals/g_stats.size(),
