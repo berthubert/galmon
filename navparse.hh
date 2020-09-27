@@ -49,6 +49,8 @@ struct SVStat
   GalileoMessage ephgalmsg, galmsg, oldephgalmsg;
   // internal
   map<int, GalileoMessage> galmsgTyped;
+  bool osnma{false};
+  time_t osnmaTime{0};
   
   // Glonass
   GlonassMessage ephglomsg, glonassMessage, oldephglomsg;
