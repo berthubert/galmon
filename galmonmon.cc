@@ -181,8 +181,8 @@ int main(int argc, char **argv)
 {
   MiniCurl mc;
   MiniCurl::MiniCurlHeaders mch;
-  //  string url="https://galmon.eu/svs.json";
-  string url="http://[::1]:29599/";
+  string url="https://galmon.eu/";
+  //  string url="http://[::1]:29599/";
   bool doVERSION{false};
 
   CLI::App app(program);
