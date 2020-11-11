@@ -4,6 +4,7 @@
 #include "navmon.hh"
 #include <vector>
 #include "galileo.hh"
+#include <map>
 
 struct RTCMFrame
 {
@@ -52,6 +53,7 @@ struct RTCMMessage
 
   std::vector<EphemerisDelta> d_ephs;
   std::vector<ClockDelta> d_clocks;
+  std::map<SatID, double> d_dcbs;
   GalileoMessage d_gm;
   int d_sv;
 };

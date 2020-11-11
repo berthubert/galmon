@@ -262,7 +262,56 @@ DF 385: Full seconds since the beginning of the GPS week
     setbitu(rtcm->buff,i, 1,osdvs2   ); i+= 1; /* E1 DVS */
 
 #endif
-      
+  }
+  else if(type == 1059 || type == 1242) { // GPS/Galileo bias
+    int off = 0;
+    int msgnum = gbum(off, 12);
 
+    int gpstime = gbum(off, 20);
+    int uinterval = gbum(off, 4);
+    int mmi = gbum(off, 1);
+    int iodssr = gbum(off, 4);
+    int ssrprov = gbum(off, 16);
+    int ssrsol = gbum(off, 4);
+    int numsats = gbum(off, 6);
+
+    //    cout <<"msgnum "<<msgnum<<" gpstime " << gpstime<<" numsats "<< numsats<<endl;
+    d_dcbs.clear();
+    for(int n=0; n < numsats; ++n) {
+      int gpsid = gbum(off, 6);
+      int numdcbs = gbum(off, 5);
+      //      cout<<"  "<< (type==1059 ? "G" : "E") <<gpsid<<" has "<<numdcbs <<" DCBs\n";
+      SatID id;
+      id.gnss = (type==1059 ? 0 : 2); // GPS or Galileo
+      id.sv = gpsid;
+      for(int m = 0 ; m < numdcbs; ++m) {
+        int sig = gbum(off, 5);
+        id.sigid = sig;
+        int dcb = gbsm(off, 14); // 0.01 meter
+        d_dcbs[id] = 0.01*dcb;
+        //        cout<<"     sig "<<sig <<" dcb " << dcb*0.01 << "\n";
+
+        /*
+Indicator to specify the GPS signal and tracking mode:
+0 - L1 C/A
+1- L1 P
+2- L1 Z-tracking and similar (AS on)
+3 - Reserved
+4 - Reserved
+5 - L2 C/A
+6 - L2 L1(C/A)+(P2-P1) (semi-codeless)
+7 - L2 L2C (M)
+8 - L2 L2C (L)
+9 - L2 L2C (M+L)
+10 - L2 P
+11 - L2 Z-tracking and similar (AS on)
+12 - Reserved
+13 - Reserved
+14 - L5 I
+15 - L5 Q
+>15 - Reserved.
+        */
+      }
+    }
   }
 }
