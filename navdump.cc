@@ -768,6 +768,14 @@ try
           cout <<" BGDE1E5b "<< rm.d_gm.BGDE1E5b;
         cout<<endl;
       }
+      else if(rm.type == 1059 || rm.type==1242) {
+        cout<<"\n";
+        for(const auto& dcb : rm.d_dcbs) {
+          cout<<"   "<<makeSatIDName(dcb.first)<<":  "<<dcb.second<<" meters\n";
+        }
+
+        cout<<endl;
+      }
       else {
         cout<<" len " << nmm.rm().contents().size() << endl;
         
