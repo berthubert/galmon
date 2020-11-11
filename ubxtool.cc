@@ -496,7 +496,7 @@ struct TIMEGPS
 // ubxtool device srcid
 int main(int argc, char** argv)
 {
-  time_t starttime=time(0);
+  auto starttime = std::chrono::steady_clock::now();
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   CLI::App app(program);
@@ -1703,7 +1703,7 @@ int main(int argc, char** argv)
         nmm.mutable_od()->set_owner(owner);
         nmm.mutable_od()->set_remark(remark);
         nmm.mutable_od()->set_recvgithash(g_gitHash);
-        nmm.mutable_od()->set_uptime(time(0) - starttime);
+        nmm.mutable_od()->set_uptime(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-starttime).count());
         
         
         ns.emitNMM( nmm);
