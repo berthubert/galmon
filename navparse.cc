@@ -1518,6 +1518,9 @@ try
             }
           }
           if(s.first.gnss == 2) {
+            if(s.second.osnmaTime >= 0 && ephAge(s.second.galmsg.tow, s.second.osnmaTime) < 60)
+              item["osnma"] = s.second.osnma;
+            
             auto galileoalma = g_galileoalmakeeper.get();
             if(auto iter = galileoalma.find(s.first.sv); iter != galileoalma.end()) {
               Point almapos;
@@ -1974,6 +1977,15 @@ try
       svstat.galmsgTyped[wtype] = gm;
 
       if(wtype == 1 || wtype == 2 || wtype == 3 || wtype == 4) {
+        if(nmm.gi().has_reserved1()) {
+          static string off;
+          if(off.empty())
+            off.append(5, (char)0);
+          svstat.osnma = nmm.gi().reserved1() != off;
+          if(svstat.osnma) // eventually this will become too much but ok for now
+            idb.addValue(id, "osnma", {{"field", makeHexDump(nmm.gi().reserved1())}}, satUTCTime(id));
+          svstat.osnmaTime = gm.tow;
+        }
         idb.addValue(id, "ephemeris", {{"iod-live", svstat.galmsg.iodnav},
               {"eph-age", ephAge(gm.tow, gm.getT0e())}}, satUTCTime(id));
 
