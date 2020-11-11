@@ -263,9 +263,6 @@ void SVStat::reportNewEphemeris(const SatID& id, InfluxPusher& idb)
   if(gnss==0) { // GPS
     const auto& eg = ephgpsmsg;
 
-    idb.addValue(id, "ephemeris-actual", {
-        {"iod", eg.getIOD()}}, satUTCTime(id));
-    
     
     idb.addValue(id, "ephemeris-actual", {
         {"iod", eg.getIOD()}, 
@@ -2588,6 +2585,14 @@ try
             nmm.localutcseconds(),
             nmm.sourceid());
           
+        }
+      }
+      else if(rm.type == 1059 || rm.type == 1242) {
+        for(const auto& dcb : rm.d_dcbs) {
+          idb.addValue(dcb.first, "rtcm-dcb", {
+              {"value", dcb.second}},
+            nmm.localutcseconds(),
+            nmm.sourceid());
         }
       }
       else if(rm.type == 1060 || rm.type == 1243) {
