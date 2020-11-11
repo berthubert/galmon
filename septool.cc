@@ -175,7 +175,7 @@ try
     SConnectWithTimeout(srcfd, src, 5);
     cerr<<" done"<<endl;
   }
-  
+  ns.d_compress = true;
   ns.launch();
   cerr<<"Station "<<g_srcid<<endl;
   for(;;) {
@@ -358,9 +358,9 @@ try
         
         nmm.set_type(NavMonMessage::ObserverDetailsType);
         nmm.mutable_od()->set_vendor("Septentrio");
-        nmm.mutable_od()->set_hwversion("PolaRx5");
+        nmm.mutable_od()->set_hwversion("Mosaic");
         nmm.mutable_od()->set_swversion("");
-        nmm.mutable_od()->set_serialno("3018468");
+        nmm.mutable_od()->set_serialno("3060601");
         nmm.mutable_od()->set_modules("");
         nmm.mutable_od()->set_clockoffsetns(0);
         nmm.mutable_od()->set_clockoffsetdriftns(0);
