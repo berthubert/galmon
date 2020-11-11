@@ -37,7 +37,7 @@
 #include "gpscnav.hh"
 #include "rtcm.hh"
 #include "version.hh"
-
+//#include "nequick.hh"
 
 static char program[]="navparse";
 
@@ -1841,6 +1841,63 @@ try
       storeSelfStats(idb, nmm.localutcseconds());
       lastSelfstatSyncPoint = nmm.localutcseconds() / lastSelfstatInterval;
     }
+
+    constexpr auto lastIonoInterval = 3600;
+    static time_t lastIonoSyncPoint;
+    #if 0
+    if(nmm.localutcseconds() / lastIonoInterval > (unsigned int)lastIonoSyncPoint) {
+      // go over all satellites
+      NeQuickInst nqi;
+      //      cerr<<"Looking at all sats"<<endl;
+      for(const auto& s : g_svstats) {
+        if(s.first.gnss!=2 || !s.second.completeIOD())
+          continue;
+        Point sat;
+        s.second.getCoordinates(s.second.tow(), &sat);
+        for(const auto& pr : s.second.perrecv) {
+          //          cerr<<"Looking at "<<s.first.sv<<", "<<pr.second.db<<" "<<nmm.localutcseconds()<<", "<<pr.second.t<<" perrecv "<<pr.first<<" count " << g_srcpos.count(pr.first)<<endl;
+          if(g_srcpos.count(pr.first) && (pr.second.db > 0 || (nmm.localutcseconds() - pr.second.t < 120))) {
+            //            cerr<<"Doing it -> "<< s.second.galmsg.ai0 <<" " <<s.second.galmsg.ai1<<" " << s.second.galmsg.ai2<< endl;
+            const auto& sp = g_srcpos[pr.first];
+            try {
+              //              cerr<<"Obs "<<pr.first<<" pos: "<<sp.pos.x<<", "<<sp.pos.y<<", "<<sp.pos.z<<endl;
+              //              cerr<<"Sat " <<s.first.sv<<" pos: "<<sat.x<<", "<<sat.y<<", "<<sat.z<<endl;
+              //              auto obs = ecefToWGS84Deg(sp.pos.x, sp.pos.y, sp.pos.z);
+              //              cerr<<"Observer height: "<<get<2>(obs)<<" meters, long "<<get<0>(obs)<<", lat "<<get<1>(obs)<<endl;
+
+              //              auto satdegs = ecefToWGS84Deg(sat.x, sat.y, sat.z);
+              //              cerr<<"Satellite height: "<<get<2>(satdegs)<<" meters, long "<<get<0>(satdegs)<<", lat "<<get<1>(satdegs)<< " -> elevation "<<getElevationDeg(sat, sp.pos)<<" deg"<<endl;
+
+              if(getElevationDeg(sat, sp.pos) < 0) // below the horizon
+                continue;
+              
+              if(sp.pos.x==0 || isnan(sat.x)) {
+                //                cerr<<"Fake position, skipping"<<endl;
+                continue;
+              }
+              double meters = (40.3e16/(1575420000.0*1575420000.0)) *
+                nqi.getTecu(nmm.localutcseconds(),
+                            s.second.galmsg.ai0,
+                            s.second.galmsg.ai1,
+                            s.second.galmsg.ai2, sp.pos, sat);
+              
+              idb.addValue(s.first, "nequick",
+                           {
+                           {"meters", meters}
+                           }, nmm.localutcseconds() + nmm.localutcnanoseconds()/1000000000.0, pr.first);
+              //              cerr<<"Meters: "<<meters<<endl;
+            }
+            catch(std::exception& e) {
+              cerr<<"Exception during NeQuick: "<<e.what()<<endl;
+            }
+
+          }
+        }
+      }
+      //      cerr<<"Done"<<endl;
+      lastIonoSyncPoint = nmm.localutcseconds() / lastIonoInterval;
+    }
+#endif
     
     
     if(nmm.type() == NavMonMessage::ReceptionDataType) {
