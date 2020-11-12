@@ -88,7 +88,7 @@ try
         close(fd);
         continue;
       }
-      cout <<"Seeked to position "<<fpos[fname]<<" of "<<fname<<endl;
+      //      cout <<"Seeked to position "<<fpos[fname]<<" of "<<fname<<endl;
       NavMonMessage nmm;
 
       uint32_t looked=0;
@@ -106,15 +106,15 @@ try
       fpos[fname]=offset;
       close(fd);
     }
-    cout<<"Sorting.. ";
-    cout.flush();
+    //    cout<<"Sorting.. ";
+    //    cout.flush();
     sort(rnmms.begin(), rnmms.end(), [](const auto& a, const auto& b)
          {
            return std::tie(a.first.tv_sec, a.first.tv_nsec)
              < std::tie(b.first.tv_sec, b.first.tv_nsec);
          });
-    cout<<"Sending.. ";
-    cout.flush();
+    //    cout<<"Sending.. ";
+    //    cout.flush();
     for(const auto& nmm: rnmms) {
       std::string buf="bert";
       uint16_t len = htons(nmm.second.size());
@@ -122,7 +122,7 @@ try
       buf += nmm.second;
       SWriten(clientfd, buf);
     }
-    cout<<"Done"<<endl;
+    //    cout<<"Done"<<endl;
     if(3600 + start.tv_sec - (start.tv_sec % 3600) < time(0))
       start.tv_sec = 3600 + start.tv_sec - (start.tv_sec % 3600);
     else {
