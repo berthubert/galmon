@@ -101,7 +101,7 @@ navdisplay: navdisplay.o ext/fmt-6.1.2/src/format.o bits.o navmon.pb.o gps.o eph
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -pthread  -lprotobuf -lncurses
 
 
-navnexus: navnexus.o ext/fmt-6.1.2/src/format.o  $(SIMPLESOCKETS) ubx.o bits.o navmon.pb.o storage.o githash.o
+navnexus: navnexus.o ext/fmt-6.1.2/src/format.o  $(SIMPLESOCKETS) bits.o navmon.pb.o storage.o githash.o
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -pthread -lprotobuf
 
 navcat: navcat.o ext/fmt-6.1.2/src/format.o  $(SIMPLESOCKETS) ubx.o bits.o navmon.pb.o storage.o navmon.o githash.o
