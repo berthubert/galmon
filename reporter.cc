@@ -509,6 +509,48 @@ int main(int argc, char **argv)
     }
   }
 
+  ///// 
+  string dishesQuery = "select iod,sv from \"ephemeris-actual\" where "+period+" and sigid='"+to_string(sigid)+"' and gnssid='"+to_string(gnssid)+"' and iod < 128";
+  cout<<"dishesquery: "<<dishesQuery<<endl;
+  res = mc.getURL(url + mc.urlEncode(dishesQuery));
+  cout<<res<<endl;
+  j = nlohmann::json::parse(res);
+  map<time_t, set<int>> dishcount;
+  set<int> totsvs;
+  for(const auto& sv : j["results"][0]["series"]) {
+    for(const auto& v : sv["values"]) {
+      try {
+	int sv = (unsigned int)std::stoi((string)v[2]);
+	int t = (int)v[0];
+	//	t &= (~31);
+	dishcount[t].insert(sv);
+	totsvs.insert(sv);
+      }
+      catch(exception& e) {
+	cerr<<"error: "<<e.what()<<endl;
+	continue;
+      }
+    }
+  }
+  map<time_t, int> maxcounts;
+  for(const auto& dc : dishcount) {
+    auto& bin = maxcounts[dc.first - (dc.first % 3600)];
+    if(bin < dc.second.size())
+      bin = dc.second.size();
+    cout << dc.first<<" "<<humanTimeShort(dc.first) <<", " << fmt::sprintf("%2d", dc.second.size())<<": ";
+    for(const auto& n : totsvs) {
+      if(dc.second.count(n))
+	cout<<fmt::sprintf("%2d ", n);
+      else
+	cout<<"   ";
+    }
+    cout<<"\n";
+  }
+
+  ofstream hrcounts("hrcounts.csv");
+  hrcounts<<"timestamp,dishcount\n";
+  for(const auto& mc: maxcounts)
+    hrcounts<<mc.first<<","<<mc.second<<"\n";
   
   /////////////////////
   
@@ -643,6 +685,9 @@ int main(int argc, char **argv)
     cout<<endl;
     
   }
+
+ 
+  
   cout<<"------------------------------------------------------------------------------------------"<<endl;
   cout<<fmt::sprintf("Tot: %6.2f%% unobserved, %6.2f%% unhealthy, %6.2f%% healthy, %6.2f%% testing, %6.2f%% napa, %6.2f%% ripe, %6.2f%% expired",
                      100.0*(totunobserved)/maxintervals/g_stats.size(),

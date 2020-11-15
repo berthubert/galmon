@@ -149,11 +149,12 @@ void ZStdReader::worker()
 
   for(;;) {
     input.pos=0;
-    input.size=read(d_sourcefd, (char*)input.src, inputcapacity);
-    if(input.size <= 0) {
+    int ret = read(d_sourcefd, (char*)input.src, inputcapacity);
+    if(ret <= 0) {
       cerr<<"Got EOF on input fd "<<d_sourcefd<<", terminating thread"<<endl;
       break;
     }
+    input.size = ret; // this is unsigned, so we need 'ret' to see the error
     while(input.pos != input.size) {
       output.pos=0;
       output.size=outputcapacity;

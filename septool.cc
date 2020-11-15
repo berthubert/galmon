@@ -181,6 +181,7 @@ try
   for(;;) {
     double to=1000;
     auto res = getSEPMessage(srcfd, &to);
+    cerr<<res.first.getID()<<" - " <<res.first.getIDBare() << endl;
     if(res.first.getID() == 4023) { // I/NAV
       auto str = res.first.getPayload();
       struct SEPInav
