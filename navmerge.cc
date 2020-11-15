@@ -163,7 +163,7 @@ int main(int argc, char** argv)
         iter = g_buffer.erase(iter);
       }
     }
-    cerr<<"Have "<<tosend.size()<<" messages to send, "<<g_buffer.size()<<" left in queue"<<endl;
+    //    cerr<<"Have "<<tosend.size()<<" messages to send, "<<g_buffer.size()<<" left in queue"<<endl;
     std::string buf;
     for(const auto& m : tosend) {
       ns.emitNMM(m);
