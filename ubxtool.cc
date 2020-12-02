@@ -134,15 +134,17 @@ class UBXMessage
 {
 public:
   struct BadChecksum{};
-  explicit UBXMessage(basic_string_view<uint8_t> src)
+  explicit UBXMessage(basic_string_view<uint8_t> src, bool validate=true)
   {
     d_raw = src;
-    if(d_raw.size() < 6)
-      throw std::runtime_error("Partial UBX message");
+    if(validate) {
+      if(d_raw.size() < 6)
+	throw std::runtime_error("Partial UBX message");
 
-    uint16_t csum = calcUbxChecksum(getClass(), getType(), d_raw.substr(6, d_raw.size()-8));
-    if(csum != d_raw.at(d_raw.size()-2) + 256*d_raw.at(d_raw.size()-1))
-      throw BadChecksum();
+      uint16_t csum = calcUbxChecksum(getClass(), getType(), d_raw.substr(6, d_raw.size()-8));
+      if(csum != d_raw.at(d_raw.size()-2) + 256*d_raw.at(d_raw.size()-1))
+	throw BadChecksum();
+    }
     
   }
   uint8_t getClass() const
@@ -157,6 +159,10 @@ public:
   {
     return d_raw.substr(6, d_raw.size()-8);
   }
+  std::basic_string<uint8_t> getNMEAPayload() const
+  {
+    return d_raw.substr(6);
+  }
   std::basic_string<uint8_t> d_raw;
 };
 
@@ -166,7 +172,7 @@ bool g_fromFile{false};
 #define O_LARGEFILE	0
 #endif
 
-std::pair<UBXMessage, struct timeval> getUBXMessage(int fd, double* timeout)
+std::pair<UBXMessage, struct timeval> getUBXMessage(int fd, double* timeout, bool detectNMEA)
 {
   static int logfile=0;
   if (doLOGFILE) {
@@ -185,9 +191,61 @@ std::pair<UBXMessage, struct timeval> getUBXMessage(int fd, double* timeout)
       cerr<<"Readn2Timeout failed: "<<strerror(errno)<<endl;
       throw EofException();
     }
-    
+
     //    if (doDEBUG) { cerr<<humanTimeNow()<<" marker now: "<< (int)marker[0]<<" " <<(int)marker[1]<<endl; }
-    if(marker[0]==0xb5 && marker[1]==0x62) { // bingo
+    if(detectNMEA && marker[0] == '$' && marker[1] == 'G') { // bingo - found NMEA
+      struct timeval tv;
+      gettimeofday(&tv, 0);
+      basic_string<uint8_t> msg;
+      uint8_t b;
+      bool saw_cr{false};
+      msg.reserve(90);
+      msg.append(6, 0xff); // 2 bytes for 'prefix', 2 bytes for 'class'/'type', 2 bytes for length
+      msg.append(marker, 2);
+      for (;;) {
+	int res = readn2Timeout(fd, &b, 1, timeout);
+	if(res < 0) {
+	  // forget marker and start over
+	  marker[1] = 0;
+	  break;
+	}
+	if (b == 0xb5) {
+	  // beginning of UBX message, store marker and start over
+	  marker[1] = b;
+	  break;
+	}
+	if ((b > 0x7e) || (b < 0x20 && b != 0x0a && b != 0x0d)) {
+	  // protocol violation, character not allowed
+	  // forget marker and start over
+	  marker[1] = 0;
+	  break;
+	}
+	if(b == 0x0d) {
+	  saw_cr = true;
+	  msg.append(1, b);
+	} else if(b == 0x0a) {
+	  if(!saw_cr) {
+	    // protocol violation, LF not preceded by CR
+	    marker[1] = 0;
+	    break;
+	  }
+	  msg.append(1, b);
+	  //      if (doDEBUG) { cerr<<humanTimeNow()<<" Got NMEA sentence, len = "<<msg.length()<<endl; }
+	  return make_pair(UBXMessage(msg, false), tv);
+	} else {
+          // maximum sentence length is 82 bytes, including terminating CR/LF
+          // since those haven't been seen yet, 80 bytes of payload are allowed
+          // but the message buffer has a six-byte prefix, thus the maximum
+          // allowed is 85 bytes
+	  if(msg.size() > 85) {
+	    // protocol violation, message too long
+	    marker[1] = 0;
+	    break;
+	  }
+	  msg.append(1, b);
+	}
+      }
+    } else if(marker[0] == 0xb5 && marker[1] == 0x62) { // bingo - found UBX
       struct timeval tv;
       gettimeofday(&tv, 0);
       basic_string<uint8_t> msg;
@@ -204,18 +262,18 @@ std::pair<UBXMessage, struct timeval> getUBXMessage(int fd, double* timeout)
       msg.append(buffer, len+2); // checksum
       if (doLOGFILE) {
         if(!g_fromFile)
-          writen2(logfile, msg.c_str(), msg.size());      
+          writen2(logfile, msg.c_str(), msg.size());
       }
       return make_pair(UBXMessage(msg), tv);
     }
-  }                                                                       
+  }
 }
 
 UBXMessage waitForUBX(int fd, int seconds, uint8_t ubxClass, uint8_t ubxType)
 {
   double timeout = seconds;
   for(;;) {
-    auto [msg, tv] = getUBXMessage(fd, &timeout);
+    auto [msg, tv] = getUBXMessage(fd, &timeout, false);
     (void) tv;
 
     if(msg.getClass() == ubxClass && msg.getType() == ubxType) {
@@ -250,7 +308,7 @@ bool waitForUBXAckNack(int fd, int seconds, int ubxClass, int ubxType)
 {
   double timeout = seconds;
   for(;;) {
-    auto [msg, tv] = getUBXMessage(fd, &timeout);
+    auto [msg, tv] = getUBXMessage(fd, &timeout, false);
     (void)tv;
 
     if(msg.getClass() != 5 || !(msg.getType() == 0 || msg.getType() == 1)) {
@@ -348,7 +406,7 @@ void readSome(int fd)
   for(int n=0; n < 5; ++n) {
     double timeout=1;
     try {
-      auto [msg, timestamp] = getUBXMessage(fd, &timeout);
+      auto [msg, timestamp] = getUBXMessage(fd, &timeout, false);
       (void)timestamp;
       if (doDEBUG) { cerr<<humanTimeNow()<<" Read some init: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<endl; }
       if(msg.getClass() == 0x4)
@@ -504,7 +562,8 @@ int main(int argc, char** argv)
 
   bool doGPS{true}, doGalileo{true}, doGlonass{false}, doBeidou{false}, doReset{false}, doWait{true}, doRTSCTS{true}, doSBAS{false};
   bool doFakeFix{false};
-  bool doKeepNMEA{false};
+  bool doEnableNMEA{false};
+  bool doDetectNMEA{false};
   bool doSTDOUT=false;
 #ifdef OpenBSD
   doRTSCTS = false;
@@ -519,6 +578,7 @@ int main(int argc, char** argv)
   string owner;
   string remark;
   bool doCompress=true;
+  string nmeaUDPDestination;
   app.add_option("--destination,-d", destinations, "Send output to this IPv4/v6 address");
   app.add_flag("--wait", doWait, "Wait a bit, do not try to read init messages");
   //  app.add_flag("--compress,-z", doCompress, "Use compressed protocol for network transmission");
@@ -535,11 +595,12 @@ int main(int argc, char** argv)
   app.add_option("--ubxport,-u", ubxport, "UBX port to enable messages on (usb=3)");
   app.add_option("--baud,-b", baudrate, "Baudrate for serial connection");
   app.add_option("--newbaud,-n", newbaudrate, "Attempt to change to this baudrate for serial connection");  
-  app.add_flag("--keep-nmea,-k", doKeepNMEA, "Don't disable NMEA");
+  app.add_flag("--keep-nmea,-k", doEnableNMEA, "Enable NMEA");
   app.add_flag("--fake-fix", doFakeFix, "Inject locally generated fake fix data");
   app.add_option("--fuzz-position,-f", fuzzPositionMeters, "Fuzz position by this many meters");
   app.add_option("--owner,-o", owner, "Name/handle/nick of owner/operator");
   app.add_option("--remark", remark, "Remark for this station");
+  app.add_option("--udp-nmea", nmeaUDPDestination, "Send NMEA sentences over UDP to this IPv4/v6 address and port");
   
   int surveyMinSeconds = 0;
   int surveyMinCM = 0;
@@ -572,6 +633,32 @@ int main(int argc, char** argv)
   if(!(doGPS || doGalileo || doGlonass || doBeidou)) {
     cerr<<"Enable at least one of --gps, --galileo, --glonass, --beidou"<<endl;
     return EXIT_FAILURE;
+  }
+
+  ComboAddress nmeaUDPAddress;
+  int nmeaUDPSocket{0};
+  if(!nmeaUDPDestination.empty()) {
+    if(!doEnableNMEA) {
+      cerr<<"udp-nmea: Enabling NMEA because NMEA-over-UDP requested"<<endl;
+      doEnableNMEA = true;
+    }
+    try {
+      nmeaUDPAddress = ComboAddress(nmeaUDPDestination);
+    } catch (const runtime_error &e) {
+      cerr<<"udp-nmea: "<<e.what()<<endl;
+      return EXIT_FAILURE;
+    }
+    if(nmeaUDPAddress.sin4.sin_port==0) {
+      cerr<<"udp-nmea: Must specify port number as part of destination: "<<nmeaUDPDestination<<endl;
+      return EXIT_FAILURE;
+    }
+    try {
+      nmeaUDPSocket = SSocket(AF_INET, SOCK_DGRAM);
+    } catch (const runtime_error &e) {
+      cerr<<"udp-nmea: "<<e.what()<<endl;
+      return EXIT_FAILURE;
+    }
+    doDetectNMEA = true;
   }
 
   signal(SIGPIPE, SIG_IGN);
@@ -856,56 +943,54 @@ int main(int argc, char** argv)
       }
       
 
-      if(!doKeepNMEA || (newbaudrate && newbaudrate != baudrate)) {
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Changing port settings (newbaudrate="<<newbaudrate<<", baudrate="<<baudrate<<", keepNMEA="<<doKeepNMEA<<")"<<endl; }
-        
-        uint8_t outproto = 0x01;
-        if(doKeepNMEA)
-          outproto += 0x02;
-          
-        if(ubxport == 1 || ubxport == 2) {
-          /* Ublox UART[1] or UART2 port, so encode baudrate and serial settings */
-          int actbaud = newbaudrate ? newbaudrate : baudrate;
-          msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,
-            0xC0 /* 8 bit */,
-            0x08 /* No parity */,
-            0x00,0x00,
-            (unsigned char)((actbaud) & 0xFF),
-            (unsigned char)((actbaud>>8) & 0xFF),
-            (unsigned char)((actbaud>>16) & 0xFF),
-            (unsigned char)((actbaud>>24) & 0xFF),
-            // in in   out      out      // 0x01 = ublox, 0x02 = nmea
-            0x03,0x00,outproto,0x00,
-            // flags   res  res
-            0x00,0x00,0x00,0x00
-          });
-        }
-        else {                              //   port                 res   tx-ready  res  res  res  res  res  res  res res   in   in     out  out  res   res  res res 
-          msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,outproto,0x00,0x00,0x00,0x00,0x00});
-        }
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Changing port settings (enableNMEA="<<doEnableNMEA<<")"<<endl; }
+      uint8_t outproto = 0x01;
+      if(doEnableNMEA)
+	outproto += 0x02;
 
-        if(newbaudrate && newbaudrate != baudrate) {
-          for(int n=0; n < 3; ++n) {
-            cerr<<humanTimeNow()<<" Sending new baudrate "<<n<<".. "<<endl;
-            writen2(fd, &msg[0], msg.size());
-            // there won't be an ack
-            usleep(100000);
-          }
-          g_baudval = getBaudrate(newbaudrate);
-          doTermios(fd, false);          
-        }
-        else {
-          if(sendAndWaitForUBXAckNack(fd, 10, msg, 0x06, 0x00)) { // disable NMEA
-            if (doDEBUG) { cerr<<humanTimeNow()<<" ACK for new port/protocol settings"<<endl; }
-          }
-          else {
-            if (doDEBUG) { cerr<<humanTimeNow()<<" Got NACK for port/protocol settings"<<endl; }
-          }
-        }
+      if(ubxport == 1 || ubxport == 2) {
+	if (doDEBUG) { cerr<<humanTimeNow()<<" Changing port settings (newbaudrate="<<newbaudrate<<", baudrate="<<baudrate<<")"<<endl; }
+	/* Ublox UART[1] or UART2 port, so encode baudrate and serial settings */
+	int actbaud = newbaudrate ? newbaudrate : baudrate;
+	msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,
+          0xC0 /* 8 bit */,
+          0x08 /* No parity */,
+          0x00,0x00,
+          (unsigned char)((actbaud) & 0xFF),
+          (unsigned char)((actbaud>>8) & 0xFF),
+          (unsigned char)((actbaud>>16) & 0xFF),
+          (unsigned char)((actbaud>>24) & 0xFF),
+          // in in   out      out      // 0x01 = ublox, 0x02 = nmea
+          0x03,0x00,outproto,0x00,
+          // flags   res  res
+          0x00,0x00,0x00,0x00
+        });
       }
-      if (doDEBUG) { cerr<<humanTimeNow()<<" Polling port settings"<<endl; } // UBX-CFG-PRT, 0x03 == USB
+      else {                              //   port                 res   tx-ready  res  res  res  res  res  res  res res   in   in     out  out  res   res  res res
+	msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport),0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,outproto,0x00,0x00,0x00,0x00,0x00});
+      }
+
+      if(newbaudrate && newbaudrate != baudrate) {
+	for(int n=0; n < 3; ++n) {
+	  cerr<<humanTimeNow()<<" Sending new baudrate "<<n<<".. "<<endl;
+	  writen2(fd, &msg[0], msg.size());
+	  // there won't be an ack
+	  usleep(100000);
+	}
+	g_baudval = getBaudrate(newbaudrate);
+	doTermios(fd, false);
+      }
+      else {
+	if(sendAndWaitForUBXAckNack(fd, 10, msg, 0x06, 0x00)) { // UBX-CFG-PRT
+	  if (doDEBUG) { cerr<<humanTimeNow()<<" ACK for new port/protocol settings"<<endl; }
+	}
+	else {
+	  if (doDEBUG) { cerr<<humanTimeNow()<<" Got NACK for port/protocol settings"<<endl; }
+	}
+      }
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Polling port settings"<<endl; } // UBX-CFG-PRT
       msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport)});
-      
+
       UBXMessage um=sendAndWaitForUBX(fd, 4, msg, 0x06, 0x00); // UBX-CFG-PRT
       if (doDEBUG) {
         cerr<<humanTimeNow()<<" Protocol settings on port: "<<endl;
@@ -1106,7 +1191,7 @@ int main(int argc, char** argv)
   
   for(;;) {
     try {
-      auto [msg, timestamp] = getUBXMessage(fd, nullptr);
+      auto [msg, timestamp] = getUBXMessage(fd, nullptr, doDetectNMEA);
       (void)timestamp;
       auto payload = msg.getPayload();
       
@@ -1888,6 +1973,10 @@ int main(int argc, char** argv)
         memcpy(&tstate.gps, &payload[0], sizeof(TIMEGPS));
         //        cerr << "TIMEGPS itow: "<<tstate.gps.itow<<", ftow: "<<tstate.gps.ftow<<", tAcc: "<<tstate.gps.tAcc<< ", valid: "<< !!tstate.gps.valid<<endl;
         tstate.transmitIfComplete(ns);
+      }
+      else
+      if(msg.getClass() == 0xff && msg.getType() == 0xff) { // NMEA sentence
+        SSendto(nmeaUDPSocket, (const char *)msg.getNMEAPayload().c_str(), nmeaUDPAddress);
       }
       else 
         if (doDEBUG) { cerr<<humanTimeNow()<<" Unknown UBX message of class "<<(int) msg.getClass() <<" and type "<< (int) msg.getType()<< " of "<<payload.size()<<" bytes"<<endl; }
