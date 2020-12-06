@@ -84,6 +84,8 @@ private:
 struct IntervalStat
 {
   std::optional<int> unhealthy;
+  std::optional<int> dataunhealthy;
+  std::optional<int> osnma;
   std::optional<int> sisa;
   bool ripe{false};
   bool expired{false};
@@ -95,6 +97,7 @@ struct IntervalStat
 map<SatID, map<time_t,IntervalStat>> g_stats;
 
 int main(int argc, char **argv)
+try
 {
   MiniCurl mc;
   MiniCurl::MiniCurlHeaders mch;
@@ -112,6 +115,7 @@ int main(int argc, char **argv)
   int gnssid=2;
   int rtcmsrc=300;
   int galwn=-1;
+  string influxserver="http://127.0.0.1:8086";
   app.add_flag("--version", doVERSION, "show program version and copyright");
   app.add_option("--period,-p", periodarg, "period over which to report (1h, 1w)");
   app.add_option("--begin,-b", beginarg, "Beginning");
@@ -122,6 +126,7 @@ int main(int argc, char **argv)
   app.add_option("--sigid,-s", sigid, "Signal identifier. 1 or 5 for Galileo.");
   app.add_option("--gnssid,-g", gnssid, "gnssid, 0 GPS, 2 Galileo");
   app.add_option("--influxdb", influxDBName, "Name of influxdb database");
+  app.add_option("--influxserver", influxserver, "Address of influx server");
   try {
     app.parse(argc, argv);
   } catch(const CLI::Error &e) {
@@ -148,13 +153,16 @@ int main(int argc, char **argv)
 
   // auto res = mc.getURL(url + mc.urlEncode("select distinct(value) from sisa where "+period+" and sigid='"+to_string(sigid)+"' group by gnssid,sv,sigid,time(10m)"));
 
-
-  
-  string url="http://127.0.0.1:8086/query?db="+influxDBName+"&epoch=s&q=";
+  if(influxserver.find("http"))
+    influxserver="http://"+influxserver;
+  if(influxserver.empty() || influxserver[influxserver.size()-1]!='/')
+    influxserver+="/";
+  string url=influxserver+"query?db="+influxDBName+"&epoch=s&q=";
   string sisaname = (gnssid==2) ? "sisa" : "gpsura";
   string query="select distinct(value) from "+sisaname+" where "+period+" and sigid='"+to_string(sigid)+"' group by gnssid,sv,sigid,time(10m)";
 
   cout<<"query: "<<query<<endl;
+  cout<<"url: "<<(url + mc.urlEncode(query))<<endl;
   auto res = mc.getURL(url + mc.urlEncode(query));
 
   auto j = nlohmann::json::parse(res);
@@ -180,13 +188,44 @@ int main(int argc, char **argv)
     const auto& tags=sv["tags"];
     SatID id{(unsigned int)std::stoi((string)tags["gnssid"]), (unsigned int)std::stoi((string)tags["sv"]), (unsigned int)std::stoi((string)tags["sigid"])};
 
-
     for(const auto& v : sv["values"]) {
       auto healthy = (int)v[1];
       g_stats[id][(int)v[0]].unhealthy = healthy; // hngg
     }
   }
 
+  if(gnssid == 2) {
+    res = mc.getURL(url + mc.urlEncode("select distinct(e1bdvs) from galhealth where "+period+" and sigid='"+to_string(sigid)+"' group by gnssid,sv,sigid,time(10m)"));
+    j = nlohmann::json::parse(res);
+    
+    for(const auto& sv : j["results"][0]["series"]) {
+      const auto& tags=sv["tags"];
+      SatID id{(unsigned int)std::stoi((string)tags["gnssid"]), (unsigned int)std::stoi((string)tags["sv"]), (unsigned int)std::stoi((string)tags["sigid"])};
+      
+      for(const auto& v : sv["values"]) {
+	auto dhealthy = (int)v[1]; // if true, "working without guarantee"
+	g_stats[id][(int)v[0]].dataunhealthy = dhealthy; 
+      }
+    }
+  }  
+  res = mc.getURL(url + mc.urlEncode("select count(\"field\") from osnma where "+period+" and sigid='"+to_string(sigid)+"' group by gnssid,sv,sigid,time(10m)"));
+  j = nlohmann::json::parse(res);
+  
+  for(const auto& sv : j["results"][0]["series"]) {
+    const auto& tags=sv["tags"];
+    SatID id{(unsigned int)std::stoi((string)tags["gnssid"]), (unsigned int)std::stoi((string)tags["sv"]), (unsigned int)std::stoi((string)tags["sigid"])};
+
+
+    for(const auto& v : sv["values"]) {
+      auto osnma = (int)v[1];
+      if(!g_stats[id][(int)v[0]].osnma)
+	g_stats[id][(int)v[0]].osnma = osnma;
+      else
+	(*g_stats[id][(int)v[0]].osnma) += osnma;
+    }
+  }
+
+  
   res = mc.getURL(url + mc.urlEncode("select max(\"eph-age\") from ephemeris where "+period+" and sigid='"+to_string(sigid)+"' group by gnssid,sv,sigid,time(10m)"));
   j = nlohmann::json::parse(res);
   for(const auto& sv : j["results"][0]["series"]) {
@@ -532,7 +571,7 @@ int main(int argc, char **argv)
       }
     }
   }
-  map<time_t, int> maxcounts;
+  map<time_t, unsigned int> maxcounts;
   for(const auto& dc : dishcount) {
     auto& bin = maxcounts[dc.first - (dc.first % 3600)];
     if(bin < dc.second.size())
@@ -554,10 +593,6 @@ int main(int argc, char **argv)
   
   /////////////////////
   
-  g_stats.erase({2,14,1});
-  g_stats.erase({2,18,1});
-  g_stats.erase({2,14,5});
-  g_stats.erase({2,18,5});
   /*
   g_stats[{2,19,1}];
   */
@@ -616,7 +651,10 @@ int main(int argc, char **argv)
         else if(*i.second.unhealthy==3)
           testing++;
         else {
-          if(i.second.sisa) {
+	  if(i.second.dataunhealthy && *i.second.dataunhealthy) {  // this is 'working without guarantee'
+	    unhealthy++;
+	  }
+	  else if(i.second.sisa) {
             if(*i.second.sisa == 255)
               napa++;
             else
@@ -715,5 +753,9 @@ int main(int argc, char **argv)
   cout<<endl;
 
 }
-
+catch(exception& e)
+{
+  cerr<<"Fatal error: "<<e.what()<<endl;
+  return EXIT_FAILURE;
+}
 
