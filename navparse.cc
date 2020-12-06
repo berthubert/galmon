@@ -561,6 +561,25 @@ try {
     }
     sats.push_back(sat);
   }
+
+  vector<SatID> aux{{2, 14, 1}, {2,18,1}};
+  for(const auto& id : aux) {
+    if(!g_svstats.count(id))
+      continue;
+    
+    const auto& svstat = g_svstats[id];
+
+    if(svstat.completeIOD() && svstat.galmsg.sisa == 255) {
+      continue;
+    }
+    if(svstat.galmsg.e1bhs || svstat.galmsg.e1bdvs) {
+      continue;
+    }
+    Point sat;
+    getCoordinates(tow, svstat.galmsg, &sat);
+    sats.push_back(sat);
+  }
+  
   //  cout<<endl;
   auto cov = emitCoverage(sats);
   int cells=0;
@@ -1833,7 +1852,7 @@ try
       if(!lastCovSyncPoint)
         holdOffTime = nmm.localutcseconds() + 600;
       
-      if(nmm.localutcseconds() > holdOffTime)
+      if((time_t)nmm.localutcseconds() > holdOffTime)
         storeCoverageStats(idb, nmm.localutcseconds());
       lastCovSyncPoint = nmm.localutcseconds() / lastCovInterval;
     }
@@ -1845,9 +1864,9 @@ try
       lastSelfstatSyncPoint = nmm.localutcseconds() / lastSelfstatInterval;
     }
 
+    #if 0
     constexpr auto lastIonoInterval = 3600;
     static time_t lastIonoSyncPoint;
-    #if 0
     if(nmm.localutcseconds() / lastIonoInterval > (unsigned int)lastIonoSyncPoint) {
       // go over all satellites
       NeQuickInst nqi;
@@ -1983,7 +2002,7 @@ try
             off.append(5, (char)0);
           svstat.osnma = nmm.gi().reserved1() != off;
           if(svstat.osnma) // eventually this will become too much but ok for now
-            idb.addValue(id, "osnma", {{"field", makeHexDump(nmm.gi().reserved1())}}, satUTCTime(id));
+            idb.addValue(id, "osnma", {{"wtype", wtype}, {"field", makeHexDump(nmm.gi().reserved1())}}, satUTCTime(id));
           svstat.osnmaTime = gm.tow;
         }
         idb.addValue(id, "ephemeris", {{"iod-live", svstat.galmsg.iodnav},
@@ -2701,7 +2720,7 @@ try
           id.sv = rm.d_sv;
           id.sigid = 6; // seems reasonable for E5a
 
-          static map<pair<int, int>, int> lastT0e;
+          static map<pair<int, int>, unsigned int> lastT0e;
 
           pair<int, int> key(nmm.sourceid(), rm.d_sv);
           if(!lastT0e.count(key) || lastT0e[key] != eg.t0e) {
