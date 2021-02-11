@@ -230,6 +230,10 @@ try
         inav2.append(1, getbitu(payload.c_str(), 116 + n*8, 8));
       //      cerr<<makeHexDump(inav2) << endl;
 
+      
+      basic_string<uint8_t> reserved1;
+      for(int n=0; n < 5 ; ++n)
+	reserved1.append(1, getbitu(payload.c_str(), 116 + 16 + n*8, 8));
 
       NavMonMessage nmm;
       double t = utcFromGST(si.wn - 1024, si.towMsec / 1000.0);
@@ -247,6 +251,7 @@ try
       nmm.mutable_gi()->set_gnsssv(si.sv - 70);
       nmm.mutable_gi()->set_contents((const char*)&inav2[0], inav2.size());
       nmm.mutable_gi()->set_sigid(sepsig2ubx(sigid));
+      nmm.mutable_gi()->set_reserved1((const char*)&reserved1[0], reserved1.size());
       ns.emitNMM( nmm);
       
     }
