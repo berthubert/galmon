@@ -258,11 +258,13 @@ try
   bool doRFData{true};
   bool doObserverPosition{false};
   bool doVERSION{false};
+  string rinexfname;
   app.add_option("--svs", svpairs, "Listen to specified svs. '0' = gps, '2' = Galileo, '2,1' is E01");
   app.add_option("--stations", stations, "Listen to specified stations.");
   app.add_option("--positions,-p", doObserverPosition, "Print out observer positions (or not)");
   app.add_option("--rfdata,-r", doRFData, "Print out RF data (or not)");
   app.add_option("--recdata", doReceptionData, "Print out reception data (or not)");
+  app.add_option("--rinex", rinexfname, "If set, emit ephemerides to this filename");
   app.add_flag("--version", doVERSION, "show program version and copyright");
     
   try {
@@ -299,7 +301,11 @@ try
 
   sp3csv<<"timestamp gnssid sv ephAge sp3X sp3Y sp3Z ephX ephY ephZ  sp3Clock ephClock distance along clockDelta E speed"<<endl;
 
-  //  RINEXNavWriter rnw("test.rnx");
+  std::optional<RINEXNavWriter> rnw;
+
+  if(!rinexfname.empty())
+    rnw = RINEXNavWriter(rinexfname);
+  
   for(;;) {
     char bert[4];
     int res = readn2(0, bert, 4);
@@ -457,7 +463,9 @@ try
           if(!oldEph[sv].sqrtA)
             oldEph[sv] = gm;
           else if(oldEph[sv].iodnav != gm.iodnav) {
-            //            rnw.emitEphemeris(sid, gm);
+	    if(rnw)
+	      rnw->emitEphemeris(sid, gm);
+	    //	    gm.toJSON();
 
             cout<<" disco! "<< oldEph[sv].iodnav << " - > "<<gm.iodnav <<", "<< (gm.getT0e() - oldEph[sv].getT0e())/3600.0 <<" hours-jump insta-age "<<ephAge(gm.tow, gm.getT0e())/3600.0<<" hours";
             Point oldPoint, newPoint;
