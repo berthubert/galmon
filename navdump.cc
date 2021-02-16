@@ -259,12 +259,14 @@ try
   bool doObserverPosition{false};
   bool doVERSION{false};
   string rinexfname;
+  string osnmafname;
   app.add_option("--svs", svpairs, "Listen to specified svs. '0' = gps, '2' = Galileo, '2,1' is E01");
   app.add_option("--stations", stations, "Listen to specified stations.");
   app.add_option("--positions,-p", doObserverPosition, "Print out observer positions (or not)");
   app.add_option("--rfdata,-r", doRFData, "Print out RF data (or not)");
   app.add_option("--recdata", doReceptionData, "Print out reception data (or not)");
   app.add_option("--rinex", rinexfname, "If set, emit ephemerides to this filename");
+  app.add_option("--osnma", osnmafname, "If set, emit OSNMA CSV to this filename");
   app.add_flag("--version", doVERSION, "show program version and copyright");
     
   try {
@@ -305,6 +307,13 @@ try
 
   if(!rinexfname.empty())
     rnw = RINEXNavWriter(rinexfname);
+
+  std::optional<ofstream> osnmacsv;
+  if(!osnmafname.empty()) {
+    osnmacsv = ofstream(osnmafname);
+    (*osnmacsv)<<"wn,tow,wtype,sv,osnma\n";
+
+  }
   
   for(;;) {
     char bert[4];
@@ -394,13 +403,17 @@ try
       int wtype = gm.parse(inav);
       
       gm.tow = nmm.gi().gnsstow();
+      bool isnew = gmwtypes[{nmm.gi().gnsssv(), wtype}].tow != gm.tow;
       gmwtypes[{nmm.gi().gnsssv(), wtype}] = gm;
       static map<int,GalileoMessage> oldEph;
       cout << "gal inav wtype "<<wtype<<" for "<<nmm.gi().gnssid()<<","<<nmm.gi().gnsssv()<<","<<nmm.gi().sigid()<<" pbwn "<<nmm.gi().gnsswn()<<" pbtow "<< nmm.gi().gnsstow();
       static uint32_t tow;
       if(wtype >=1 && wtype <= 5) {
-        if(nmm.gi().has_reserved1())
+        if(nmm.gi().has_reserved1()) {
           cout<<" res1 "<<makeHexDump(nmm.gi().reserved1());
+	  if(osnmacsv && isnew)
+	    (*osnmacsv)<<nmm.gi().gnsswn()<<","<<gm.tow<<","<<wtype<<","<<nmm.gi().gnsssv()<<","<<makeHexDump(nmm.gi().reserved1())<<"\n";
+	}
       }
       if(wtype == 4) {
         //              2^-34       2^-46
