@@ -412,7 +412,7 @@ try
         if(nmm.gi().has_reserved1()) {
           cout<<" res1 "<<makeHexDump(nmm.gi().reserved1());
 	  if(osnmacsv && isnew)
-	    (*osnmacsv)<<nmm.gi().gnsswn()<<","<<gm.tow<<","<<wtype<<","<<nmm.gi().gnsssv()<<","<<makeHexDump(nmm.gi().reserved1())<<"\n";
+	    (*osnmacsv)<<nmm.gi().gnsswn()<<","<<gm.tow<<","<<wtype<<","<<nmm.gi().gnsssv()<<","<<makeHexDump(nmm.gi().reserved1())<<endl;
 	}
       }
       if(wtype == 4) {
