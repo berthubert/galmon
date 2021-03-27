@@ -72,8 +72,8 @@ Goals:
 
 Works on Linux (including Raspbian Buster on Pi Zero W), OSX and OpenBSD.
 
-Build locally
--------------
+Build locally (Linux, Debian, Ubuntu)
+-------------------------------------
 
 To get started, make sure you have a C++17 compiler (like g++ 8 or higher),
 git, protobuf-compiler.  Then run 'make ubxtool navdump' to build the
@@ -94,6 +94,18 @@ library installed. If you get an error about 'wslay', do the following, and run 
 
 ```
 echo WSLAY=-lwslay > Makefile.local
+```
+
+Building on OSX
+---------------
+With thanks to a contributor from Prague:
+```
+brew install protobuf
+brew install lzlib
+brew install zstd
+brew install h2o
+brew install eigen
+make
 ```
 
 Running in Docker
