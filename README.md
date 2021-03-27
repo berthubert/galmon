@@ -98,13 +98,17 @@ echo WSLAY=-lwslay > Makefile.local
 
 Building on OSX
 ---------------
-With thanks to a contributor from Prague:
+With thanks to a contributor from Prague.  First make sure you've installed
+brew, which you can get [here](https://brew.sh/). Then do:
+
 ```
-brew install protobuf
-brew install lzlib
-brew install zstd
-brew install h2o
-brew install eigen
+brew install protobuf lzlib zstd h2o eigen
+```
+
+And then:
+```
+git clone https://github.com/ahupowerdns/galmon.git --recursive
+cd galmon
 make
 ```
 
