@@ -408,11 +408,14 @@ try
       static map<int,GalileoMessage> oldEph;
       cout << "gal inav wtype "<<wtype<<" for "<<nmm.gi().gnssid()<<","<<nmm.gi().gnsssv()<<","<<nmm.gi().sigid()<<" pbwn "<<nmm.gi().gnsswn()<<" pbtow "<< nmm.gi().gnsstow();
       static uint32_t tow;
+
+      if(osnmacsv && isnew)
+	(*osnmacsv)<<nmm.gi().gnsswn()<<","<<gm.tow<<","<<wtype<<","<<nmm.gi().gnsssv()<<","<<makeHexDump(nmm.gi().reserved1())<<endl;
+
+      
       if(wtype >=1 && wtype <= 5) {
         if(nmm.gi().has_reserved1()) {
           cout<<" res1 "<<makeHexDump(nmm.gi().reserved1());
-	  if(osnmacsv && isnew)
-	    (*osnmacsv)<<nmm.gi().gnsswn()<<","<<gm.tow<<","<<wtype<<","<<nmm.gi().gnsssv()<<","<<makeHexDump(nmm.gi().reserved1())<<endl;
 	}
       }
       if(wtype == 4) {
