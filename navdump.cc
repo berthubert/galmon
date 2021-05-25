@@ -580,7 +580,21 @@ try
       if(!svfilter.check(2, sv, nmm.gc().sigid()))
         continue;
       etstamp();
-      cout << "C/NAV for " << nmm.gc().gnssid()<<","<<nmm.gc().gnsssv()<<","<<nmm.gc().sigid() <<": "<< makeHexDump(cnav)<<endl;
+      cout << "C/NAV for " << nmm.gc().gnssid()<<","<<nmm.gc().gnsssv()<<","<<nmm.gc().sigid() <<": header ";
+      cout<<fmt::sprintf("%02x%02x%02x (status %d, MT %d, MID %d, MS %d, PID %d)  rest ",
+			 getbitu(cnav.c_str(), 14, 8),
+			 getbitu(cnav.c_str(), 22, 8),
+			 getbitu(cnav.c_str(), 30, 8),
+			 getbitu(cnav.c_str(), 14+0, 2),  // status
+			 getbitu(cnav.c_str(), 14+4, 2),  // MT
+			 getbitu(cnav.c_str(), 14+6, 5),  // MID
+			 getbitu(cnav.c_str(), 14+11, 5),  // MIS
+			 getbitu(cnav.c_str(), 14+16, 8)  // PID
+			 
+			 );
+      for(int n=0; n < 51; ++n)
+	cout << fmt::sprintf("%02x ", getbitu(cnav.c_str(), 38 +n *8, 8));
+      cout<<endl;
 
     }
     else if(nmm.type() == NavMonMessage::GalileoFnavType) {
