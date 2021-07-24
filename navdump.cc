@@ -729,7 +729,7 @@ try
           cout<<" 2nd-match "<<second.name << " dist "<<second.distance/1000<<" km t0e "<<gs.gpsalma.getT0e() << " t " <<nmm.localutcseconds();
         }
         if(page == 18)
-          cout << " dtLS " << (int)gs.dtLS <<" dtLSF "<< (int)gs.dtLSF;
+          cout << " wnLSF "<< (int)gs.wnLSF <<" dn " << (int)gs.dn << " t0t " << (int)gs.t0t <<" wn0t "<<(int)gs.wn0t<<" dtLS " << (int)gs.dtLS <<" dtLSF "<< (int)gs.dtLSF;
       }
       else if(frame == 5) {
         if(gs.gpsalma.sv <= 24) {
