@@ -228,7 +228,8 @@ struct BeidouMessage : GPSLikeEphemeris
 
   //                                            2^-30  2^-50
   int a0gps, a1gps, a0gal, a1gal, a0glo, a1glo, a0utc, a1utc;
-  int8_t deltaTLS;
+  int8_t deltaTLS, deltaTLSF;
+  uint8_t wnLSF, dn;
 
   // in Beidou the offset is a0utc + SOW * a1utc
   std::pair<double, double> getUTCOffset(int tow) const
@@ -268,6 +269,9 @@ struct BeidouMessage : GPSLikeEphemeris
       a0utc = bbits(91, 32);
       a1utc = bbits(131, 24);
       deltaTLS = bbits(31+12+1+7, 8);
+      deltaTLSF = bbits(61+6, 8);
+      wnLSF = bbits(61+6+8, 8);
+      dn = bbits(151+12, 8);
     }
     else {
       alma.sqrtA = bbitu(51, 24);
