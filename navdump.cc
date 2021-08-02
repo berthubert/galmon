@@ -526,7 +526,9 @@ try
       }
       if(wtype == 6) {
         cout<<" a0 " << gm.a0 <<" a1 " << gm.a1 <<" t0t "<<gm.t0t << " dtLS "<<(int)gm.dtLS;
+        cout <<" wnLSF "<< (unsigned int)gm.wnLSF<<" dn " << (unsigned int)gm.dn<< " dtLSF "<<(int)gm.dtLSF<<endl;
       }
+
       
       //      if(wtype < 7)
       //        gm = GalileoMessage{};
@@ -618,7 +620,7 @@ try
         cout <<" t0e "<<gm.t0e;
       }
       if(gm.wtype == 4) {
-        cout <<" dtLS "<<(int)gm.dtLS;
+        cout <<" dtLS "<<(int)gm.dtLS <<" wnLSF "<< (unsigned int)gm.wnLSF<<" dn " << (unsigned int)gm.dn<< " dtLSF "<<(int)gm.dtLSF<<endl;
       }
 
       cout<<endl;
