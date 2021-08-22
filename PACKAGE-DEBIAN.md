@@ -8,7 +8,7 @@ This section is a step-by-step tutorial.
 
 ### Basic Installation
 
-Pick either debian (almost everything) or raspbian (special armv6 build for older models) and create the source file.
+Pick either debian (i386 and x64) or raspbian (armhf build for R Pi) and create the source file.
 ```sh
 echo "deb https://ota.bike/raspbian/ buster main" > /etc/apt/sources.list.d/galmon.list
 echo "deb https://ota.bike/debian/ buster main" > /etc/apt/sources.list.d/galmon.list
@@ -18,6 +18,15 @@ Install the file used to ensure the software is verified.
 ```sh
 apt-key adv --fetch-keys https://ota.bike/public-package-signing-keys/86E7F51C04FBAAB0.asc
 ```
+
+The package at ota.bike (as of Aug 2021) links against libprotobuf17 , which is no longer in the debian
+repository (libprotobuf23 is).  A copy of libprotobuf17 can be installed:
+```sh
+wget http://ftp.us.debian.org/debian/pool/main/p/protobuf/libprotobuf17_3.6.1.3-2_armhf.deb
+apt install ./libprotobuf17_3.6.1.3-2_armhf.deb
+```
+
+For Ubuntu, use: wget http://ports.ubuntu.com/ubuntu-ports/pool/main/p/protobuf/libprotobuf17_3.6.1.3-2ubuntu5_armhf.deb
 
 Update your package list and install galmon. Then create a configuration file and start the daemon.
 If you have a typical device using the onboard USB at /dev/ttyACM0, drop the directory element
