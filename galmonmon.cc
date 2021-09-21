@@ -257,7 +257,8 @@ int main(int argc, char **argv)
       
       res = mc.getURL(url+"svs.json");
       j = nlohmann::json::parse(res);
-      bool first=true;       
+      bool first=true;
+      bool globalOsnma=false;
       for(const auto& sv : j) {
         if(!sv.count("gnssid") || !sv.count("fullName") || !sv.count("sigid")) {
           cout<<"Skipping "<< sv.count("gnssid") <<", "<< sv.count("fullName") <<", " <<sv.count("sigid") <<endl;
@@ -279,7 +280,8 @@ int main(int argc, char **argv)
           //          cout<<"Skipping "<<fullName<<" in loop: "<<sv.count("healthissue")<<", "<<sv.count("eph-age-m") << ", "<<sv.count("perrecv")<<endl;
           continue;
         }
-        
+
+
         for(const auto& recv : sv["perrecv"]) {
           if(!recv.count("last-seen-s")) {
             cout<<"Missing last-seen-s"<<endl;
@@ -289,20 +291,10 @@ int main(int argc, char **argv)
             numfresh++;
           if((int)recv["last-seen-s"] < 3600)
             notseen=false;
-          
         }
+	if(sv.count("osnma") && sv["osnma"]==true)
+	  globalOsnma |= 1;
 
-	static int ctr;
-	bool overriden=false;
-	/*
-	if(fullName=="E01@1") {
-	  if(((ctr++) % 130) < 65)
-	    if(sv.count("osnma"))
-	      overriden = true;
-	  cerr<<"Reporting for "<<fullName<<": "<<(overriden || (sv.count("osnma") && (sv["osnma"] != false)))<<endl;
-	}
-	*/
-	auto osnmachange = g_sk.reportState(fullName, "osnma", overriden || (sv.count("osnma") && (sv["osnma"] != false)));
 	
         auto healthchange = g_sk.reportState(fullName, "health", sv["healthissue"]!=0);
         std::optional<string> tooOldChange;
@@ -343,8 +335,6 @@ int main(int argc, char **argv)
         */
         ostringstream out;
 
-	if(osnmachange)
-	  out<<"OSNMA state change: "<< (*osnmachange) <<" ";
           
         if(healthchange)
           out<< *healthchange<<" ";
@@ -408,6 +398,17 @@ int main(int argc, char **argv)
           cout<<humanTimeNow() <<" " << tweet << endl;
         }
       }
+
+      auto osnmachange = g_sk.reportState("global", "osnma", globalOsnma);
+      if(osnmachange) {
+	string tweet= "Galileo OSNMA new state: "+*osnmachange;
+	cout<<humanTimeNow()<< " " <<tweet<<endl;
+	if(doTweet) {
+	  sendTweet(tweet);
+	}
+      }
+
+      
       cout<<".";
       cout.flush();
     }

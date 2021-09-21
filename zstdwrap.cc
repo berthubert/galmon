@@ -158,9 +158,12 @@ void ZStdReader::worker()
     while(input.pos != input.size) {
       output.pos=0;
       output.size=outputcapacity;
-      ZSTD_decompressStream(z, &output, &input);
+      int res = ZSTD_decompressStream(z, &output, &input);
+      if(ZSTD_isError(res)) {
+        cerr<<"Error decompressing ZSTD data"<<endl;
+        break;
+      }
 
-      int res;
       res = writen(d_writepipe, output.dst, output.pos);
       if(!res) // we are history
         break;
