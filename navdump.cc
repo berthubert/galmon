@@ -421,6 +421,8 @@ try
       if(wtype == 4) {
         //              2^-34       2^-46
         cout <<" iodnav "<<gm.iodnav <<" af0 "<<gm.af0 <<" af1 "<<gm.af1 <<", scaled: "<<ldexp(1.0*gm.af0, 19-34)<<", "<<ldexp(1.0*gm.af1, 38-46);
+        cout << " t0g " << gm.t0g <<" a0g " << gm.a0g <<" a1g " << gm.a1g <<" WN0g " << gm.wn0g;
+
         if(tow && oldgm4s.count(nmm.gi().gnsssv()) && oldgm4s[nmm.gi().gnsssv()].iodnav != gm.iodnav) {
           
           auto& oldgm4 = oldgm4s[nmm.gi().gnsssv()];
