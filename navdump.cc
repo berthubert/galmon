@@ -885,8 +885,6 @@ try
         cout<<" best-tle-match "<<match.name <<" dist "<<match.distance /1000<<" km";
         cout<<" norad " <<match.norad <<" int-desig " << match.internat;
         cout<<" 2nd-match "<<second.name << " dist "<<second.distance/1000<<" km";
-
-
       }
       else if((fraid == 4 && 1<= pageno && pageno <= 24) ||
               (fraid == 5 && 1<= pageno && pageno <= 6) ||
@@ -917,7 +915,7 @@ try
         cout<<" WNa "<<getbitu(&cond[0], beidouBitconv(190), 8)<<" t0a "<<getbitu(&cond[0], beidouBitconv(198), 8);
       }
       else if(bm.fraid == 5 && pageno==10) {
-        cout <<" dTLS "<< (int)bm.deltaTLS;
+        cout <<" dTLS "<< (int)bm.deltaTLS << " dTLSF " << (int) bm.deltaTLSF <<" wnLSF " << (unsigned int)bm.wnLSF <<" dn "<<(unsigned int)  bm.dn<<endl;
       }
       else if(bm.fraid == 5 && pageno==24) {
         int AmID= getbitu(&cond[0], beidouBitconv(216), 2);

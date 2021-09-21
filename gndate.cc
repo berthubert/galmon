@@ -14,7 +14,7 @@ try
   string date;
   int galwn{-1};
   bool doProgOutput{false};
-  bool doGPSWN{false}, doGALWN{false}, doVERSION{false}, doUTC{false};
+  bool doGPSWN{false}, doGALWN{false}, doBEIDOUWN{false}, doVERSION{false}, doUTC{false};
   app.add_flag("--version", doVERSION, "show program version and copyright");
   app.add_option("--date,-d", date, "yyyy-mm-dd hh:mm[:ss] hh:mm yyyymmdd hhmm");
   app.add_option("--date-gal-wn", galwn, "Give data for this Galileo week number");
@@ -62,11 +62,18 @@ try
     getGalDateFromUTC(now, wn, tow);
     cout<<wn<<endl;
   }
+  else if(doBEIDOUWN) {
+    getBeiDouDateFromUTC(now, wn, tow);
+    cout<<wn<<endl;
+  }
   else {
     getGPSDateFromUTC(now, wn, tow);
     cout<<"GPS Week Number (non-wrapped): "<< wn << ", tow " << tow << endl;
     getGalDateFromUTC(now, wn, tow);
     cout<<"Galileo Week Number: "<< wn << ", tow " << tow << endl;
+    getBeiDouDateFromUTC(now, wn, tow);
+    cout<<"BeiDou Week Number: "<< wn << ", sow " << tow << endl;
+    
   }
 }
 catch(exception& e) {

@@ -80,7 +80,7 @@ double utcFromGPS(int wn, double tow);
 
 void getGPSDateFromUTC(time_t t, int& wn, int& tow);
 void getGalDateFromUTC(time_t t, int& wn, int& tow);
-
+void getBeiDouDateFromUTC(time_t t, int&wn, int& sow);
 
 std::string makeHexDump(const std::string& str);
 std::string makeHexDump(const std::basic_string<uint8_t>& str);

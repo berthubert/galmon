@@ -292,22 +292,33 @@ std::string makeSatPartialName(const SatID& satid)
   return fmt::sprintf("%c%02d", getGNSSChar(satid.gnss), satid.sv);
 }
 
+int g_dtLS{18}, g_dtLSBeidou{4};
+
 void getGPSDateFromUTC(time_t t, int& wn, int& tow)
 {
   t -= 315964800;
-  t += 18;
+  t += 18; // XXXXXX LEAP SECOND
   wn = t/(7*86400);
   tow = t%(7*86400);
 }
 void getGalDateFromUTC(time_t t, int& wn, int& tow)
 {
   t -= 935280000;
-  t += 18;
+  t += 18; // XXXXXXX LEAP SECOND
   wn = t/(7*86400);
   tow = t%(7*86400);
 }
 
-int g_dtLS{18}, g_dtLSBeidou{4};
+void getBeiDouDateFromUTC(time_t t, int&wn, int& sow)
+{
+  // Week number count started from zero at 00:00:00 on Jan. 1, 2006 of BDT
+  t -= 1136070000;
+  t+= g_dtLSBeidou;
+  wn = t/(7*86400);
+  sow = t%(7*86400);
+}
+
+
 uint64_t utcFromGST(int wn, int tow)
 {
   return (935280000 + wn * 7*86400 + tow - g_dtLS); 
