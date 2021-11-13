@@ -2632,7 +2632,7 @@ try
         for(const auto& ed : rm.d_ephs) {
           auto iter = g_svstats.find(ed.id);
           // XXX NAVCAST ONLY
-          if(iter != g_svstats.end() && iter->second.completeIOD()  && iter->second.liveIOD().getIOD() == ed.iod && nmm.sourceid()==300)
+          if(iter != g_svstats.end() && iter->second.completeIOD()  && iter->second.liveIOD().getIOD() == ed.iod && nmm.sourceid()==302)
             iter->second.rtcmEphDelta = ed;
           
           idb.addValue(ed.id, "rtcm-eph-correction", {
@@ -2658,7 +2658,7 @@ try
 
         for(const auto& cd : rm.d_clocks) {
           auto iter = g_svstats.find(cd.id);
-          if(iter != g_svstats.end() && nmm.sourceid()==300) /// XXX wrong
+          if(iter != g_svstats.end() && nmm.sourceid()==302) /// XXX wrong
             iter->second.rtcmClockDelta = cd;
 
           idb.addValue(cd.id, "rtcm-clock-correction", {
@@ -2686,7 +2686,7 @@ try
       else if(rm.type == 1060 || rm.type == 1243) {
         for(const auto& ed : rm.d_ephs) {
           auto iter = g_svstats.find(ed.id);
-          if(iter != g_svstats.end() && iter->second.completeIOD()  && iter->second.liveIOD().getIOD() == ed.iod && nmm.sourceid()==300)
+          if(iter != g_svstats.end() && iter->second.completeIOD()  && iter->second.liveIOD().getIOD() == ed.iod && nmm.sourceid()==302)
             iter->second.rtcmEphDelta = ed;
           
           idb.addValue(ed.id, "rtcm-eph-correction", {
@@ -2754,7 +2754,7 @@ try
 
       for(const auto& cd : rm.d_clocks) {
         auto iter = g_svstats.find(cd.id);
-        if(iter != g_svstats.end() && nmm.sourceid()==300)
+        if(iter != g_svstats.end() && nmm.sourceid()==302)
           iter->second.rtcmClockDelta = cd;
         
         idb.addValue(cd.id, "rtcm-clock-correction", {

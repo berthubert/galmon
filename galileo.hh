@@ -226,7 +226,7 @@ struct GalileoMessage : GPSLikeEphemeris
   {
     int dw = (int)(wn%64) - (int)(wn0g%64);
     if(dw > 31)
-      dw = 31- dw;
+      dw = dw - 64;
     int delta = dw*7*86400  + tow - getT0g(); // NOT ephemeris age tricks
 
     // 2^-35  2^-51   3600

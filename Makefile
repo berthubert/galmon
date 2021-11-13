@@ -137,7 +137,7 @@ septool: navmon.pb.o septool.o bits.o ext/fmt-6.1.2/src/format.o galileo.o  gps.
 
 
 testrunner: navmon.pb.o testrunner.o ubx.o bits.o ext/fmt-6.1.2/src/format.o galileo.o  gps.o beidou.o ephemeris.o sp3.o osen.o navmon.o rinex.o githash.o
-	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -lprotobuf -lz 
+	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -lprotobuf -lz  -pthread
 
 gndate: gndate.o githash.o ext/fmt-6.1.2/src/format.o navmon.o
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib
