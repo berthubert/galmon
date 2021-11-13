@@ -25,6 +25,7 @@
 #include "tle.hh"
 #include "sp3.hh"
 #include "ubx.hh"
+#include <optional>
 #include <unistd.h>
 #include "sbas.hh"
 #include "version.hh"
