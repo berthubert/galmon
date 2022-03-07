@@ -75,7 +75,7 @@ function maketable(str, arr)
 
                     ret.value = sbas + "&nbsp;";
                     if(img != "")
-                        ret.value += '<img width="16" height="16" src="https://ds9a.nl/tmp/'+ img +'"/>';
+                        ret.value += '<img width="16" height="16" src="https://berthub.eu/tmp/'+ img +'"/>';
                     else
                         ret.value += "";
                     //                    ret.value="";

@@ -61,7 +61,7 @@ function maketable(str, arr)
                     else if(row["gnssid"] == 6)
                         img='ext/glo.png';
                     
-                    ret.value = '<img width="16" height="16" src="https://ds9a.nl/tmp/'+ img +'"/>';
+                    ret.value = '<img width="16" height="16" src="https://berthub.eu/tmp/'+ img +'"/>';
 //                    ret.value="";
                     ret.value += "&nbsp;<a href='sv.html?gnssid="+row.gnssid+"&sv="+row.svid+"&sigid="+row.sigid+"'>"+row.sv+"</a>";
                 }
