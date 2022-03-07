@@ -1,4 +1,4 @@
-
+#include <optional>
 #include "minicurl.hh"
 #include <iostream>
 #include "navmon.hh"
