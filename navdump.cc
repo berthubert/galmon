@@ -258,6 +258,8 @@ try
   bool doReceptionData{false};
   bool doRFData{true};
   bool doObserverPosition{false};
+  bool doObserverDetails{false};
+  bool doTimeOffsets{false};
   bool doVERSION{false};
   string rinexfname;
   string osnmafname;
@@ -265,6 +267,8 @@ try
   app.add_option("--stations", stations, "Listen to specified stations.");
   app.add_option("--positions,-p", doObserverPosition, "Print out observer positions (or not)");
   app.add_option("--rfdata,-r", doRFData, "Print out RF data (or not)");
+  app.add_option("--observerdetails,-o", doObserverDetails, "Print out observer detail data (or not)");
+  app.add_option("--timeoffsets,-t", doTimeOffsets, "Print out timeoffset data (or not)");
   app.add_option("--recdata", doReceptionData, "Print out reception data (or not)");
   app.add_option("--rinex", rinexfname, "If set, emit ephemerides to this filename");
   app.add_option("--osnma", osnmafname, "If set, emit OSNMA CSV to this filename");
@@ -1117,17 +1121,19 @@ try
       
     }
     else if(nmm.type() == NavMonMessage::ObserverDetailsType) {
-      etstamp();
-      cout<<"vendor "<<nmm.od().vendor()<<" hwversion " <<nmm.od().hwversion()<<" modules "<<nmm.od().modules()<<" swversion "<<nmm.od().swversion();
-      cout<<" serial "<<nmm.od().serialno();
-      if(nmm.od().has_owner())
-        cout<<" owner "<<nmm.od().owner();
-      if(nmm.od().has_clockoffsetdriftns())
-        cout<<" drift "<<nmm.od().clockoffsetdriftns();
-      if(nmm.od().has_clockaccuracyns())
-        cout<<" clock-accuracy "<<nmm.od().clockaccuracyns();
-      
-      cout<<endl;
+      if(doObserverDetails) {
+	etstamp();
+	cout<<"vendor "<<nmm.od().vendor()<<" hwversion " <<nmm.od().hwversion()<<" modules "<<nmm.od().modules()<<" swversion "<<nmm.od().swversion();
+	cout<<" serial "<<nmm.od().serialno();
+	if(nmm.od().has_owner())
+	  cout<<" owner "<<nmm.od().owner();
+	if(nmm.od().has_clockoffsetdriftns())
+	  cout<<" drift "<<nmm.od().clockoffsetdriftns();
+	if(nmm.od().has_clockaccuracyns())
+	  cout<<" clock-accuracy "<<nmm.od().clockaccuracyns();
+	
+	cout<<endl;
+      }
     }
     else if(nmm.type() == NavMonMessage::UbloxJammingStatsType) {
       etstamp();
@@ -1298,12 +1304,14 @@ try
       cout<< nmm.sr().gnsssv() << " beacon "<<hexstring <<" code "<<(int)nmm.sr().code()<<" params "<< makeHexDump(nmm.sr().params()) <<endl;
     }
     else if(nmm.type() == NavMonMessage::TimeOffsetType) {
-      etstamp();
-      cout<<" got a time-offset message with "<< nmm.to().offsets().size()<<" offsets: ";
-      for(const auto& o : nmm.to().offsets()) {
-        cout << "gnssid "<<o.gnssid()<<" offset " << o.offsetns() << " +- "<<o.tacc()<<" ("<<o.valid()<<") , ";
+      if(doTimeOffsets) {
+	etstamp();
+	cout<<" got a time-offset message with "<< nmm.to().offsets().size()<<" offsets: ";
+	for(const auto& o : nmm.to().offsets()) {
+	  cout << "gnssid "<<o.gnssid()<<" offset " << o.offsetns() << " +- "<<o.tacc()<<" ("<<o.valid()<<") , ";
+	}
+	cout<<endl;
       }
-      cout<<endl;
             
     }
     else {
