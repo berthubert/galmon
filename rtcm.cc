@@ -6,7 +6,8 @@ using namespace std;
 
 void RTCMMessage::parse(const std::string& str)
 {
-  memset(&d_gm, 0, sizeof(d_gm));
+  d_gm={};
+  // memset(&d_gm, 0, sizeof(d_gm));
   auto gbu=[&str](int offset, int bits) {
     return getbitu((const unsigned char*)str.c_str(), offset, bits);
   };
