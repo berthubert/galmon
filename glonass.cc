@@ -110,16 +110,16 @@ static double passedMsec(const Clock::time_point& then, const Clock::time_point&
   return std::chrono::duration_cast<std::chrono::microseconds>(now - then).count()/1000.0;
 }
 
-
+#if 0
 static double passedMsec(const Clock::time_point& then)
 {
   return passedMsec(then, Clock::now());
 }
-
+#endif
 
 double getCoordinates(double tow, const GlonassMessage& eph, Point* p)
 {
-  auto start = Clock::now();
+  //  auto start = Clock::now();
   
   double y0[6] = {ldexp(eph.x, -11), ldexp(eph.y, -11), ldexp(eph.z, -11),
     ldexp(eph.dx, -20), ldexp(eph.dy, -20), ldexp(eph.dz, -20)};
@@ -137,7 +137,7 @@ double getCoordinates(double tow, const GlonassMessage& eph, Point* p)
     rk4step (A, y0, h);
 
   *p = Point (1E3*y0[0], 1E3*y0[1], 1E3*y0 [2]);
-  static double total=0;
+  //  static double total=0;
   //  cout<<"Took: "<<(total+=passedMsec(start))<<" ms" <<endl;
   return 0;
 }
