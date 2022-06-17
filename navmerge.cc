@@ -120,6 +120,10 @@ int main(int argc, char** argv)
     exit(0);
   }
 
+  if(sources.empty()) {
+    cerr<< "No sources defined. Exiting."<<endl;
+    exit(0);
+  }
 
   signal(SIGPIPE, SIG_IGN);
   NMMSender ns;
