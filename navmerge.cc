@@ -46,6 +46,12 @@ static char program[]="navmerge";
 multimap<pair<uint64_t, uint64_t>, string> g_buffer;
 std::mutex g_mut;
 
+// navmerge can also dedup its output, we keep track of recent messages here
+// this means each Galileo message will only get set once
+map<tuple<uint32_t, std::string, uint32_t, std::string>, time_t> g_seen;
+
+bool g_inavdedup{false};
+
 void recvSession(ComboAddress upstream)
 {
   for(;;) {
@@ -85,11 +91,21 @@ void recvSession(ComboAddress upstream)
       
         NavMonMessage nmm;
         nmm.ParseFromString(part);
-        // writeToDisk(nmm.localutcseconds(), nmm.sourceid(), out);
-        // do something with the message
-        
-        std::lock_guard<std::mutex> mut(g_mut);
-        g_buffer.insert({{nmm.localutcseconds(), nmm.localutcnanoseconds()}, part});
+
+        if(g_inavdedup) {
+          if(nmm.type() == NavMonMessage::GalileoInavType) {
+            std::lock_guard<std::mutex> mut(g_mut);
+            decltype(g_seen)::key_type tup(nmm.gi().gnsssv(), nmm.gi().contents(), nmm.gi().sigid(), nmm.gi().reserved1());
+            
+            if(!g_seen.count(tup))
+              g_buffer.insert({{nmm.localutcseconds(), nmm.localutcnanoseconds()}, part});
+            g_seen[tup]=time(0);
+          }
+        }
+        else {
+          std::lock_guard<std::mutex> mut(g_mut);
+          g_buffer.insert({{nmm.localutcseconds(), nmm.localutcnanoseconds()}, part});
+        }
       }
     }
     catch(std::exception& e) {
@@ -100,16 +116,31 @@ void recvSession(ComboAddress upstream)
   cerr<<"Thread for "<<upstream.toStringWithPort()<< " exiting"<<endl;
 }
 
+static void cleanFilter()
+{
+  time_t lim = time(0) - 60;
+  std::lock_guard<std::mutex> mut(g_mut);
+  for(auto iter = g_seen.begin(); iter!= g_seen.end() ;) {
+    if(iter->second < lim)
+      iter = g_seen.erase(iter);
+    else
+      ++iter;
+  }
+}
+
 int main(int argc, char** argv)
 {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
   vector<string> destinations;
   vector<string> sources;
+  vector<string> listeners;
 
   bool doVERSION{false}, doSTDOUT{false};
   CLI::App app(program);
   app.add_option("--source", sources, "Connect to these IP address:port to source protobuf");
   app.add_option("--destination,-d", destinations, "Send output to this IPv4/v6 address");
+  app.add_option("--listener,-l", listeners, "Make data available on this IPv4/v6 address");
+  app.add_flag("--inavdedup", g_inavdedup, "Only pass on Galileo I/NAV, and dedeup");  
   app.add_flag("--version", doVERSION, "show program version and copyright");
   app.add_flag("--stdout", doSTDOUT, "Emit output to stdout");
 
@@ -137,6 +168,12 @@ int main(int argc, char** argv)
     }
     ns.addDestination(s); // ComboAddress(s, 29603));
   }
+  for(const auto& l : listeners) {
+    ComboAddress ca(l, 29604);
+    cerr<<"Adding listener on "<<ca.toStringWithPort()<<endl;
+    ns.addListener(l); // ComboAddress(s, 29603));
+  }
+  
   if(doSTDOUT)
     ns.addDestination(1);
 
@@ -147,15 +184,18 @@ int main(int argc, char** argv)
     one.detach();
   }
 
+  ns.launch();
+  
   time_t start=time(0);
+  int counter=0;
   for(;;) {
-    sleep(1);
+    usleep(500000);
     vector<string> tosend;
     {
       std::lock_guard<std::mutex> mut(g_mut);
 
       time_t now = time(0);
-      if(now - start < 30) {
+      if(now - start < 30) { // was 30
         cerr<<"Have "<<g_buffer.size()<<" messages"<<endl;
         continue;
       }
@@ -163,13 +203,16 @@ int main(int argc, char** argv)
       for(auto iter = g_buffer.begin(); iter != g_buffer.end(); ) {
         if(iter->first.first > (uint64_t)now - 5)
           break;
+        
         tosend.push_back(iter->second);
         iter = g_buffer.erase(iter);
       }
     }
-    //    cerr<<"Have "<<tosend.size()<<" messages to send, "<<g_buffer.size()<<" left in queue"<<endl;
+    // cerr<<"Have "<<tosend.size()<<" messages to send, "<<g_buffer.size()<<" left in queue"<<endl;
     std::string buf;
     for(const auto& m : tosend) {
+      if(!((counter++) % 32768)) 
+        cleanFilter();
       ns.emitNMM(m);
     }
   }
