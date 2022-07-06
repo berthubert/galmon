@@ -112,8 +112,8 @@ cd galmon
 make
 ```
 
-Running in Docker
------------------
+Running in Docker or Podman
+---------------------------
 
 We publish official Docker images for galmon on
 [docker hub](https://hub.docker.com/r/berthubert/galmon) for multiple architectures.
@@ -122,10 +122,12 @@ To run a container with a shell in there (this will also expose a port so you
 can view the UI too and assumes a ublox GPS device too -
 you may need to tweak as necessary):
 
+Docker
+======
+
 ```
 docker run -it --rm --device=/dev/ttyACM0 -p 10000:10000 berthubert/galmon
 ```
-
 Running a daemonized docker container reporting data to a remote server
 might look like:
 
@@ -135,6 +137,25 @@ docker run -d --restart=always --device=/dev/ttyACM0 --name=galmon berthubert/ga
 
 To make your docker container update automatically you could use a tool such as
 [watchtower](https://containrrr.github.io/watchtower/).
+
+Podman
+======
+With the default configuration you need to make podman trust docker.io images. On Debian add the following configuration /etc/containers/registries.conf.d/docker.conf and add the line:
+
+```
+unqualified-search-registries=["docker.io"]
+```
+Now run 
+
+```
+podman run -it --rm --device=/dev/ttyACM0 -p 10000:10000 berthubert/galmon
+```
+Start the ubxtool and navparse within the interactive shell would look something like:
+
+```
+./ubxtool --wait --port /dev/ttyACM0 --station 1 --stdout --galileo | ./navparse --bind 0.0.0.0:10000 --html /galmon/share/package/galmon/html
+```
+You then should be able to access the webinterface on port 10000 on the hosts ip.
 
 Running
 -------
