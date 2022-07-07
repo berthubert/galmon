@@ -3,6 +3,9 @@
 #include "navmon.hh"
 #include "navmon.pb.h"
 #include <thread>
+
+#include "fmt/format.h"
+#include "fmt/printf.h"
 #include "nmmsender.hh"
 #include "CLI/CLI.hpp"
 #include "version.hh"
@@ -52,6 +55,69 @@ map<tuple<uint32_t, std::string, uint32_t, std::string>, time_t> g_seen;
 
 bool g_inavdedup{false};
 
+/* Goal: do a number of TCP operations that have a combined timeout.
+   maybe some helper:
+
+   auto deadline = xSecondsFromNow(1.5);
+   SConnectWithDeadline(sock, addr, deadline);
+   resp=SReadWithDeadline(sock, 2, deadline);
+   ..
+   resp2=SReadWithDeadline(sock, num, deadline);
+
+
+   //
+   // not getting 'num' bytes -> error
+   // exceeding timeout before getting 'num' bytes -> error
+
+
+*/
+
+auto xSecondsFromNow(double seconds)
+{
+  auto now = chrono::steady_clock::now();
+  now += std::chrono::milliseconds((unsigned int)(seconds*1000));
+  return now;
+}
+
+int msecLeft(const std::chrono::steady_clock::time_point& deadline)
+{
+  auto now = chrono::steady_clock::now();
+  return std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
+}
+
+
+string SReadWithDeadline(int sock, int num, const std::chrono::steady_clock::time_point& deadline)
+{
+  string ret;
+  char buffer[1024];
+  std::string::size_type leftToRead=num;
+  
+  for(; leftToRead;) {
+    auto now = chrono::steady_clock::now();
+    
+    auto msecs = chrono::duration_cast<chrono::milliseconds>(deadline-now);
+    if(msecs.count() <= 0) 
+      throw std::runtime_error("Timeout");
+
+    double toseconds = msecs.count()/1000.0;
+    int res = waitForRWData(sock, true, &toseconds); // 0 = timeout, 1 = data, -1 error
+    if(res == 0)
+      throw std::runtime_error("Timeout");
+    if(res < 0)
+      throw std::runtime_error("Reading with deadline: "+string(strerror(errno)));
+
+    auto chunk = sizeof(buffer) < leftToRead ? sizeof(buffer) : leftToRead;
+    res = read(sock, buffer, chunk);
+    if(res < 0)
+      throw std::runtime_error(fmt::sprintf("Read from socket: %s", strerror(errno)));
+    if(!res)
+      throw std::runtime_error(fmt::sprintf("Unexpected EOF"));
+    ret.append(buffer, res);
+    leftToRead -= res;
+  }
+  return ret;
+}
+
 void recvSession(ComboAddress upstream)
 {
   for(;;) {
@@ -62,7 +128,8 @@ void recvSession(ComboAddress upstream)
       cerr<<" done"<<endl;
 
       for(int count=0;;++count) {
-        string part=SRead(sock, 4);
+        auto deadline = xSecondsFromNow(120); // 
+        string part=SReadWithDeadline(sock, 4, deadline);
         if(part.empty()) {
           cerr<<"EOF from "<<upstream.toStringWithPort()<<endl;
           break;
@@ -75,20 +142,21 @@ void recvSession(ComboAddress upstream)
           cerr<<"Receiving messages from "<<upstream.toStringWithPort()<<endl;
         string out=part;
         
-        part = SRead(sock, 2);
+        part = SReadWithDeadline(sock, 2, deadline);
         out += part;
         
         uint16_t len;
         memcpy(&len, part.c_str(), 2);
         len = htons(len);
         
-        part = SRead(sock, len);  // XXXXX ???
+        part = SReadWithDeadline(sock, len, deadline);  // XXXXX ???
         if(part.size() != len) {
           cerr<<"Mismatch, "<<part.size()<<", len "<<len<<endl;
           // XX AND THEN WHAT??
         }
         out += part;
-      
+        //        if(msecLeft(deadline)/1000.0 < 119)
+        //          cerr<<"Done with "<<msecLeft(deadline)/1000.0<<" seconds left\n";
         NavMonMessage nmm;
         nmm.ParseFromString(part);
 
