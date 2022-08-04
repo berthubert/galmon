@@ -53,8 +53,7 @@ help2man:
 	$(foreach binaryfile,$(PROGRAMS),help2man -N -n "$(HELP2MAN_DESCRIPTION)" ./$(binaryfile) | gzip > $(DESTDIR)$(prefix)/share/man/man1/$(binaryfile).1.gz;)
 	@echo until these binaries support --help and --version remove the broken output
 	rm -f $(DESTDIR)$(prefix)/share/man/man1/rinreport.1.gz
-	rm -f $(DESTDIR)$(prefix)/share/man/man1/rtcmtool.1.gz
-	rm -f $(DESTDIR)$(prefix)/share/man/man1/testrunner.1.gz
+	rm -f $(DESTDIR)$(prefix)/share/man/man1/rinjoin.1.gz
 
 install: $(PROGRAMS) help2man
 	$(INSTALL) -m 755 -d $(DESTDIR)$(prefix)/bin
