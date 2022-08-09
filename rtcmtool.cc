@@ -2,6 +2,7 @@
 #include "bits.hh"
 #include <vector>
 #include <iostream>
+#include <signal.h>
 #include "nmmsender.hh"
 #include "CLI/CLI.hpp"
 #include "swrappers.hh"

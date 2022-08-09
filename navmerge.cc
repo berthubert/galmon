@@ -3,7 +3,7 @@
 #include "navmon.hh"
 #include "navmon.pb.h"
 #include <thread>
-
+#include <signal.h>
 #include "fmt/format.h"
 #include "fmt/printf.h"
 #include "nmmsender.hh"

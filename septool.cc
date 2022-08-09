@@ -2,6 +2,7 @@
 #include "navmon.hh"
 #include <iostream>
 #include <string.h>
+#include <signal.h>
 #include <time.h>
 #include "bits.hh"
 #include <sys/time.h>
