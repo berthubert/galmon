@@ -1,6 +1,7 @@
 #define _LARGEFILE64_SOURCE
 #include <sys/types.h>                                                    
 #include <sys/time.h>
+#include <signal.h>
 #include <map>
 #include <sys/stat.h>                                                     
 #include <fcntl.h>                                                        
