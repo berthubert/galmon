@@ -11,7 +11,7 @@ std::basic_string<uint8_t> getInavFromSFRBXMsg(std::basic_string_view<uint8_t> m
                                                std::basic_string<uint8_t>& reserved2,
                                                std::basic_string<uint8_t>& sar,
                                                std::basic_string<uint8_t>& spare,
-                                               std::basic_string<uint8_t>& crc);
+                                               std::basic_string<uint8_t>& crc, uint8_t* ssp=0);
 
 std::basic_string<uint8_t> getGPSFromSFRBXMsg(std::basic_string_view<uint8_t> msg);
 std::basic_string<uint8_t> getGlonassFromSFRBXMsg(std::basic_string_view<uint8_t> msg);

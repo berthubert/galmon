@@ -66,7 +66,7 @@ basic_string<uint8_t> getInavFromSFRBXMsg(std::basic_string_view<uint8_t> msg,
                                           basic_string<uint8_t>& reserved2,
                                           basic_string<uint8_t>& sar,
                                           basic_string<uint8_t>& spare,
-                                          basic_string<uint8_t>& crc)
+                                          basic_string<uint8_t>& crc, uint8_t* ssp)
 {
   // byte order adjustment
   std::basic_string<uint8_t> payload;
@@ -87,6 +87,11 @@ basic_string<uint8_t> getInavFromSFRBXMsg(std::basic_string_view<uint8_t> msg,
   crc.clear();
   for(i=0; i < 3; ++i)
     crc.append(1, getbitu(payload.c_str()+16,82+i*8,8));
+
+  if(ssp) {
+    *ssp=getbitu(payload.c_str()+16,82+24,8);
+  }
+
   
   std::basic_string<uint8_t> inav;
   
