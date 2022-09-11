@@ -224,12 +224,28 @@ try
         payload.append(1, si.navBits[4 * i + 0]);
       }
 
+      /*
+NAVBits contains the 234 bits of an I/NAV navigation page (in nominal
+or alert mode). Note that the I/NAV page is transmitted as two sub-pages
+(the so-called even and odd pages) of duration 1 second each (120 bits
+each). In this block, the even and odd pages are concatenated, even page
+ﬁrst and odd page last. The 6 tails bits at the end of the even page are
+removed (hence a total of 234 bits). If the even and odd pages have been
+received from two different carriers (E5b and L1), bit 5 of the Source
+ﬁeld is set.
+Encoding: NAVBits contains all the bits of the frame, with the ex-
+ception of the synchronization ﬁeld. The ﬁrst received bit is stored as the
+MSB of NAVBits[0]. The unused bits in NAVBits[7] must be ignored
+by the decoding software.
+      */
+
+      /* so we find EVEN_PAGE ODD_PAGE */
       
       basic_string<uint8_t> inav2;
-      // copy in the even page
+      // copy in the payload bits of the even page
       for(int n = 0 ; n < 14; ++n)
         inav2.append(1, getbitu(payload.c_str(), 2 + n*8, 8));
-      // odd page
+      // odd page payload bits
       for(int n = 0 ; n < 2; ++n)
         inav2.append(1, getbitu(payload.c_str(), 116 + n*8, 8));
       //      cerr<<makeHexDump(inav2) << endl;
@@ -239,29 +255,39 @@ try
       for(int n=0; n < 5 ; ++n)
 	reserved1.append(1, getbitu(payload.c_str(), 116 + 16 + n*8, 8));
 
+      basic_string<uint8_t> crc;
+      for(int n=0; n < 3 ; ++n)
+	crc.append(1, getbitu(payload.c_str(), 116 + 16 + 40 +22 + 2 + n*8, 8));
+
+      
+      uint8_t ssp = getbitu(payload.c_str(), 116 + 16 + 40 + 22 + 2 + 24, 8);
+
+      
       // xxx add reserved2
       // xxx add sar
-      // xxx add crc
-      // xxx add ssp
       // xxx add spare
       
       NavMonMessage nmm;
+
       double t = utcFromGST(si.wn - 1024, si.towMsec / 1000.0);
       //      cerr<<t<< " " <<si.wn - 1024 <<" " <<si.towMsec /1000.0 <<" " << g_dtLS<<endl;
       nmm.set_sourceid(g_srcid);
       nmm.set_type(NavMonMessage::GalileoInavType);
 
       nmm.set_localutcseconds(t);
-      nmm.set_localutcnanoseconds(0); // yeah XXX
+      nmm.set_localutcnanoseconds((t - floor(t))*1000000000); 
             
       nmm.mutable_gi()->set_gnsswn(si.wn - 1024);
-      
-      nmm.mutable_gi()->set_gnsstow(si.towMsec/1000.0);
+      // -2 since Septentrio counts from the *end* of the message      
+      nmm.mutable_gi()->set_gnsstow(si.towMsec/1000.0 - 2);
       nmm.mutable_gi()->set_gnssid(2);
       nmm.mutable_gi()->set_gnsssv(si.sv - 70);
       nmm.mutable_gi()->set_contents((const char*)&inav2[0], inav2.size());
       nmm.mutable_gi()->set_sigid(sepsig2ubx(sigid));
       nmm.mutable_gi()->set_reserved1((const char*)&reserved1[0], reserved1.size());
+      nmm.mutable_gi()->set_ssp(ssp);
+      nmm.mutable_gi()->set_crc((const char*)&crc[0], crc.size());
+      
       ns.emitNMM( nmm);
       
     }
