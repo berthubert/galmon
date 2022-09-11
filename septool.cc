@@ -239,6 +239,12 @@ try
       for(int n=0; n < 5 ; ++n)
 	reserved1.append(1, getbitu(payload.c_str(), 116 + 16 + n*8, 8));
 
+      // xxx add reserved2
+      // xxx add sar
+      // xxx add crc
+      // xxx add ssp
+      // xxx add spare
+      
       NavMonMessage nmm;
       double t = utcFromGST(si.wn - 1024, si.towMsec / 1000.0);
       //      cerr<<t<< " " <<si.wn - 1024 <<" " <<si.towMsec /1000.0 <<" " << g_dtLS<<endl;
