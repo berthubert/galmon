@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
+#include <map>
 #include <functional>
 #include "ephemeris.hh"
 #include "bits.hh"
@@ -13,30 +14,35 @@ struct GalileoMessage : GPSLikeEphemeris
   uint8_t wtype;
 
   typedef void (GalileoMessage::*func_t)(std::basic_string_view<uint8_t> page);
-  std::vector<func_t> parsers{
-    &GalileoMessage::parse0,
-    &GalileoMessage::parse1,
-    &GalileoMessage::parse2,
-    &GalileoMessage::parse3,
-    &GalileoMessage::parse4,
-    &GalileoMessage::parse5,
-    &GalileoMessage::parse6,
-    &GalileoMessage::parse7,
-    &GalileoMessage::parse8,
-    &GalileoMessage::parse9,
-    &GalileoMessage::parse10
-      };
+  std::map<int, func_t> parsers{
+    {0, &GalileoMessage::parse0},
+    {1, &GalileoMessage::parse1},
+    {2, &GalileoMessage::parse2},
+    {3, &GalileoMessage::parse3},
+    {4, &GalileoMessage::parse4},
+    {5, &GalileoMessage::parse5},
+    {6, &GalileoMessage::parse6},
+    {7, &GalileoMessage::parse7},
+    {8, &GalileoMessage::parse8},
+    {9, &GalileoMessage::parse9},
+    {10, &GalileoMessage::parse10},
+    {16, &GalileoMessage::parse16},
+    {17, &GalileoMessage::parseRS},
+    {18, &GalileoMessage::parseRS},
+    {19, &GalileoMessage::parseRS},
+    {20, &GalileoMessage::parseRS}
+  };
 
   
   int parse(std::basic_string_view<uint8_t> page)
   {
     wtype = getbitu(&page[0], 0, 6);
-    if(wtype >= parsers.size()) {
+    if(!parsers.count(wtype)) {
       //      std::cerr<<"Asked for impossible galileo type "<<(int)wtype<<std::endl;
       return wtype;
     }
       
-    std::invoke(parsers.at(wtype), this, page);
+    std::invoke(parsers[wtype], this, page);
     return wtype;
   }
 
@@ -101,6 +107,18 @@ struct GalileoMessage : GPSLikeEphemeris
 
   uint16_t iodnav;
 
+  int16_t deltaAred; // 2^8 meters
+  int16_t exred; // 2^-22 dimensionless
+  int16_t eyred; // 2^-22 dimensionless
+  int32_t deltai0red; // 2^-22 semi-circles
+  int32_t omega0red; // 2^-22 semi-circles
+  int32_t lambda0red; // 2^-22 semi-circles
+  int32_t af0red; // 2^-26 s
+  int32_t af1red; // 2^-35 s/s
+
+  uint8_t rs2bitiod;
+  std::string rsparity;
+  
   int getIOD() const
   {
     return iodnav;
@@ -371,6 +389,35 @@ struct GalileoMessage : GPSLikeEphemeris
     wn0g = getbitu(&page[0], 122, 6);
   }
 
+
+  // reduced clock and ephemeris data (redced)
+  void parse16(std::basic_string_view<uint8_t> page)
+  {
+    deltaAred = getbits(&page[0], 6,    5);
+    exred = getbits(&page[0], 11,      13);
+    eyred = getbits(&page[0], 24,      13);
+    deltai0red = getbits(&page[0], 37, 17);
+    omega0red = getbits(&page[0], 54,  23);
+    lambda0red = getbits(&page[0], 77, 23);
+    af0red = getbits(&page[0], 100,    22);
+    af1red = getbits(&page[0], 122,     6); 
+  }
+
+  // reed-solomon data
+  void parseRS(std::basic_string_view<uint8_t> page)
+  {
+    // see 5.1.13.2 of the Galileo SIS ICD 2.0
+    rs2bitiod = getbitu(&page[0], 6+8, 2);
+
+    rsparity.clear(); 
+    rsparity.append(1, getbitu(&page[0], 6, 8)); // first octet is different
+    
+    for(int n = 0; n < 14; ++n)
+      rsparity.append(1, getbitu(&page[0], 16+n*8, 8));
+                    
+  }
+
+  
   double getMu() const
   {
     return 3.986004418 * pow(10.0, 14.0);
@@ -394,6 +441,53 @@ struct GalileoMessage : GPSLikeEphemeris
   double getOmega0()    const { return ldexp(omega0 * M_PI,   -31);   } // radians
   double getIdot()      const { return ldexp(idot * M_PI,     -43);   } // radians/s
   double getOmega()     const { return ldexp(omega * M_PI,    -31);   } // radians
+};
+
+struct REDCEDAdaptor
+{
+  REDCEDAdaptor(const GalileoMessage& gm, int32_t t0r) : d_gm(gm), d_t0r(t0r)
+  {}
+
+  double getMu() const
+  {
+    return 3.986004418 * pow(10.0, 14.0);
+  } // m^3/s^2
+  // same for galileo & gps
+  double getOmegaE()    const { return 7.2921151467 * pow(10.0, -5.0);} // rad/s
+
+  uint32_t getT0e() const { return d_t0r; }
+  static constexpr double Anominal{29600000.0};
+  double getSqrtA() const { return sqrt(Anominal + ldexp(1.0*d_gm.deltaAred, 8));   }
+  double getE()     const { return ldexp(sqrt(1.0*d_gm.exred*d_gm.exred + 1.0*d_gm.eyred*d_gm.eyred), -22); } 
+  double getCuc()   const { return 0;   } // radians
+  double getCus()   const { return 0;   } // radians
+  double getCrc()   const { return 0;   } // meters
+  double getCrs()   const { return 0;   } // meters
+  double getM0()    const { return ldexp(M_PI * d_gm.lambda0red, -22) - getOmega();  } // lambda0red - omega, both radians
+  double getDeltan()const { return 0; } //radians/s
+  static constexpr double iNominal{56.0};
+  double getI0()        const { return M_PI*iNominal/180.0 + ldexp(d_gm.deltai0red * M_PI, -22);   } // radians 
+  double getCic()       const { return 0;   } // radians
+  double getCis()       const { return 0;   } // radians
+  double getOmegadot()  const { return 0;   } // radians/s
+  double getOmega0()    const { return ldexp(d_gm.omega0red * M_PI, -22);   } // radians
+  double getIdot()      const { return 0;   } // radians/s
+  double getOmega()     const { return atan2(d_gm.eyred, d_gm.exred);   } // radians
+
+  // pair of nanosecond, nanosecond/s 
+  std::pair<double, double> getAtomicOffset(int tow) const
+  {
+    int delta = ephAge(tow, d_t0r);
+    //           2^-26         2^-35                 
+    double cur = d_gm.af0red  + ldexp(1.0*delta*d_gm.af1red, -9);
+    double trend = ldexp(d_gm.af1red, -9);
+
+    // now in units of 2^-26 seconds, which are ~14.9 nanoseconds each
+    double factor = ldexp(1000000000.0, -26);
+    return {factor * cur, factor * trend};
+  }
 
   
+  const GalileoMessage d_gm;
+  int32_t d_t0r;
 };

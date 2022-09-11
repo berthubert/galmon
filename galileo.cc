@@ -112,3 +112,4 @@ int GalileoMessage::parseFnav(std::basic_string_view<uint8_t> page)
   }
   return wtype;
 }
+
