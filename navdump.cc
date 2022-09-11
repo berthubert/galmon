@@ -391,6 +391,8 @@ try
       basic_string<uint8_t> inav((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
       static map<int, GalileoMessage> gms;
       static map<pair<int, int>, GalileoMessage> gmwtypes;
+
+      static map<int, FixHunter> fixhunters;
       static map<int, GalileoMessage> oldgm4s;
       int sv = nmm.gi().gnsssv();
       if(!svfilter.check(2, sv, nmm.gi().sigid()))
@@ -415,8 +417,15 @@ try
       gm.tow = nmm.gi().gnsstow();
       bool isnew = gmwtypes[{nmm.gi().gnsssv(), wtype}].tow != gm.tow;
       gmwtypes[{nmm.gi().gnsssv(), wtype}] = gm;
+
+      //fixhunters[nmm.gi().gnsssv()].reportInav(inav,nmm.gi().gnsstow() );
+      
       static map<int,GalileoMessage> oldEph;
       cout << "gal inav wtype "<<wtype<<" for "<<nmm.gi().gnssid()<<","<<nmm.gi().gnsssv()<<","<<nmm.gi().sigid()<<" pbwn "<<nmm.gi().gnsswn()<<" pbtow "<< nmm.gi().gnsstow();
+      if(nmm.gi().has_ssp()) {
+        cout<<" ssp "<<(unsigned int) nmm.gi().ssp();
+      }
+
       static uint32_t tow;
 
       if(osnmacsv && isnew)
@@ -464,7 +473,7 @@ try
             if(!haveSeen.count({sv, bestSP3->t})) {
               haveSeen.insert({sv, bestSP3->t});
               Point newPoint;
-              double E=getCoordinates(gm.tow + (bestSP3->t - start), gm, &newPoint, false);
+              double E=getCoordinates(gm.tow + (bestSP3->t - start), gm, &newPoint);
               Point sp3Point(bestSP3->x, bestSP3->y, bestSP3->z);
               Vector dist(newPoint, sp3Point);
 
@@ -585,7 +594,100 @@ try
         int delta = dw*7*86400  + gm.tow - gm.getT0g(); // NOT ephemeris age tricks
         cout<<" wn%64 "<< (gm.wn%64) << " dw " << dw <<" delta " << delta;
       }
+      else if(wtype==16) {
+        // was -35
+        cout<<" redced af0red "<< 1000000000.0*ldexp(gm.af0red, -26)<<" ns, "<<3600.0*(1000000000.0/(1<<20))*ldexp(gm.af1red, -15)<<" ns/hour ("<<gm.af1red<<")";
+
+        int32_t t0r = 1+nmm.gi().gnsstow() - ((nmm.gi().gnsstow()-2)%30) -2;
+        cout<<" t0r "<<t0r;
+        //(30*((nmm.gi().gnsstow()-2)/30)+1) % 604800; // page 56 of the OSS ICD 2.0
+        REDCEDAdaptor rca(gm, t0r);
+#if 0        
+        static REDCEDAdaptor* orig=0;
+        if(!orig)
+          orig = new REDCEDAdaptor(gm, t0r);
+
+        static auto ofs = fmt::output_file("error.csv");
+        static auto redcedcsv = fmt::output_file("redced.csv");
+
+        static bool csvInit;
+        if(!csvInit) {
+          ofs.print("{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+                    "tow", "gnssid", "iod", "t0r", "red_x", "red_y", "red_z", "full_x", "full_y", "full_z", "redorig_x", "redorig_y", "redorig_z", "dist");
+          redcedcsv.print("gnssid,tow,t0r,deltaAred,exred,eyred,lambda0red,deltai0red,omega0red,af0red,af1red,nsec,fixedtow,x,y,z,radcor\n");
+          csvInit = true;
+        }
+
+        auto fixedtow = t0r + 300;
+        fixedtow -= (fixedtow % 200);
+                  
+        Point fixedredpoint;
+        getCoordinates(fixedtow, rca, &fixedredpoint);
+          
+          
+        redcedcsv.print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+                        nmm.gi().gnsssv(),
+                        nmm.gi().gnsstow(),
+                        t0r,
+                        gm.deltaAred,
+                        gm.exred,
+                        gm.eyred,
+                        gm.lambda0red,
+                        gm.deltai0red,
+                        gm.omega0red,
+                        gm.af0red,
+                        gm.af1red,
+                        rca.getAtomicOffset(fixedtow).first,
+                        fixedtow,
+                        fixedredpoint.x, fixedredpoint.y, fixedredpoint.z,
+                        sqrt(fixedredpoint.x*fixedredpoint.x + fixedredpoint.y*fixedredpoint.y + fixedredpoint.z*fixedredpoint.z) - rca.getAtomicOffset(fixedtow).first/3.0
+                        );
+        redcedcsv.flush();
+
+#endif
+        cout<<"eyred "<<gm.eyred<<" exred "<<gm.exred<<"\nlambda0red in rad "<< ldexp(M_PI*gm.lambda0red, -22)<<" atan2 " <<atan2(1.0*gm.eyred, 1.0*gm.exred)<<" deltaAred "<<gm.deltaAred<<endl;
+        Point pointRed;
+        getCoordinates(nmm.gi().gnsstow(), rca, &pointRed);
+        cout<<" reduced coordinates: "<<pointRed;
+#if 0        
+        for(int letow = nmm.gi().gnsstow(); letow < nmm.gi().gnsstow() + 120; ++letow) {
       
+
+          getCoordinates(letow, *orig, &pointOrigRed);
+          cout<<"Reduced coordinates original CED: "<<pointOrigRed<<endl;
+          
+          getCoordinates(letow + gm.getAtomicOffset(letow).first/1000000000.0, gm, &point);
+          cout<<"Full coordinates:    "<<point<<endl;
+          
+          Vector dist(pointRed, point);
+
+          ofs.print("{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+                    letow,
+                    nmm.gi().gnsssv(),
+                    gm.iodnav,
+                    t0r,
+                    pointRed.x,
+                    pointRed.y,
+                    pointRed.z,
+                    point.x,
+                    point.y,
+                    point.z,
+                    pointOrigRed.x,
+                    pointOrigRed.y,
+                    pointOrigRed.z,
+
+                    dist.length());
+          auto ourpos=g_srcpos[nmm.sourceid()];
+          Vector range1(ourpos, pointRed), range2(ourpos, point);
+          
+          cout<<"Distance: "<<dist<<", length "<<dist.length()<<", range difference: "<<range1.length() - range2.length()<< " " <<ourpos<<endl;
+          
+        }
+#endif
+      }
+      else if(wtype>=17 && wtype <=20) {
+        cout<<" reed-solomon 2iod "<< (int) gm.rs2bitiod;
+      }
       cout<<endl;      
     }
     else if(nmm.type() == NavMonMessage::GalileoCnavType) {
@@ -697,7 +799,7 @@ try
           }
 
           int start = utcFromGPS(gpswn, (int)gs.tow);
-          cout<<"sp3 start: "<<start<<" wn " << gpswn<<" tow " << gs.tow << endl;
+          cout<<" sp3 start: "<<start<<" wn " << gpswn<<" tow " << gs.tow;
             
           SP3Entry e{0, sv, start};
           auto bestSP3 = lower_bound(g_sp3s.begin(), g_sp3s.end(), e, sp3Order);
