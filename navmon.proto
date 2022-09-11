@@ -40,7 +40,8 @@ message NavMonMessage {
         optional bytes reserved2 = 8;
         optional bytes sar = 9;
         optional bytes spare = 10;
-        optional bytes crc = 11;      
+        optional bytes crc = 11;
+        optional uint32 ssp = 12;
   }
 
 message GalileoFnav {
