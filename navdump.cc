@@ -413,8 +413,9 @@ try
       
       GalileoMessage& gm = gms[sv];
       int wtype = gm.parse(inav);
-      
-      gm.tow = nmm.gi().gnsstow();
+
+      if(wtype != 0 && wtype != 5 && wtype != 6)
+        gm.tow = nmm.gi().gnsstow();
       bool isnew = gmwtypes[{nmm.gi().gnsssv(), wtype}].tow != gm.tow;
       gmwtypes[{nmm.gi().gnsssv(), wtype}] = gm;
 
@@ -537,7 +538,7 @@ try
       }
       if(wtype == 0 || wtype == 5 || wtype == 6) {
         if(wtype != 0 || gm.sparetime == 2) {
-          cout << " tow "<< gm.tow;
+          cout << " tow "<< gm.tow << " (%30=" << (gm.tow%30)<<") ";
           tow = gm.tow;
         }
       }
@@ -599,7 +600,7 @@ try
         cout<<" redced af0red "<< 1000000000.0*ldexp(gm.af0red, -26)<<" ns, "<<3600.0*(1000000000.0/(1<<20))*ldexp(gm.af1red, -15)<<" ns/hour ("<<gm.af1red<<")";
 
         int32_t t0r = 1+nmm.gi().gnsstow() - ((nmm.gi().gnsstow()-2)%30) -2;
-        cout<<" t0r "<<t0r;
+        cout<<" t0r "<<t0r<<" ";
         //(30*((nmm.gi().gnsstow()-2)/30)+1) % 604800; // page 56 of the OSS ICD 2.0
         REDCEDAdaptor rca(gm, t0r);
 #if 0        
