@@ -1,5 +1,6 @@
 #pragma once
 #include <math.h>
+#include <iostream>
 
 struct Point
 {
@@ -9,6 +10,13 @@ struct Point
   {}
   double x, y, z;
 };
+
+inline std::ostream& operator<<(std::ostream& os, const Point& p)
+{
+  os << '(' << p.x << ", " << p.y << ", " << p.z <<')';
+  return os;
+}
+
 
 struct Vector
 {
@@ -39,4 +47,9 @@ struct Vector
   }
 };
 
+inline std::ostream& operator<<(std::ostream& os, const Vector& p)
+{
+  os << '(' << p.x << ", " << p.y << ", " << p.z <<')';
+  return os;
+}
 
