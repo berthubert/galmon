@@ -3,6 +3,7 @@
 #include <iostream>
 #include <arpa/inet.h>
 #include "fmt/format.h"
+#include "fmt/os.h"
 #include "fmt/printf.h"
 #include "CLI/CLI.hpp"
 #include <fstream>
@@ -32,6 +33,8 @@
 #include "gpscnav.hh"
 #include "rinex.hh"
 #include "rtcm.hh"
+#include "rs.hh"
+#include "fixhunter.hh"
 
 static char program[]="navdump";
 
@@ -261,6 +264,7 @@ try
   bool doObserverDetails{false};
   bool doTimeOffsets{false};
   bool doVERSION{false};
+  bool doJammingData{false};
   string rinexfname;
   string osnmafname;
   app.add_option("--svs", svpairs, "Listen to specified svs. '0' = gps, '2' = Galileo, '2,1' is E01");
@@ -270,6 +274,7 @@ try
   app.add_option("--observerdetails,-o", doObserverDetails, "Print out observer detail data (or not)");
   app.add_option("--timeoffsets,-t", doTimeOffsets, "Print out timeoffset data (or not)");
   app.add_option("--recdata", doReceptionData, "Print out reception data (or not)");
+  app.add_option("--jamdata", doJammingData, "Print out jamming data (or not)");
   app.add_option("--rinex", rinexfname, "If set, emit ephemerides to this filename");
   app.add_option("--osnma", osnmafname, "If set, emit OSNMA CSV to this filename");
   app.add_flag("--version", doVERSION, "show program version and copyright");
@@ -425,7 +430,7 @@ try
       }
       if(wtype == 4) {
         //              2^-34       2^-46
-        cout <<" iodnav "<<gm.iodnav <<" af0 "<<gm.af0 <<" af1 "<<gm.af1 <<", scaled: "<<ldexp(1.0*gm.af0, 19-34)<<", "<<ldexp(1.0*gm.af1, 38-46);
+        cout <<" iodnav "<<gm.iodnav <<" af0 "<<gm.af0 <<" af1 "<<gm.af1 <<", scaled: "<<1000000000.0*ldexp(1.0*gm.af0, 19-34)/(1<<19) <<" ns, "<<ldexp(1.0*gm.af1, 38-46);
         cout << " t0g " << gm.t0g <<" a0g " << gm.a0g <<" a1g " << gm.a1g <<" WN0g " << gm.wn0g;
 
         if(tow && oldgm4s.count(nmm.gi().gnsssv()) && oldgm4s[nmm.gi().gnsssv()].iodnav != gm.iodnav) {
@@ -433,7 +438,7 @@ try
           auto& oldgm4 = oldgm4s[nmm.gi().gnsssv()];
           auto oldOffset = oldgm4.getAtomicOffset(tow);
           auto newOffset = gm.getAtomicOffset(tow);
-          cout<<"  Timejump: "<<oldOffset.first - newOffset.first<<" after "<<(gm.getT0c() - oldgm4.getT0c() )<<" seconds";
+          cout<<"  Timejump: "<<oldOffset.first - newOffset.first<<" ns after "<<(gm.getT0c() - oldgm4.getT0c() )<<" seconds";
         }
 
         oldgm4s[nmm.gi().gnsssv()] = gm;
@@ -533,7 +538,7 @@ try
       }
       if(wtype == 6) {
         cout<<" a0 " << gm.a0 <<" a1 " << gm.a1 <<" t0t "<<gm.t0t << " dtLS "<<(int)gm.dtLS;
-        cout <<" wnLSF "<< (unsigned int)gm.wnLSF<<" dn " << (unsigned int)gm.dn<< " dtLSF "<<(int)gm.dtLSF<<endl;
+        cout <<" wnLSF "<< (unsigned int)gm.wnLSF<<" dn " << (unsigned int)gm.dn<< " dtLSF "<<(int)gm.dtLSF;
       }
 
       
@@ -1136,10 +1141,12 @@ try
       }
     }
     else if(nmm.type() == NavMonMessage::UbloxJammingStatsType) {
-      etstamp();
-      cout<<"noisePerMS "<<nmm.ujs().noiseperms() << " agcCnt "<<
-        nmm.ujs().agccnt()<<" flags "<<nmm.ujs().flags()<<" jamind "<<
-        nmm.ujs().jamind()<<endl;
+      if(doJammingData) {
+        etstamp();
+        cout<<"noisePerMS "<<nmm.ujs().noiseperms() << " agcCnt "<<
+          nmm.ujs().agccnt()<<" flags "<<nmm.ujs().flags()<<" jamind "<<
+          nmm.ujs().jamind()<<endl;
+      }
     }
     else if(nmm.type() == NavMonMessage::SBASMessageType) {
       if(!svfilter.check(1, nmm.sbm().gnsssv(), 0))
@@ -1204,6 +1211,8 @@ try
       if(res.empty())
         continue;
       etstamp();
+      cout<<"ublox debug message ";
+
       uint64_t maxt=0;
       for(const auto& sv : res) {
         if(sv.gnss != 2) continue;
@@ -1300,7 +1309,7 @@ try
         hexstring+=fmt::sprintf("%x", (int)getbitu((unsigned char*)id.c_str(), 4 + 4*n, 4));
 
       
-      cout<<" SAR RLM type "<< nmm.sr().type() <<" from gal sv ";
+      cout<<"SAR RLM type "<< nmm.sr().type() <<" from gal sv ";
       cout<< nmm.sr().gnsssv() << " beacon "<<hexstring <<" code "<<(int)nmm.sr().code()<<" params "<< makeHexDump(nmm.sr().params()) <<endl;
     }
     else if(nmm.type() == NavMonMessage::TimeOffsetType) {
