@@ -89,7 +89,7 @@ double getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
     
     cerr << "sqrtA = "<< sqrtA << endl;
     cerr << "deltan = "<< deltan << endl;
-    cerr << "t0e = "<< t0e << endl;
+    cerr << "t0e = "<< t0e << "( rel "<<(tow - t0e)<<")"<<endl;
     cerr << "m0 = "<< m0 << " ("<<todeg(m0)<<")"<<endl;
     cerr << "e = "<< e << endl;
     cerr << "omega = " << omega << " ("<<todeg(omega)<<")"<<endl;
@@ -122,7 +122,7 @@ double getCoordinates(double tow, const T& iod, Point* p, bool quiet=true)
   
   double M = m0 + n * tk;
   if(!quiet)
-    cerr << " M = m0 + n * tk = "<<m0 << " + " << n << " * " << tk <<endl;
+    cerr << " M = m0 + n * tk = "<<m0 << " + " << n << " * " << tk << " = " <<M <<endl;
   double E = M;
   double newE;
   for(int k =0 ; k < 10; ++k) {
