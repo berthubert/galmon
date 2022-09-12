@@ -646,7 +646,7 @@ try
         redcedcsv.flush();
 
 #endif
-        cout<<"eyred "<<gm.eyred<<" exred "<<gm.exred<<"\nlambda0red in rad "<< ldexp(M_PI*gm.lambda0red, -22)<<" atan2 " <<atan2(1.0*gm.eyred, 1.0*gm.exred)<<" deltaAred "<<gm.deltaAred<<endl;
+        cout<<"eyred "<<gm.eyred<<" exred "<<gm.exred<<"\nlambda0red in rad "<< ldexp(M_PI*gm.lambda0red, -22)<<" atan2 " <<atan2(1.0*gm.eyred, 1.0*gm.exred)<<" deltaAred "<<gm.deltaAred;
         Point pointRed;
         getCoordinates(nmm.gi().gnsstow(), rca, &pointRed);
         cout<<" reduced coordinates: "<<pointRed;
