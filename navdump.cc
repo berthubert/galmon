@@ -33,7 +33,6 @@
 #include "gpscnav.hh"
 #include "rinex.hh"
 #include "rtcm.hh"
-#include "rs.hh"
 #include "fixhunter.hh"
 
 static char program[]="navdump";
@@ -419,7 +418,7 @@ try
       bool isnew = gmwtypes[{nmm.gi().gnsssv(), wtype}].tow != gm.tow;
       gmwtypes[{nmm.gi().gnsssv(), wtype}] = gm;
 
-      //fixhunters[nmm.gi().gnsssv()].reportInav(inav,nmm.gi().gnsstow() );
+      //      fixhunters[nmm.gi().gnsssv()].reportInav(inav,nmm.gi().gnsstow() );
       
       static map<int,GalileoMessage> oldEph;
       cout << "gal inav wtype "<<wtype<<" for "<<nmm.gi().gnssid()<<","<<nmm.gi().gnsssv()<<","<<nmm.gi().sigid()<<" pbwn "<<nmm.gi().gnsswn()<<" pbtow "<< nmm.gi().gnsstow();
