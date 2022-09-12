@@ -27,9 +27,11 @@ void FixHunter::reportInav(const basic_string<uint8_t>& inav, int32_t gst)
   if(wtype == 16) {
     GalileoMessage gm;
     gm.parse(inav);
-    cout<<" redced af0red "<< 1000000000.0*ldexp(gm.af0red, -26)<<" ns, "<<3600.0*(1000000000.0/(1<<20))*ldexp(gm.af1red, -15)<<" ns/hour ("<<gm.af1red<<")";
+    int32_t t0r = 1 + gst - (gst%30);
+    d_inav16t0r = t0r;
+    cout<<" redced af0red "<< 1000000000.0*ldexp(gm.af0red, -26)<<" ns, "<<3600.0*(1000000000.0/(1<<20))*ldexp(gm.af1red, -15)<<" ns/hour ("<<gm.af1red<<") t0r "<<t0r<<" ";
 
-    int32_t t0r = 1+gst - ((gst-2)%30) -2;
+
     //(30*((nmm.gi().gnsstow()-2)/30)+1) % 604800; // page 56 of the OSS ICD 2.0
     REDCEDAdaptor rca(gm, t0r);
     
@@ -40,8 +42,6 @@ void FixHunter::reportInav(const basic_string<uint8_t>& inav, int32_t gst)
   }
 
   tryFix(gst);
-  
-  
 }
 
 void FixHunter::tryFix(int32_t gst)
@@ -154,6 +154,22 @@ void FixHunter::tryFix(int32_t gst)
     getCoordinates(gst, gm, &point, false);
     cout<<"full coordinates: "<<point<<endl;
 
+    if(!inav16.empty()) {
+      GalileoMessage gm16;
+      gm16.parse(inav16);
+      REDCEDAdaptor rca(gm16, d_inav16t0r);
+      
+      Point pointRed;
+      cout<<"eyred "<<gm.eyred<<" exred "<<gm.exred<<"\nlambda0red in rad "<< ldexp(M_PI*gm.lambda0red, -22)<<" atan2 " <<atan2(1.0*gm.eyred, 1.0*gm.exred)<<" deltaAred "<<gm.deltaAred<<endl;
+      getCoordinates(gst, rca, &pointRed);
+      cout<<"Reduced coordinates: "<<pointRed<<", distance: ";
+      Vector dist(pointRed, point);
+          
+      cout<<"Distance: "<<dist<<", length "<<dist.length()<<", clockdiff "<<
+        (rca.getAtomicOffset(gst).first - gm.getAtomicOffset(gst).first)/3<<"m"<<endl;
+
+    }
+    
   }
   catch(...)
     {
