@@ -1129,6 +1129,8 @@ try
 	ret["af0"] = s.galmsg.af0;
 	ret["af1"] = s.galmsg.af1;
 	ret["af2"] = s.galmsg.af2;
+        ret["af0red"] = s.galmsg.af0red;
+        ret["af1red"] = s.galmsg.af1red;
 
       }
       // XXX CONVERSION
@@ -2132,6 +2134,19 @@ try
                   {"t0g", svstat.galmsg.t0g},
                     {"wn0g", svstat.galmsg.wn0g},
                       {"delta", g_GSTGPSOffset}
+            }, satUTCTime(id));
+          
+        }
+        else if(wtype == 16) { // redced
+          idb.addValue(id, "redced", {{"deltaared", svstat.galmsg.deltaAred},
+                {"exred", svstat.galmsg.a1g},
+                  {"eyred", svstat.galmsg.t0g},
+                    {"deltai0red", svstat.galmsg.deltai0red},
+                    {"omega0red", svstat.galmsg.omega0red},
+                    {"lambda0red", svstat.galmsg.lambda0red},
+                    {"af0red", svstat.galmsg.af0red},
+                    {"af1red", svstat.galmsg.af1red},
+                    {"t0r",  1 + nmm.gi().gnsstow()  - (nmm.gi().gnsstow() % 30)},
             }, satUTCTime(id));
           
         }
