@@ -96,8 +96,10 @@ galmonmon: galmonmon.o ${FMT}/src/format.o $(SIMPLESOCKETS) minicurl.o ubx.o bit
 	$(CXX) -std=gnu++17 $^ -o $@ -pthread -L/usr/local/lib -lprotobuf -lcurl
 
 
-navdump: navdump.o ${FMT}/src/format.o ${FMT}/src/os.o bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o navmon.o $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) tle.o sp3.o osen.o trkmeas.o githash.o rinex.o sbas.o rtcm.o galileo.o rs.o fixhunter.o ${EXTRADEP}
-	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -pthread  -lprotobuf -lz -lfec
+# rs.o fixhunter.o
+navdump: navdump.o ${FMT}/src/format.o ${FMT}/src/os.o bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o navmon.o $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) tle.o sp3.o osen.o trkmeas.o githash.o rinex.o sbas.o rtcm.o galileo.o  ${EXTRADEP}
+	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -pthread  -lprotobuf -lz 
+# -lfec
 
 navdisplay: navdisplay.o ${FMT}/src/format.o bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o ephemeris.o navmon.o osen.o githash.o
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -pthread  -lprotobuf -lncurses
