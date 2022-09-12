@@ -1110,7 +1110,7 @@ int main(int argc, char** argv)
       auto [msg, timestamp] = getUBXMessage(fd, nullptr);
       (void)timestamp;
       auto payload = msg.getPayload();
-      
+
       if(msg.getClass() == 0x01 && msg.getType() == 0x07) {  // UBX-NAV-PVT
         struct PVT
         {
@@ -1387,7 +1387,8 @@ int main(int argc, char** argv)
           }
           else if(id.first ==2) { // GALILEO
             basic_string<uint8_t> reserved1, reserved2, sar, spare, crc;
-            auto inav = getInavFromSFRBXMsg(payload, reserved1, reserved2, sar, spare, crc);  
+            uint8_t ssp;
+            auto inav = getInavFromSFRBXMsg(payload, reserved1, reserved2, sar, spare, crc, &ssp);  
             unsigned int wtype = getbitu(&inav[0], 0, 6);
 
             uint32_t satTOW;
@@ -1441,6 +1442,15 @@ int main(int argc, char** argv)
                 else if(wtype==8 || wtype == 10) {
                   msgTOW = curCycleTOW + 9;
                 }
+                else if(wtype==17 || wtype == 18) {
+                  msgTOW = curCycleTOW + 11;
+                }
+                else if(wtype==19 || wtype == 20) {
+                  msgTOW = curCycleTOW + 13;
+                }
+                else if(wtype==16) {
+                  msgTOW = curCycleTOW + 15;
+                }                                                
                 else if(wtype==1) {
                   msgTOW = curCycleTOW + 21;
                 }
@@ -1473,6 +1483,7 @@ int main(int argc, char** argv)
             nmm.mutable_gi()->set_sar((const char*)    &sar[0],   sar.size());
             nmm.mutable_gi()->set_crc((const char*)    &crc[0],   crc.size());
             nmm.mutable_gi()->set_spare((const char*)&spare[0], spare.size());
+            nmm.mutable_gi()->set_ssp((unsigned int)ssp);
             
             ns.emitNMM( nmm);
           }
