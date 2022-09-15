@@ -438,7 +438,7 @@ std::optional<double> getHzCorrection(time_t now, int src, unsigned int gnssid, 
 
 std::string humanBhs(int bhs)
 {
-  static vector<string> options{"ok", "out of service", "will be out of service", "test"};
+  static vector<string> options{"ok", "OUT", "will be out of service", "test"};
   if(bhs >= (int)options.size()) {
     cerr<<"Asked for humanBHS "<<bhs<<endl;
     return "??";
