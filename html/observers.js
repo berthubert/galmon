@@ -20,7 +20,7 @@ function makeTable(str, arr)
         enter().
         append("tr");
 
-    var columns= ["id", "last-seen", "latitude", "longitude", "owner", "remark", "serialno", "hwversion", "swversion", "mods", "githash", "uptime", "clockdriftns", "clockacc", "freqacc", "h", "acc", "satellites"];
+    var columns= ["id", "last-seen", "latitude", "longitude", "owner", "remark", "serialno", "hwversion", "swversion", "impinav", "mods", "githash", "uptime", "clockdriftns", "clockacc", "freqacc", "h", "acc", "satellites"];
     
     // append the header row
     thead.append("tr")
@@ -40,6 +40,12 @@ function makeTable(str, arr)
                 ret.color = null;
                 if(column == "id") {
                     ret.value='<a href="observer.html?observer='+row[column]+'">'+row[column]+"</a>";
+                }
+                else if(column == "impinav") {
+                    if(row["impinav"]==true)
+                        ret.value="✅";
+                    else
+                        ret.value="";
                 }
                 else if(column == "last-seen") {
                     ret.value = moment(1000*row["last-seen"]).fromNow();

@@ -14,7 +14,7 @@ function maketable(str, arr)
         enter().
         append("tr");
     
-    var columns = ["sv", "best-tle", "iod", "eph-age-m", "latest-disco", "time-disco", "sisa", "health", "alma-dist", "osnma", "sources", "db", "rtcm-eph-delta-cm","rtcm-clock-dclock0", "prres", "elev", "last-seen-s"];    
+    var columns = ["sv", "iod", "eph-age-m", "orbit-disco", "time-disco", "sisa", "health", "alma-dist", "osnma", "impinav", "sources", "db", "rtcm-eph-delta-cm","rtcm-clock-dclock0", "prres", "elev", "last-seen-s"];    
     
     // append the header row
     thead.append("tr")
@@ -132,9 +132,15 @@ function maketable(str, arr)
                 }
                 else if(column == "osnma" && row["osnma"] != null) {
                     if(row["osnma"]==true)
-                        ret.value="ON!";
+                        ret.value="✅";
                     else
-                        ret.value="off";
+                        ret.value="";
+                }
+                else if(column == "impinav" && row["impinav"] != null) {
+                    if(row["impinav"]==true)
+                        ret.value="✅";
+                    else
+                        ret.value="";
                 }
 
                 else if(column == "delta-utc" && row["delta-utc"] != null) {
@@ -167,7 +173,7 @@ function maketable(str, arr)
                         ret.color="red";
                     }
                 }
-                else if(column == "latest-disco" && row[column] != null) 
+                else if(column == "orbit-disco" && row[column] != null) 
                     ret.value = ((100*row[column]).toFixed(1))+" cm";
                 else if(column == "time-disco" && row[column] != null) 
                     ret.value = row[column].toFixed(1)+" ns";
