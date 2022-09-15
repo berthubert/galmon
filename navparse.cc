@@ -1008,7 +1008,7 @@ try
         obj["owner"]= src.second.owner;
         obj["vendor"]= src.second.vendor;
         obj["remark"]= src.second.remark;
-        if(src.second.impinavTime >= 0 && (time(0) + 10) - src.second.impinavTime < 120)
+        if(src.second.impinavTime >= 0 && (time(0) + 10) - src.second.impinavTime < 86400)
           obj["impinav"]=true;
         else
           obj["impinav"]=false;
