@@ -212,7 +212,7 @@ try
         continue;
       }
       int sigid = si.src & 31;
-
+      int pbsigid=sepsig2ubx(sigid);
       std::string inav((char*)si.navBits, 32);
       //      cerr<<makeHexDump(inav)<<endl;
 
