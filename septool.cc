@@ -138,12 +138,15 @@ try
   CLI::App app(program);
   string sourceaddr;
   bool quiet{false};
-  string serial;
+  string serial, owner, remark;
   app.add_option("--source", sourceaddr, "Connect to this IP address:port to source SBF (otherwise stdin)");
   app.add_option("--destination,-d", destinations, "Send output to this IPv4/v6 address");
   app.add_option("--station", g_srcid, "Station id")->required();
   app.add_option("--serial", serial, "Serial number of your Septentrio device");
   app.add_option("--quiet", quiet, "Don't emit noise");
+  app.add_option("--owner,-o", owner, "Name/handle/nick of owner/operator");
+  app.add_option("--remark", remark, "Remark for this station");
+
   app.add_flag("--version", doVERSION, "show program version and copyright");
   app.add_flag("--stdout", doSTDOUT, "Emit output to stdout");
   try {
@@ -446,15 +449,16 @@ by the decoding software.
         nmm.mutable_od()->set_vendor("Septentrio");
         nmm.mutable_od()->set_hwversion("Mosaic");
         nmm.mutable_od()->set_swversion("");
-        nmm.mutable_od()->set_serialno("3060601");
+        nmm.mutable_od()->set_serialno(serial);
         nmm.mutable_od()->set_modules("");
         nmm.mutable_od()->set_clockoffsetns(0);
         nmm.mutable_od()->set_clockoffsetdriftns(0);
         nmm.mutable_od()->set_clockaccuracyns(0);
         nmm.mutable_od()->set_freqaccuracyps(0);
 
-        nmm.mutable_od()->set_owner("Septentrio");
-        nmm.mutable_od()->set_remark("");
+        
+        nmm.mutable_od()->set_owner(owner);
+        nmm.mutable_od()->set_remark(remark);
         nmm.mutable_od()->set_recvgithash(g_gitHash);
         nmm.mutable_od()->set_uptime(time(0) - starttime);
         ns.emitNMM( nmm);
