@@ -16,7 +16,7 @@
 #include "fmt/format.h"
 #include "fmt/os.h"
 #include "fmt/printf.h"
-
+#include "gps.hh"
 using namespace std;
 
 
@@ -209,13 +209,15 @@ try
       SEPInav si;
       memcpy(&si, str.c_str(), sizeof(si));
       //      cerr<<"tow "<<si.towMsec /1000<<" wn "<<si.wn <<" sv " << (int) si.sv - 70<<" ";
-      
-      if(!si.crcPassed) {
-        cerr<<"I/NAV CRC error, skipping"<<endl;
-        continue;
-      }
       int sigid = si.src & 31;
       int pbsigid=sepsig2ubx(sigid);
+      
+      if(!si.crcPassed) {
+        cerr<<fmt::sprintf("E%02d (sigid %d) I/NAV CRC error, skipping\n", si.sv-70, pbsigid);
+        continue;
+      }
+
+
       std::string inav((char*)si.navBits, 32);
       //      cerr<<makeHexDump(inav)<<endl;
 
@@ -314,8 +316,8 @@ by the decoding software.
       } __attribute__((packed));
       TimeMsg tmsg;
       memcpy(&tmsg, str.c_str(), sizeof(tmsg));
-
-      cerr<< fmt::sprintf("UTC Time: %04d%02d%02d %02d:%02d:%02d\n",
+      if(!quiet)
+        cerr<< fmt::sprintf("UTC Time: %04d%02d%02d %02d:%02d:%02d\n",
                           2000+tmsg.utcyear,
                           tmsg.utcmonth,
                           tmsg.utcday,
@@ -328,7 +330,65 @@ by the decoding software.
       // GLONASS
     }
     else if(res.first.getID() == 4017) { // GPS-CA
+      auto str = res.first.getPayload();
+      struct GPSCA
+      {
+        uint32_t towMsec;
+        uint16_t wn;
+        uint8_t sv;
+        uint8_t crcPassed;
+        uint8_t viterbiCount;
+        uint8_t src;
+        uint8_t ign1;
+        uint8_t rxChannel;
+        uint8_t navBits[40];
+      } __attribute__((packed));
+      GPSCA ga;
+      memcpy(&ga, str.c_str(), sizeof(ga));
+      int sigid = ga.src & 31;
+      //      cerr<<"tow "<<sf.towMsec /1000<<" wn "<<sf.wn <<" sv " << (int) sf.sv - 70<<" sigid " << sigid <<" ";
+      if(!ga.crcPassed) {
+        cerr<<fmt::sprintf("G%02d CA CRC error, skipping\n", ga.sv);
+        continue;
+      }
 
+      // we get 10 words of 32 bits.
+      // bits 0-5 are 6 parity bits
+      // bits 6-29 are contents
+      // bits 30-31 are padding
+      // we need to output to protobuf the parity AND padding bits as well
+      // downstream they get stripped
+
+      unsigned char tmp[40]={};
+      for(int i = 0; i < 10; ++i) {
+        uint32_t rev= htonl(*(uint32_t*)&ga.navBits[4*i]);
+        setbitu(tmp, i*32, 30, getbitu((uint8_t*)&rev, 0, 30));
+      }
+
+      std::basic_string<uint8_t> payload(tmp, 40);
+      
+      auto cond = getCondensedGPSMessage(payload);
+      //      cerr<<makeHexDump(cond)<<"   ";
+      GPSState gs;
+      gs.parseGPSMessage(cond);
+      
+      NavMonMessage nmm;
+
+      double t = utcFromGST(ga.wn - 1024, ga.towMsec / 1000.0);
+      //      cerr<<t<< " " <<si.wn - 1024 <<" " <<si.towMsec /1000.0 <<" " << g_dtLS<<endl;
+      nmm.set_sourceid(g_srcid);
+      nmm.set_type(NavMonMessage::GPSInavType);
+
+      nmm.set_localutcseconds(t);
+      nmm.set_localutcnanoseconds((t - floor(t))*1000000000); 
+            
+      nmm.mutable_gpsi()->set_gnsswn(ga.wn);   
+      nmm.mutable_gpsi()->set_sigid(sigid);
+      nmm.mutable_gpsi()->set_gnsstow(ga.towMsec/1000 - 6); // needs to be adjusted to beginning of message
+      nmm.mutable_gpsi()->set_gnssid(1);
+      nmm.mutable_gpsi()->set_gnsssv(ga.sv);
+      nmm.mutable_gpsi()->set_contents(string((char*)payload.c_str(), payload.size()));
+      ns.emitNMM( nmm);
     }
     else if(res.first.getID() == 4018) { // GPS-L2C
 
@@ -358,7 +418,7 @@ by the decoding software.
       int sigid = sf.src & 31;
       //      cerr<<"tow "<<sf.towMsec /1000<<" wn "<<sf.wn <<" sv " << (int) sf.sv - 70<<" sigid " << sigid <<" ";
       if(!sf.crcPassed) {
-        cerr<<"F/NAV CRC error, skipping"<<endl;
+        cerr<<fmt::sprintf("E%02d F/NAV CRC error, skipping\n", sf.sv-70);
         continue;
       }
 
@@ -486,7 +546,7 @@ by the decoding software.
       int sigid = sc.src & 31;
       //      cerr<<"C/NAV tow "<<sc.towMsec /1000<<" wn "<<sc.wn <<" sv " << (int) sc.sv - 70<<" sigid " << sigid <<" ";
       if(!sc.crcPassed) {
-        cerr<<"C/NAV CRC error, skipping"<<endl;
+        cerr<<fmt::sprintf("E%02d C/NAV CRC error, skipping\n", sc.sv-70);
         continue;
       }
 
