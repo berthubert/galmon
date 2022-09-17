@@ -382,10 +382,12 @@ by the decoding software.
       nmm.set_localutcseconds(t);
       nmm.set_localutcnanoseconds((t - floor(t))*1000000000); 
             
-      nmm.mutable_gpsi()->set_gnsswn(ga.wn);   
-      nmm.mutable_gpsi()->set_sigid(sigid);
+      nmm.mutable_gpsi()->set_gnsswn(ga.wn);
+      int pbsigid=sepsig2ubx(sigid);
+      nmm.mutable_gpsi()->set_sigid(pbsigid);
+      
       nmm.mutable_gpsi()->set_gnsstow(ga.towMsec/1000 - 6); // needs to be adjusted to beginning of message
-      nmm.mutable_gpsi()->set_gnssid(1);
+      nmm.mutable_gpsi()->set_gnssid(0);
       nmm.mutable_gpsi()->set_gnsssv(ga.sv);
       nmm.mutable_gpsi()->set_contents(string((char*)payload.c_str(), payload.size()));
       ns.emitNMM( nmm);
