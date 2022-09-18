@@ -2001,6 +2001,12 @@ try
       auto& gm = svstat.galmsg;
       unsigned int wtype = gm.parse(inav);
 
+      auto& o = g_srcfacts[nmm.sourceid()];
+      if(nmm.gi().has_ssp()) {
+        o.impinav = true;
+        o.impinavTime = nmm.localutcseconds();
+      }
+      
       if(wtype == 5 && svstat.galmsgTyped.count(5)) {
         const auto& old5gm = svstat.galmsgTyped[5];
         if(make_tuple(old5gm.e5bhs, old5gm.e1bhs, old5gm.e5bdvs, old5gm.e1bdvs) !=
@@ -2159,9 +2165,6 @@ try
             }, satUTCTime(id));
           svstat.impinav = true;
           svstat.impinavTime = nmm.gi().gnsstow();
-          auto& o = g_srcfacts[nmm.sourceid()];
-          o.impinav = true;
-          o.impinavTime = nmm.localutcseconds();
         }
     }
     else if(nmm.type() == NavMonMessage::GalileoCnavType) {
