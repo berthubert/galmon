@@ -51,7 +51,7 @@ std::mutex g_mut;
 
 // navmerge can also dedup its output, we keep track of recent messages here
 // this means each Galileo message will only get set once
-map<tuple<uint32_t, std::string, uint32_t, std::string>, time_t> g_seen;
+map<tuple<uint32_t, std::string, uint32_t, std::string, int16_t>, time_t> g_seen;
 
 bool g_inavdedup{false};
 
@@ -163,7 +163,7 @@ void recvSession(ComboAddress upstream)
         if(g_inavdedup) {
           if(nmm.type() == NavMonMessage::GalileoInavType) {
             std::lock_guard<std::mutex> mut(g_mut);
-            decltype(g_seen)::key_type tup(nmm.gi().gnsssv(), nmm.gi().contents(), nmm.gi().sigid(), nmm.gi().reserved1());
+            decltype(g_seen)::key_type tup(nmm.gi().gnsssv(), nmm.gi().contents(), nmm.gi().sigid(), nmm.gi().reserved1(),nmm.gi().has_ssp() ? nmm.gi().ssp() : -1);
             
             if(!g_seen.count(tup))
               g_buffer.insert({{nmm.localutcseconds(), nmm.localutcnanoseconds()}, part});
