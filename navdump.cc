@@ -734,7 +734,7 @@ try
         cout <<" t0e "<<gm.t0e;
       }
       if(gm.wtype == 4) {
-        cout <<" dtLS "<<(int)gm.dtLS <<" wnLSF "<< (unsigned int)gm.wnLSF<<" dn " << (unsigned int)gm.dn<< " dtLSF "<<(int)gm.dtLSF<<endl;
+        cout <<" dtLS "<<(int)gm.dtLS <<" wnLSF "<< (unsigned int)gm.wnLSF<<" dn " << (unsigned int)gm.dn<< " dtLSF "<<(int)gm.dtLSF;
       }
 
       cout<<endl;
