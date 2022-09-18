@@ -5,6 +5,7 @@ std::basic_string<uint8_t> getCondensedGPSMessage(std::basic_string_view<uint8_t
 {
   uint8_t buffer[10*24/8];
 
+  // ingests 32 bit words, per word ignores first 2 bits, and then takes 24
   for(int w = 0 ; w < 10; ++w) {
     setbitu(buffer, 24*w, 24, getbitu(&payload[0], 2 + w*32, 24));
   }
