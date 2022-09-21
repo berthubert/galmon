@@ -128,7 +128,7 @@ void recvSession(ComboAddress upstream)
       cerr<<" done"<<endl;
 
       for(int count=0;;++count) {
-        auto deadline = xSecondsFromNow(120); // 
+        auto deadline = xSecondsFromNow(600); // 
         string part=SReadWithDeadline(sock, 4, deadline);
         if(part.empty()) {
           cerr<<"EOF from "<<upstream.toStringWithPort()<<endl;
