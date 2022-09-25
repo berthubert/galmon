@@ -140,7 +140,7 @@ To make your docker container update automatically you could use a tool such as
 
 Podman
 ======
-With the default configuration you need to make podman trust docker.io images. On Debian add the following configuration /etc/containers/registries.conf.d/docker.conf and add the line:
+With the default configuration you need to make podman trust docker.io images. On Debian add the following configuration /etc/containers/registries.conf.d/docker.conf
 
 ```
 unqualified-search-registries=["docker.io"]
