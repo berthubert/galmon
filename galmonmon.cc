@@ -268,9 +268,9 @@ int main(int argc, char **argv)
         string fullName = sv["fullName"];
         
         if(!(gnssid == 2 && sigid==1) &&
-           !(gnssid == 0 && sigid==0) &&
+           !(gnssid == 0 && sigid==0) /* &&
            !(gnssid == 3 && sigid==0) &&
-           !(gnssid == 6 && sigid==0))
+           !(gnssid == 6 && sigid==0) */)
           continue;
       
         int numfresh=0;
