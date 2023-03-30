@@ -1009,6 +1009,7 @@ int main(int argc, char** argv)
   */
 
   int curCycleTOW{-1}; // means invalid
+  int lastSatTOW{-1};  // last TOW decoded from an actual message
   ns.d_compress = doCompress;
   ns.launch();
   
@@ -1397,6 +1398,7 @@ int main(int argc, char** argv)
               //            if (doDEBUG) { cerr<<humanTimeNow()<<"    "<<wtype<<" sv "<<id.second<<" tow "<<satTOW << " % 30 = "<< satTOW % 30<<", implied start of cycle: "<<(satTOW - (satTOW %30)) <<endl; }
               msgTOW = satTOW;
               curCycleTOW = satTOW - (satTOW %30);
+              lastSatTOW = satTOW;
             }
             else {
               if(curCycleTOW < 0) // did not yet have a start of cycle
@@ -1449,8 +1451,13 @@ int main(int argc, char** argv)
                   msgTOW = curCycleTOW + 13;
                 }
                 else if(wtype==16) {
-                  msgTOW = curCycleTOW + 15;
-                }                                                
+                  if(lastSatTOW <= curCycleTOW + 15){ // "<=" rather than "<" since sometimes we get at TOW at this index (WT0 or WT5)
+                    msgTOW = curCycleTOW + 15;
+                  }
+                  else {
+                    msgTOW = curCycleTOW + 29;
+                  }
+                }
                 else if(wtype==1) {
                   msgTOW = curCycleTOW + 21;
                 }
