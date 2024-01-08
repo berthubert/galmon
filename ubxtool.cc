@@ -1172,7 +1172,7 @@ int main(int argc, char** argv)
       if(!doFakeFix) {
         if(!g_gnssutc.tv_sec) {
           
-          if (doDEBUG) { cerr<<humanTimeNow()<<" Ignoring message with class "<<(int)msg.getClass()<< " and type "<< (int)msg.getType()<<": have not yet received a timestamp"<<endl; }
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Ignoring UBX message: "<<fmt::format("({:#04x} {:#04x})", msg.getClass(), msg.getType())<<" - have not yet received a timestamp"<<endl; }
           continue;
         }
       }
@@ -1902,7 +1902,7 @@ int main(int argc, char** argv)
         tstate.transmitIfComplete(ns);
       }
       else 
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Unknown UBX message of class "<<(int) msg.getClass() <<" and type "<< (int) msg.getType()<< " of "<<payload.size()<<" bytes"<<endl; }
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Unknown UBX message: "<<fmt::format("({:#04x} {:#04x})", msg.getClass(), msg.getType())<<" of "<<payload.size()<<" bytes"<<endl; }
 
       //      writen2(1, payload.d_raw.c_str(),msg.d_raw.size());
     }
