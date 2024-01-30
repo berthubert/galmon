@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>galmon.eu</title>
   <link rel="stylesheet" type="text/css" href="style.css">
+  
 </head>
 <body>
   Last update: <span id="freshness"></span>. More information about this Galileo/GPS/BeiDou/Glonass open source monitor can be found <a href="https://berthub.eu/articles/posts/galmon-project/">here</a>. Live observer map <a href="geo">here</a>, status (coverage, DOP) map <a href="geo/coverage.html">here</a>. <b>Experimental Grafana dashboard on <a href="https://public.galmon.eu/">public.galmon.eu</a> (user: guest, password: guest)</b>. SBAS <a href="sbas.html">status</a>, <a href="sbstatus.html">per-satellite</a>. <span id="allstats"></span><br/>
@@ -20,6 +21,7 @@
     <input type="checkbox"  id="GPSL2C" onclick="updateSats();">  <label for="GPSL2C">GPS L2C</label>
   </div>
   <hr/>
+  <a rel="me" href="https://botsin.space/@GNSS_Changes">Mastodon</a>
   <table id="svs"></table>
   <hr>
   <p>
@@ -34,6 +36,8 @@
   <p>
     For updates, follow <a href="https://twitter.com/GalileoSats">@GalileoSats</a> on Twitter, or join us on our IRC channel (chat) via the
     <a href="https://webchat.oftc.net/?channels=galileo">web gateway</a>.
+    There is also a LIVE <a href="https://botsin.space/@GNSS_Changes">bot on
+    Mastodon</a> that posts updates on relevant satellite changes.
   </p>
   <p>
     The meaning of the fields is explained in <a href="https://berthub.eu/articles/posts/gps-gnss-how-do-they-work/">this document</a> and can be summarised as follows:
