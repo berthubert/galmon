@@ -187,6 +187,7 @@ void NMMSender::emitNMM(const NavMonMessage& nmm)
 
 void NMMSender::emitNMM(const std::string& out)
 {
+  std::lock_guard<std::mutex> l(d_destslock);
   for(auto& d : d_dests) {
     d->emitNMM(out, d_compress);
   }
@@ -222,6 +223,7 @@ try
     cout<<"Had a new connection from "<<remote.toStringWithPort()<<" on fd "<<fd<<endl;
     auto nd = std::make_unique<Destination>();
     nd->dst="source";
+    std::lock_guard<std::mutex> l(ns.d_destslock);    
     ns.d_dests.push_back(std::move(nd));
 
     std::thread t(&NMMSender::sendTCPListenerThread, &ns, ns.d_dests.rbegin()->get(), fd, remote);
@@ -282,15 +284,16 @@ void NMMSender::sendTCPListenerThread(Destination* d, int fd, ComboAddress addr)
     if (d_debug) { cerr<<humanTimeNow()<<" Sending thread for "<<d->dst <<" via "<< addr.toStringWithPort()<<" had error"; }
     
   }
-  // need a lock here, but I think think this is the right one
-  std::lock_guard<std::mutex> mut(d->mut);
-  cerr<<"Done with serving client "<<addr.toStringWithPort()<<": "<<d_dests.size() <<endl;
+  std::lock_guard<std::mutex> l(d_destslock);
+
 
   d_dests.erase(remove_if(d_dests.begin(), d_dests.end(), [d](const auto& a)
   {
     //    cerr<<(void*) a.get()<< " ==? " <<(void*) d <<endl;
     return a.get() == d;
   }), d_dests.end());
+  
+  cerr<<"Done with serving client "<<addr.toStringWithPort()<<": "<<d_dests.size() <<" destinations left"<<endl;  
   //  cerr<<"Size now: "<<d_dests.size()<<endl;
   // some kind of cleanup
 }

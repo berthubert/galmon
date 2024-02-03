@@ -30,12 +30,14 @@ public:
   {
     auto d = std::make_unique<Destination>();
     d->fd = fd;
+    std::lock_guard<std::mutex> l(d_destslock);
     d_dests.push_back(std::move(d));
   }
   void addDestination(const std::string& dest)
   {
     auto d = std::make_unique<Destination>();
     d->dst = dest;
+    std::lock_guard<std::mutex> l(d_destslock);    
     d_dests.push_back(std::move(d));
   }
   void addListener(const std::string& dest)
@@ -43,6 +45,7 @@ public:
     auto d = std::make_unique<Destination>();
     d->dst = dest;
     d->listener = true;
+    std::lock_guard<std::mutex> l(d_destslock);    
     d_dests.push_back(std::move(d));
   }
 
@@ -78,6 +81,7 @@ public:
   }
   
 private:
+  std::mutex d_destslock;
   std::vector<std::unique_ptr<Destination>> d_dests;
   std::vector<std::unique_ptr<std::thread>> d_thread;
 };
