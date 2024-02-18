@@ -72,14 +72,14 @@ bool g_inavdedup{false};
 
 */
 
-auto xSecondsFromNow(double seconds)
+static auto xSecondsFromNow(double seconds)
 {
   auto now = chrono::steady_clock::now();
   now += std::chrono::milliseconds((unsigned int)(seconds*1000));
   return now;
 }
 
-int msecLeft(const std::chrono::steady_clock::time_point& deadline)
+static int msecLeft(const std::chrono::steady_clock::time_point& deadline)
 {
   auto now = chrono::steady_clock::now();
   return std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
