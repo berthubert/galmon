@@ -1,6 +1,8 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <cstdint>
+
 uint16_t calcUbxChecksum(uint8_t ubxClass, uint8_t ubxType, std::basic_string_view<uint8_t> str);
 std::basic_string<uint8_t> buildUbxMessage(uint8_t ubxClass, uint8_t ubxType, std::basic_string_view<uint8_t> str);
 
