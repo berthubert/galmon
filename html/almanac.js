@@ -15,6 +15,28 @@ function maketable(str, arr)
         append("tr");
     
     var columns = ["sv", "best-tle", "best-tle-dist", "best-tle-norad", "best-tle-int-desig", "eph-ecefX", "eph-ecefY", "eph-ecefZ", "tle-ecefX", "tle-ecefY", "tle-ecefZ", "eph-latitude", "eph-longitude", "tle-latitude", "tle-longitude", "tle-eciX", "tle-eciY", "tle-eciZ", "t0e", "t", "E", "M0"];    
+    var columndescriptions = {"sv":"Satellite Vehicle, an identifier for a satellite, other satellis could take over this number in case of failures", 
+                              "best-tle": "From TLE database, closest satellite to the reported position", 
+                              "best-tle-dist": "Distance to the closest satellite to the reported position",
+                              "best-tle-norad": "?", 
+                              "best-tle-int-desig": "?", 
+                              "eph-ecefX": "?",
+                              "eph-ecefY": "?", 
+                              "eph-ecefZ": "?", 
+                              "tle-ecefX": "?", 
+                              "tle-ecefY": "?", 
+                              "tle-ecefZ": "?", 
+                              "eph-latitude": "Latitute of the ephemeris", 
+                              "eph-longitude": "Longitude of the ephemeris", 
+                              "tle-latitude": "?", 
+                              "tle-longitude": "?", 
+                              "tle-eciX": "?", 
+                              "tle-eciY": "?", 
+                              "tle-eciZ": "?", 
+                              "t0e":"?",
+                              "t":"?",
+                              "E":"?", 
+                              "M0":"?"};    
     
     // append the header row
     thead.append("tr")
@@ -22,6 +44,7 @@ function maketable(str, arr)
         .data(columns)
         .enter()
         .append("th")
+        .attr("title",columndescriptions[column])
         .text(function(column) {
             if(column == "delta_hz_corr")
                 return "ΔHz";
