@@ -4,6 +4,7 @@
 #include "bits.hh"
 #include <iostream>
 #include <math.h>
+#include <stdint.h>
 #include "minivec.hh"
 std::basic_string<uint8_t> getGlonassessage(std::basic_string_view<uint8_t> payload);
 
