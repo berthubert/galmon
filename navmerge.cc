@@ -48,6 +48,7 @@ static char program[]="navmerge";
 
 multimap<pair<uint64_t, uint64_t>, string> g_buffer;
 std::mutex g_mut;
+set<int> g_bsset;
 
 // navmerge can also dedup its output, we keep track of recent messages here
 // this means each Galileo message will only get set once
@@ -160,6 +161,9 @@ void recvSession(ComboAddress upstream)
         NavMonMessage nmm;
         nmm.ParseFromString(part);
 
+	if(g_bsset.count(nmm.sourceid()))
+	   continue;
+	
         if(g_inavdedup) {
           if(nmm.type() == NavMonMessage::GalileoInavType) {
             std::lock_guard<std::mutex> mut(g_mut);
@@ -202,11 +206,13 @@ int main(int argc, char** argv)
   vector<string> destinations;
   vector<string> sources;
   vector<string> listeners;
+  vector<int> badstations;
 
   bool doVERSION{false}, doSTDOUT{false};
   CLI::App app(program);
   app.add_option("--source", sources, "Connect to these IP address:port to source protobuf");
   app.add_option("--destination,-d", destinations, "Send output to this IPv4/v6 address");
+  app.add_option("--drop-stations", badstations, "Drop these station numbers");
   app.add_option("--listener,-l", listeners, "Make data available on this IPv4/v6 address");
   app.add_flag("--inavdedup", g_inavdedup, "Only pass on Galileo I/NAV, and dedeup");  
   app.add_flag("--version", doVERSION, "show program version and copyright");
@@ -245,7 +251,10 @@ int main(int argc, char** argv)
   if(doSTDOUT)
     ns.addDestination(1);
 
-  
+  for(const auto& bs : badstations) {
+    g_bsset.insert(bs);
+    cerr<<"Dropping station "<<bs<<endl;
+  }
   for(const auto& s : sources) {
     ComboAddress oneaddr(s, 29601);
     std::thread one(recvSession, oneaddr);
