@@ -35,6 +35,7 @@ void unixDie(const std::string& str)
   throw std::runtime_error(str+string(": ")+string(strerror(errno)));
 }
 
+// station numbers
 vector<uint64_t> getSources()
 {
   DIR *dir = opendir(g_storage.c_str());
@@ -98,6 +99,10 @@ try
       while(getRawNMM(fd, ts, msg, offset)) {
         // don't drop data that is only 5 seconds too old
         if(make_pair(ts.tv_sec + 5, ts.tv_nsec) >= make_pair(start.tv_sec, start.tv_nsec)) {
+	  if(ts.tv_sec > time(0)) {
+	    cout << "station "<<src <<" is living in the future, skipping message\n";
+	  }
+	  else
           rnmms.push_back({ts, msg});
         }
         ++looked;
@@ -126,8 +131,9 @@ try
     if(3600 + start.tv_sec - (start.tv_sec % 3600) < time(0))
       start.tv_sec = 3600 + start.tv_sec - (start.tv_sec % 3600);
     else {
-      if(!rnmms.empty())
+      if(!rnmms.empty()) // start off where we left it
         start = {rnmms.rbegin()->first.tv_sec, rnmms.rbegin()->first.tv_nsec};
+      // This is a bit iffy as it relies on the station furthest ahead in time
       sleep(1);
     }
   }
