@@ -80,13 +80,16 @@ bool getNMM(FILE* fp, NavMonMessage& nmm, uint32_t& offset)
   return true;
 }
 
+// if you rely on offset, this function is atomic wrt partial reads,
+// the offset will only get updated on a whole message
 bool getRawNMM(int fd, timespec& t, string& raw, uint32_t& offset)
 {
   char bert[4];
   int res;
   if((res=read(fd, bert, 4)) != 4 || bert[0]!='b' || bert[1]!='e' || bert[2] !='r' || bert[3]!='t') {
-    if(res != 4)
+    if(res != 4) {
       return false;
+    }
 
     for(int s=0;; ++s ) {
       cerr<<"Skipping character hunting for good magic.. "<<s<<endl;
