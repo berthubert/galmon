@@ -151,7 +151,7 @@ void ZStdReader::worker()
     input.pos=0;
     int ret = read(d_sourcefd, (char*)input.src, inputcapacity);
     if(ret <= 0) {
-      cerr<<"Got EOF on input fd "<<d_sourcefd<<", terminating thread"<<endl;
+      //      cerr<<"Got EOF on input fd "<<d_sourcefd<<", terminating thread"<<endl;
       break;
     }
     input.size = ret; // this is unsigned, so we need 'ret' to see the error
@@ -179,10 +179,6 @@ void ZStdReader::worker()
 
 ZStdReader::~ZStdReader()
 {
-  cerr<<"ZStdReader destructor called"<<endl;
   int rc = close(d_readpipe);
-  cerr<<"Close rc = "<<rc<<endl;
-  cerr<<"Waiting on join"<<endl;
   d_thread.join();
-  cerr<<"Done waiting on join"<<endl;
 }

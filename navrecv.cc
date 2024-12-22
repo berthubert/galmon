@@ -103,9 +103,7 @@ int getfd(const char* path, int mode, int permission)
     std::advance(end, toErase);
     fds.erase(fds.begin(), end);
   }
-  
-
-  
+    
   FileID fid({path, mode, permission});
   //  cout<<"Request for "<<path<<endl;
   auto iter = fds.find(fid);
@@ -121,7 +119,7 @@ int getfd(const char* path, int mode, int permission)
   if(fd < 0) {
     throw FatalException("Unable to open file for storage: "+string(strerror(errno)));
   }
-  cout<<"Opened fd "<<fd<<" for path "<<path<<endl;
+  //  cout<<"Opened fd "<<fd<<" for path "<<path<<endl;
   fds.emplace(fid, FDID(fd));
   return fd;
 }
@@ -231,7 +229,7 @@ ClientKeeper g_ckeeper;
 void recvSession2(Socket&& uns, ComboAddress client, ClientKeeper::Sentinel& sentinel)
 {
   string secret = SRead(uns, 8); // ignored for now
-  cerr << "Entering compressed session for "<<client.toStringWithPort()<<endl;
+  cerr << client.toStringWithPort()<< " Entering compressed session"<<endl;
   ZStdReader zsr(uns);
   int s = zsr.getFD();
   //  time_t start = time(0);
@@ -242,7 +240,7 @@ void recvSession2(Socket&& uns, ComboAddress client, ClientKeeper::Sentinel& sen
     //  sleep(10);
     string num=SRead(s, 4);
     if(num.empty()) {
-      cerr<<"EOF from "<<client.toStringWithPort()<<endl;
+      cerr<<client.toStringWithPort()<<" EOF"<<endl;
       break;
     }
     string out="bert";
@@ -268,10 +266,9 @@ void recvSession2(Socket&& uns, ComboAddress client, ClientKeeper::Sentinel& sen
     writeToDisk(nmm.localutcseconds(), nmm.sourceid(), out);
 
     if(first) {
-      cerr<<"\tstation: "<<nmm.sourceid() << endl;
+      cerr<<client.toStringWithPort() <<" station: "<<nmm.sourceid() << endl;
       first=false;
     }
-
     
 #ifdef __linux__
     SSetsockopt(uns, IPPROTO_TCP, TCP_CORK, 1 );
@@ -287,7 +284,8 @@ void recvSession(int s, ComboAddress client)
   try {
     Socket sock(s); // this closes on destruction
     SSetsockopt(s, SOL_SOCKET, SO_KEEPALIVE, 1); // saves file descriptors
-    cerr<<"Receiving messages from "<<client.toStringWithPort()<<endl;
+    cerr<<client.toStringWithPort()<<" New connection\n";
+    cerr.flush();
     bool first=true;
 
     ClientKeeper::Sentinel sentinel=g_ckeeper.reportClient(client);
@@ -295,7 +293,7 @@ void recvSession(int s, ComboAddress client)
     for(int count=0;;++count) {
       string part=SRead(sock, 4);
       if(part.empty()) {
-        cerr<<"EOF from "<<client.toStringWithPort()<<endl;
+        cerr<<client.toStringWithPort()<<" EOF"<<endl;
         break;
       }
       if(part != "bert") {
@@ -323,7 +321,7 @@ void recvSession(int s, ComboAddress client)
       NavMonMessage nmm;
       nmm.ParseFromString(part);
       if(first) {
-        cerr<<"\tstation: "<<nmm.sourceid() << endl;
+        cerr<<client.toStringWithPort()<<" station "<<nmm.sourceid() << endl;
         first=false;
       }
       sentinel.update(nmm.sourceid(), true);
@@ -331,9 +329,9 @@ void recvSession(int s, ComboAddress client)
     }
   }
   catch(std::exception& e) {
-    cout<<"Error in receiving thread: "<<e.what()<<endl;
+    cout<<client.toStringWithPort()<<" error in receiving thread: "<<e.what()<<endl;
   }
-  cout<<"Thread for "<<client.toStringWithPort()<< " exiting"<<endl;
+  cout<<client.toStringWithPort()<< " thread exiting"<<endl;
 }
 
 void recvListener(Socket&& s, ComboAddress local)
