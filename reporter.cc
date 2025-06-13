@@ -429,7 +429,7 @@ try
   }
 
   ofstream csv("sp3.csv");
-  csv<<"timestamp gnss sv sigid zerror"<<endl;
+  csv<<"timestamp gnss sv sigid zerror clkoffset"<<endl;
 
   InfluxPusher idb(influxDBName);
 
@@ -484,7 +484,7 @@ try
           
           //        cout<<" z-error: "<<dir.inner(v);
           
-          csv << e.first << " " << id.gnss <<" " << id.sv << " " << id.sigid <<" " << dir.inner(v) << endl;
+          csv << e.first << " " << id.gnss <<" " << id.sv << " " << id.sigid <<" " << dir.inner(v) << " " << clkoffset<<endl;
           idb.addValue({{"gnssid", id.gnss}, {"sv", id.sv}, {"sp3src", sp3src}},
                        "sp3delta",
                        {{"ecef-dx", v.x}, {"ecef-dy", v.y}, {"ecef-dz", v.z}, {"sv-dz", dir.inner(v)}, {"dclock", clkoffset},
