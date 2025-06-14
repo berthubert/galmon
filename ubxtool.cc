@@ -292,9 +292,13 @@ bool sendAndWaitForUBXAckNack(int fd, int seconds, basic_string_view<uint8_t> ms
   return false;
 }
 
+static bool version9 = false;
+static bool m8t = false;
+static string hwversion = "";
+static string swversion = "";
+static string mods = "";
+static string serialno = "";
 
-
-bool version9 = false;
 void enableUBXMessageOnPort(int fd, uint8_t ubxClass, uint8_t ubxType, uint8_t port, uint8_t rate=1)
 {
   for(int n=0 ; n < 5; ++n) {
@@ -406,10 +410,133 @@ void doTermios(int fd, bool doRTSCTS)
   if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - tty set"<<endl; }
 }
 
+static int start_gpspipe()
+{
+  int fd;
+  int pipe_fd[2];
+  if (pipe(pipe_fd) < 0) {
+      if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - pipe() failed: "<<strerror(errno)<<endl; }
+      throw runtime_error("pipe()");
+  }
+  pid_t child_pid;
+  if ((child_pid = fork()) < 0) {
+      if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - fork() failed: "<<strerror(errno)<<endl; }
+      throw runtime_error("fork()");
+  } else if (child_pid == 0) {
+      /* Child doesn't need read end of pipe; but should move write to stdout (i.e. 1) */
+      close(pipe_fd[0]);
+      dup2(pipe_fd[1], 1);
+      close(pipe_fd[1]);
+      /* gpspipe -R | ./ubxtool ... */
+      execl("/usr/bin/gpspipe", "gpspipe", "-R", (char*)0);
+      // if that failes, then lets use $PATH - which wasn't the first choice
+      execlp("gpspipe", "gpspipe", "-R", (char*)0);
+      /* not reached! */
+      if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - execl() failed: "<<strerror(errno)<<endl; }
+      throw runtime_error("execl()");
+  } else {
+      /* Parent doesn't need write end of pipe */
+      close(pipe_fd[1]);
+      /* Parent returns read end of pipe */
+      fd = pipe_fd[0];
+  }
+  return fd;
+}
+
+static void process_gpspipe(const int fd)
+{
+  /*
+   * The first three lines from gpspipe are JSON lines with info on the devices etc.
+   * {"class":"VERSION","release":"3.22","rev":"3.22","proto_major":3,"proto_minor":14}
+   * {"class":"DEVICES","devices":[{"class":"DEVICE","path":"/dev/ttyS0","driver":"u-blox","subtype":"SW EXT CORE 1.00 (61b2dd),HW 00190000","subtype1":"ROM BASE 0x118B2060,FWVER=HPG 1.12,PROTVER=27.11,MOD=ZED-F9P,GPS;GLO;GAL;BDS,QZSS","activated":"2024-01-08T17:22:08.400Z","flags":1,"native":1,"bps":38400,"parity":"N","stopbits":1,"cycle":1.00,"mincycle":0.02},{"class":"DEVICE","path":"/dev/pps0","driver":"PPS","activated":"2024-01-08T17:22:08.000Z"}]}
+   * {"class":"WATCH","enable":true,"json":false,"nmea":false,"raw":2,"scaled":false,"timing":false,"split24":false,"pps":false}
+   */
+  for (int ii=0;ii<3;ii++) {
+    string line_of_json = "";
+    int count_braces = 0;
+    char buf[1];
+    while(read(fd, &buf, 1) == 1) {
+      if (buf[0] == '{') {
+        count_braces += 1;
+      } else if (buf[0] == '}') {
+        count_braces -= 1;
+      } else if (buf[0] == '\r') {
+        continue;
+      }
+      if (buf[0] == '\n' and count_braces == 0) {
+        break;
+      }
+      line_of_json += string(buf, (size_t)1);
+    }
+    if (line_of_json.find("\"class\":\"VERSION\"") != string::npos) {
+      // not used
+      continue;
+    }
+    if (line_of_json.find("\"class\":\"WATCH\"") != string::npos) {
+      // not used
+      continue;
+    }
+
+    if (doDEBUG) { cerr<<humanTimeNow()<<"  - process_gpspipe() DEVICES found: "<<line_of_json<<endl; }
+
+    /* copied from ask for version code below */
+    if (line_of_json.find("F9") != string::npos) {
+      version9=true;
+      if (doDEBUG) { cerr<<humanTimeNow()<<" version9=true;"<<endl; }
+    }
+    if (line_of_json.find("M8T") != string::npos) {
+      m8t=true;
+      if (doDEBUG) { cerr<<humanTimeNow()<<" m8t=true;"<<endl; }
+    }
+    if (line_of_json.find("MOD=") != string::npos) {
+      size_t offset;
+      offset = line_of_json.find("MOD=");
+      string m = line_of_json.substr(offset+4);
+      offset = m.find(",");
+      mods += m.substr(0, offset);
+      if (doDEBUG) { cerr<<humanTimeNow()<<" mods="<<mods<<endl; }
+    }
+    if (line_of_json.find("\"subtype\":\"") != string::npos) {
+      size_t offset;
+      string m, subtype;
+
+      offset = line_of_json.find("\"subtype\":\"");
+      m = line_of_json.substr(offset+11);
+      offset = m.find("\"");
+      subtype = m.substr(0, offset);
+      if (subtype.find("SW ") != string::npos) {
+        offset = subtype.find("SW ");
+        m = subtype.substr(offset+3);
+        offset = m.find(",");
+        swversion = m.substr(0, offset);
+      }
+      if (subtype.find("HW ") != string::npos) {
+        offset = subtype.find("HW ");
+        m = subtype.substr(offset+3);
+        offset = m.find("\"");
+        hwversion = m.substr(0, offset);
+      }
+      // we can't find the serial number; so we fake it somewhat!
+      serialno = "0000000000";
+      if (doDEBUG) { cerr<<humanTimeNow()<<" swVersion: "<<swversion<<endl; }
+      if (doDEBUG) { cerr<<humanTimeNow()<<" hwVersion: "<<hwversion<<endl; }
+      if (doDEBUG) { cerr<<humanTimeNow()<<" Serial number: "<<serialno<<endl; }
+    }
+  }
+}
+
 int initFD(const char* fname, bool doRTSCTS)
 {
   int fd;
   if (doDEBUG) { cerr<<humanTimeNow()<<" initFD()"<<endl; }
+  if (string(fname) == "gpspipe") {
+    if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - using 'gpspipe -R | ubxtool ...' command"<<endl; }
+    fd = start_gpspipe();
+    g_fromFile = true;
+    /* The first three lines are important - they tell us what the device is (and more) */
+    process_gpspipe(fd);
+    return fd;
+  }
   if (!isPresent(fname)) {
 
     if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - "<<fname<<" - not present"<<endl; }
@@ -569,9 +696,6 @@ int main(int argc, char** argv)
     exit(1);
   }
 
-  if(baudrate)
-    g_baudval = getBaudrate(baudrate);
-
   if(!(doGPS || doGalileo || doGlonass || doBeidou)) {
     cerr<<"Enable at least one of --gps, --galileo, --glonass, --beidou"<<endl;
     return EXIT_FAILURE;
@@ -592,17 +716,15 @@ int main(int argc, char** argv)
     ns.addDestination(1);
   
   int fd = initFD(portName.c_str(), doRTSCTS);
-  if(!baudrate)
-    baudrate = getBaudrateFromSymbol(g_baudval);
+  if (!g_fromFile) {
+    if(baudrate)
+      g_baudval = getBaudrate(baudrate);
+    if(!baudrate)
+      baudrate = getBaudrateFromSymbol(g_baudval);
+  }
 
   if(doFakeFix) // hack
     version9 = true;
-  bool m8t = false;
-
-  string hwversion;
-  string swversion;
-  string mods;
-  string serialno;
   
   if(!g_fromFile) {
     bool doInit = true;
@@ -1175,7 +1297,7 @@ int main(int argc, char** argv)
       if(!doFakeFix) {
         if(!g_gnssutc.tv_sec) {
           
-          if (doDEBUG) { cerr<<humanTimeNow()<<" Ignoring message with class "<<(int)msg.getClass()<< " and type "<< (int)msg.getType()<<": have not yet received a timestamp"<<endl; }
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Ignoring UBX message: "<<fmt::format("({:#04x} {:#04x})", msg.getClass(), msg.getType())<<" - have not yet received a timestamp"<<endl; }
           continue;
         }
       }
@@ -1910,8 +2032,57 @@ int main(int argc, char** argv)
         //        cerr << "TIMEGPS itow: "<<tstate.gps.itow<<", ftow: "<<tstate.gps.ftow<<", tAcc: "<<tstate.gps.tAcc<< ", valid: "<< !!tstate.gps.valid<<endl;
         tstate.transmitIfComplete(ns);
       }
-      else 
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Unknown UBX message of class "<<(int) msg.getClass() <<" and type "<< (int) msg.getType()<< " of "<<payload.size()<<" bytes"<<endl; }
+      else
+      if(msg.getClass() == 0x01 && msg.getType() == 0x04) { // UBX-NAV-DOP
+        // Dilution of precision
+        struct Dop {
+          uint32_t iTOW;
+          uint16_t gDOP, pDOP, tDOP, vDOP, hDOP, nDOP, eDOP;
+        } __attribute__((packed));
+        Dop dop;
+        memcpy(&dop, payload.c_str(), sizeof(Dop));
+        // cerr << "UBX-NAV-DOP iTOW: "<<(unsigned int)dop.iTOW<<endl;
+	// ignored!
+      }
+      else
+      if(msg.getClass() == 0x01 && msg.getType() == 0x11) { // UBX-NAV-VELECEF
+        // Velocity solution in ECEF
+        struct Vsol {
+          uint32_t iTOW;
+	  // etc ... not fully coded (not needed)
+        } __attribute__((packed));
+        Vsol vsol;
+        memcpy(&vsol, payload.c_str(), sizeof(Vsol));
+        // cerr << "UBX-NAV-VELECEF iTOW: "<<(unsigned int)vsol.iTOW<<endl;
+	// ignored!
+      }
+      else
+      if(msg.getClass() == 0x01 && msg.getType() == 0x26) { // UBX-NAV-TIMELS
+        // Leap second event information
+        struct TimeLS {
+          uint32_t iTOW;
+          uint8_t version;
+          uint8_t reserved0[3];
+	  // etc ... not fully coded (not needed)
+        } __attribute__((packed));
+        TimeLS timels;
+        memcpy(&timels, payload.c_str(), sizeof(TimeLS));
+        // cerr << "UBX-NAV-TIMELS iTOW: "<<(unsigned int)timels.iTOW<<endl;
+	// ignored!
+      }
+      else
+      if(msg.getClass() == 0x01 && msg.getType() == 0x61) { // UBX-NAV-EOE
+        // End of epoch
+        struct Eoe {
+          uint32_t iTOW;
+        } __attribute__((packed));
+        Eoe eoe;
+        memcpy(&eoe, payload.c_str(), sizeof(Eoe));
+        // cerr << "UBX-NAV-EOE iTOW: "<<(unsigned int)eoe.iTOW<<endl;
+	// ignored!
+      }
+      else
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Unknown UBX message: "<<fmt::format("({:#04x} {:#04x})", msg.getClass(), msg.getType())<<" of "<<payload.size()<<" bytes"<<endl; }
 
       //      writen2(1, payload.d_raw.c_str(),msg.d_raw.size());
     }
@@ -1919,7 +2090,10 @@ int main(int argc, char** argv)
       if (doDEBUG) { cerr<<humanTimeNow()<<" Bad UBX checksum, skipping message"<<endl; }
     }
     catch(EofException& em) {
-      break;
+      if (doDEBUG) { cerr<<humanTimeNow()<<" EofException"<<endl; }
+      // we really need to exit at this point - there's no more input to be had!
+      if (g_fromFile)
+        exit(1);
     }
   }
   cerr<<"Done after reading "<<lseek(fd, 0, SEEK_CUR)<<" bytes, flushing buffers.."<<endl;
