@@ -12,7 +12,7 @@ jobs:
     - name: deps
       run: |
         sudo apt-get update
-        sudo apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev libzstd-dev libfec-dev
+        sudo apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev libzstd-dev libfec-dev libfmt-dev
     - name: config
       run: echo WSLAY=-lwslay > Makefile.local
     - name: make
