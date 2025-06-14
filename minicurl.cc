@@ -52,7 +52,8 @@ MiniCurl::MiniCurl(const string& useragent)
 
 MiniCurl::~MiniCurl()
 {
-  // NEEDS TO CLEAN HOSTLIST
+  if(d_host_list)
+    curl_slist_free_all(d_host_list);
   curl_easy_cleanup(d_curl);
 }
 
@@ -65,7 +66,7 @@ size_t MiniCurl::write_callback(char *ptr, size_t size, size_t nmemb, void *user
 
 using namespace std;
 
-static string extractHostFromURL(const std::string& url)
+string extractHostFromURL(const std::string& url)
 {
   auto pos = url.find("://");
   if(pos == string::npos)
@@ -81,7 +82,10 @@ static string extractHostFromURL(const std::string& url)
 void MiniCurl::setupURL(const std::string& str, const ComboAddress* rem, const ComboAddress* src)
 {
   if(rem) {
-    struct curl_slist *hostlist = nullptr; // THIS SHOULD BE FREED
+    if(d_host_list) {
+      curl_slist_free_all(d_host_list);
+      d_host_list = nullptr;
+    }
 
     // url = http://hostname.enzo/url
     string host4=extractHostFromURL(str);
@@ -97,40 +101,76 @@ void MiniCurl::setupURL(const std::string& str, const ComboAddress* rem, const C
     }
 
     for (const auto& port : ports) {
-      string hcode = fmt::format("%s:%u:%s", host4 , port , rem->toString());
-      hostlist = curl_slist_append(hostlist, hcode.c_str());
+      string hcode = fmt::sprintf("%s:%u:[%s]", host4 , port , rem->toString());
+      //      fmt::print("hcode: {}\n", hcode);
+      d_host_list = curl_slist_append(d_host_list, hcode.c_str());
     }
 
-    curl_easy_setopt(d_curl, CURLOPT_RESOLVE, hostlist);
+    curl_easy_setopt(d_curl, CURLOPT_RESOLVE, d_host_list);
   }
-  if(src) {
-    curl_easy_setopt(d_curl, CURLOPT_INTERFACE, src->toString().c_str());
-  }
-  curl_easy_setopt(d_curl, CURLOPT_FOLLOWLOCATION, true);
+  // should be a setting
+  curl_easy_setopt(d_curl, CURLOPT_FOLLOWLOCATION, 1L);
   /* only allow HTTP and HTTPS */
-  curl_easy_setopt(d_curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
-  curl_easy_setopt(d_curl, CURLOPT_SSL_VERIFYPEER, false);
-  curl_easy_setopt(d_curl, CURLOPT_SSL_VERIFYHOST, false);
+  curl_easy_setopt(d_curl, CURLOPT_PROTOCOLS_STR, "http,https");
+  curl_easy_setopt(d_curl, CURLOPT_SSL_VERIFYPEER, true);
+  curl_easy_setopt(d_curl, CURLOPT_SSL_VERIFYHOST, true);
   //  curl_easy_setopt(d_curl, CURLOPT_FAILONERROR, true);
   curl_easy_setopt(d_curl, CURLOPT_URL, str.c_str());
+
   curl_easy_setopt(d_curl, CURLOPT_WRITEFUNCTION, write_callback);
   curl_easy_setopt(d_curl, CURLOPT_WRITEDATA, this);
   curl_easy_setopt(d_curl, CURLOPT_TIMEOUT, 10L);
+  curl_easy_setopt(d_curl, CURLOPT_CERTINFO, 1L);
+  curl_easy_setopt(d_curl, CURLOPT_FILETIME, 1L);
+  if(src) {
+    curl_easy_setopt(d_curl, CURLOPT_INTERFACE, src->toString().c_str());
+    // XXX report errors!!
+    //    fmt::print("Setting interface to '{}', ret {}\n", src->toString().c_str(),
+    //         ret);
+  }
 
   clearHeaders();
   d_data.clear();
 }
 
-std::string MiniCurl::getURL(const std::string& str, const ComboAddress* rem, const ComboAddress* src)
+std::string MiniCurl::getURL(const std::string& str, const bool nobody, MiniCurl::certinfo_t* ciptr, const ComboAddress* rem, const ComboAddress* src)
 {
   setupURL(str, rem, src);
+  if (nobody)
+    curl_easy_setopt(d_curl, CURLOPT_NOBODY, 1L);
   auto res = curl_easy_perform(d_curl);
-  long http_code = 0;
-  curl_easy_getinfo(d_curl, CURLINFO_RESPONSE_CODE, &http_code);
-
-  if(res != CURLE_OK || http_code != 200)  {
-    throw std::runtime_error("Unable to retrieve URL ("+std::to_string(http_code)+"): "+string(curl_easy_strerror(res)));
+  if(d_host_list) {
+    curl_slist_free_all(d_host_list);
+    d_host_list = nullptr;
   }
+  if(res != CURLE_OK)  {
+    throw std::runtime_error("Unable to retrieve URL "+str+ " - "+string(curl_easy_strerror(res)));
+  }
+
+  d_filetime=-1;
+  curl_easy_getinfo(d_curl, CURLINFO_FILETIME, &d_filetime);
+  
+  if(ciptr) {
+    struct curl_certinfo *ci;
+    res = curl_easy_getinfo(d_curl, CURLINFO_CERTINFO, &ci);
+    if(res) {
+      throw std::runtime_error(fmt::format("URL: {}, Error: {}\n", str, curl_easy_strerror(res)));
+    }
+
+    int i;
+    for(i = 0; i < ci->num_of_certs; i++) {
+      struct curl_slist *slist;
+      
+      for(slist = ci->certinfo[i]; slist; slist = slist->next) {
+        string data = slist->data;
+        if(auto pos = data.find(':'); pos != string::npos)
+          (*ciptr)[i][data.substr(0, pos)] = data.substr(pos+1);
+      }
+    }
+  }
+  d_http_code = 0;  
+  curl_easy_getinfo(d_curl, CURLINFO_RESPONSE_CODE, &d_http_code);
+  
   std::string ret=d_data;
   d_data.clear();
   return ret;

@@ -42,16 +42,23 @@ public:
   MiniCurl(const string& useragent="MiniCurl/0.0");
   ~MiniCurl();
   MiniCurl& operator=(const MiniCurl&) = delete;
-  std::string getURL(const std::string& str, const ComboAddress* rem=0, const ComboAddress* src=0);
+  typedef std::map<int, std::map<std::string, std::string>> certinfo_t;
+  std::string getURL(const std::string& str, const bool nobody=0, certinfo_t* ciptr=0, const ComboAddress* rem=0, const ComboAddress* src=0);
   std::string postURL(const std::string& str, const std::string& postdata, MiniCurlHeaders& headers);
 
   std::string urlEncode(std::string_view str);
-private:
   CURL *d_curl;
-  static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata);
+  time_t d_filetime=-1;
+  long d_http_code=-1;
+private:
   std::string d_data;
+  static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata);
+
   struct curl_slist* d_header_list = nullptr;
+  struct curl_slist *d_host_list = nullptr;
   void setupURL(const std::string& str, const ComboAddress* rem=0, const ComboAddress* src=0);
   void setHeaders(const MiniCurlHeaders& headers);
   void clearHeaders();
 };
+
+std::string extractHostFromURL(const std::string& url);
