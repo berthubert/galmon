@@ -21,8 +21,6 @@ else ifneq (,$(wildcard ubxsec.o))
 	EXTRADEP = ubxsec.o
 endif
 
-FMT=ext/fmt-9.1.0
-
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
 PROGRAMS = navparse ubxtool navnexus navcat navrecv navdump testrunner navdisplay tlecatch reporter sp3feed \
@@ -47,7 +45,7 @@ SIMPLESOCKETS=ext/powerblog/ext/simplesocket/swrappers.o ext/powerblog/ext/simpl
 
 clean:
 	rm -f *~ *.o *.d ext/*/*.o ext/*/*.d $(PROGRAMS) navmon.pb.h navmon.pb.cc $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) $(H2OPP) $(SIMPLESOCKETS)
-	rm -f ${FMT}/src/format.[do] ext/sgp4/libsgp4/*.d ext/powerblog/ext/simplesocket/*.d
+	rm -f ext/sgp4/libsgp4/*.d ext/powerblog/ext/simplesocket/*.d
 
 help2man:
 	$(INSTALL) -m 755 -d $(DESTDIR)$(prefix)/share/man/man1
@@ -75,8 +73,8 @@ download-raspbian-package:
 	echo "deb https://ota.bike/raspbian/ buster main" > /etc/apt/sources.list.d/galmon.list
 	apt-get update && apt-get install -y galmon
 
-decrypt: decrypt.o bits.o ${FMT}/src/format.o
-	$(CXX) -std=gnu++17 $^ -o $@ 
+decrypt: decrypt.o bits.o 
+	$(CXX) -std=gnu++17 $^ -o $@  -lfmt
 
 navparse: navparse.o $(H2OPP) $(SIMPLESOCKETS) minicurl.o ubx.o bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) tle.o navmon.o coverage.o osen.o trkmeas.o influxpush.o ${EXTRADEP} githash.o sbas.o rtcm.o galileo.o
 	$(CXX) -std=gnu++17 $^ -o $@ -pthread -L/usr/local/lib -L/usr/local/opt/openssl/lib/  -lh2o-evloop -lssl -lcrypto -lz  -lcurl -lprotobuf  $(WSLAY) -lfmt
@@ -97,7 +95,7 @@ galmonmon: galmonmon.o  $(SIMPLESOCKETS) minicurl.o ubx.o bits.o navmon.pb.o gps
 
 
 # rs.o fixhunter.o
-navdump: navdump.o  ${FMT}/src/os.o bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o navmon.o $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) tle.o sp3.o osen.o trkmeas.o githash.o rinex.o sbas.o rtcm.o galileo.o  ${EXTRADEP}
+navdump: navdump.o  bits.o navmon.pb.o gps.o ephemeris.o beidou.o glonass.o navmon.o $(patsubst %.cc,%.o,$(wildcard ext/sgp4/libsgp4/*.cc)) tle.o sp3.o osen.o trkmeas.o githash.o rinex.o sbas.o rtcm.o galileo.o  ${EXTRADEP}
 	$(CXX) -std=gnu++17 $^ -o $@ -L/usr/local/lib -pthread  -lprotobuf -lz  -lfmt
 # -lfec
 
