@@ -414,7 +414,7 @@ int initFD(const char* fname, bool doRTSCTS)
 
     if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - "<<fname<<" - not present"<<endl; }
     
-    throw runtime_error("Opening file "+string(fname)+": not present)";
+    throw runtime_error("Opening file "+string(fname)+": not present");
   }
   if(string(fname) != "stdin" && string(fname) != "/dev/stdin" && isCharDevice(fname)) {
     if (doDEBUG) { cerr<<humanTimeNow()<<" initFD - open("<<fname<<")"<<endl; }
