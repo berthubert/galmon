@@ -1,4 +1,5 @@
 #include "sclasses.hh"
+#include "swrappers.hh"
 #include <map>
 #include "navmon.hh"
 #include "navmon.pb.h"
@@ -87,38 +88,6 @@ static int msecLeft(const std::chrono::steady_clock::time_point& deadline)
 }
 
 
-string SReadWithDeadline(int sock, int num, const std::chrono::steady_clock::time_point& deadline)
-{
-  string ret;
-  char buffer[1024];
-  std::string::size_type leftToRead=num;
-  
-  for(; leftToRead;) {
-    auto now = chrono::steady_clock::now();
-    
-    auto msecs = chrono::duration_cast<chrono::milliseconds>(deadline-now);
-    if(msecs.count() <= 0) 
-      throw std::runtime_error("Timeout");
-
-    double toseconds = msecs.count()/1000.0;
-    int res = waitForRWData(sock, true, &toseconds); // 0 = timeout, 1 = data, -1 error
-    if(res == 0)
-      throw std::runtime_error("Timeout");
-    if(res < 0)
-      throw std::runtime_error("Reading with deadline: "+string(strerror(errno)));
-
-    auto chunk = sizeof(buffer) < leftToRead ? sizeof(buffer) : leftToRead;
-    res = read(sock, buffer, chunk);
-    if(res < 0)
-      throw std::runtime_error(fmt::sprintf("Read from socket: %s", strerror(errno)));
-    if(!res)
-      throw std::runtime_error(fmt::sprintf("Unexpected EOF"));
-    ret.append(buffer, res);
-    leftToRead -= res;
-  }
-  return ret;
-}
-
 void recvSession(ComboAddress upstream)
 {
   for(;;) {
@@ -167,7 +136,11 @@ void recvSession(ComboAddress upstream)
         if(g_inavdedup) {
           if(nmm.type() == NavMonMessage::GalileoInavType) {
             std::lock_guard<std::mutex> mut(g_mut);
-            decltype(g_seen)::key_type tup(nmm.gi().gnsssv(), nmm.gi().contents(), nmm.gi().sigid(), nmm.gi().reserved1(),nmm.gi().has_ssp() ? nmm.gi().ssp() : -1);
+            decltype(g_seen)::key_type tup(nmm.gi().gnsssv(),
+					   nmm.gi().contents(),
+					   nmm.gi().sigid(),
+					   nmm.gi().reserved1(), 
+					   nmm.gi().has_ssp() ? nmm.gi().ssp() : -1);
             
             if(!g_seen.count(tup))
               g_buffer.insert({{nmm.localutcseconds(), nmm.localutcnanoseconds()}, part});
