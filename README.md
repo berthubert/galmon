@@ -140,12 +140,12 @@ Running
 -------
 On u-blox: 
 Once compiled, run for example `./ubxtool --wait --port /dev/ttyACM0
---station 1 --stdout --galileo | ./navparse --bind [::1]:10000`
+--station 1 --stdout --galileo | ./navparse --bind [::1]:10000  --html /PATH/TO/GALMON/html/`
 
 For Septentrio, try: `nc 192.168.1.1 29000 | ./septool --station x --stdout |
-./navparse --bind [::1]:10000`, assuming your Septentrio can be reached on
-192.168.1.1.1 and you have defined an SBF stream on port 29000. For more
-details, please see below.
+./navparse --bind [::1]:10000 --html /PATH/TO/GALMON/html/`, assuming your
+Septentrio can be reached on 192.168.1.1.1 and you have defined an SBF stream
+on port 29000. For more details, please see below.
 
 Next up, browse to http://[::1]:10000 (or try http://localhost:10000/ and
 you should be in business. ubxtool changes (non-permanently) the
