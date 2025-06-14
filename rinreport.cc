@@ -80,7 +80,7 @@ auto worker(HanderOuter<string>* ho)
       cerr<<"Error processing file "<<file<<": "<<e.what()<<endl;
     }
   }
-  return std::move(stat);
+  return stat;
 }
 
 int main(int argc, char** argv)
