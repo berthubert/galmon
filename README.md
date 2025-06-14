@@ -27,7 +27,7 @@ be found [here](https://berthub.eu/galileo/The%20galmon.eu%20project.pdf).
 To deliver data to the project, please read
 [The Galmon GNSS Monitoring Project](https://berthub.eu/articles/posts/galmon-project/)
 and consult the rules outlined in [the operator
-guidelines](https://github.com/ahupowerdns/galmon/blob/master/Operator.md).
+guidelines](https://github.com/berthubert/galmon/blob/master/Operator.md).
 
 Highlights
 ----------
@@ -53,7 +53,7 @@ Highlights
 Data is made available as JSON, as a user-friendly website and as a
 time-series database. This time-series database is easily mated to the
 industry standard Matplotlib/Pandas/Jupyter combination (details 
-[here](https://github.com/ahupowerdns/galmon/blob/master/influxdb.md).
+[here](https://github.com/berthubert/galmon/blob/master/influxdb.md).
 
 There is also tooling to extract raw frames/strings/words from specific
 timeframes.
@@ -84,7 +84,7 @@ To build everything, including the webserver, try:
 ```
 apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev \
 libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev libzstd-dev g++
-git clone https://github.com/ahupowerdns/galmon.git --recursive
+git clone https://github.com/berthubert/galmon.git --recursive
 cd galmon
 make
 ```
@@ -107,7 +107,7 @@ brew install protobuf lzlib zstd h2o eigen
 
 And then:
 ```
-git clone https://github.com/ahupowerdns/galmon.git --recursive
+git clone https://github.com/berthubert/galmon.git --recursive
 cd galmon
 make
 ```
