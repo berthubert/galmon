@@ -118,6 +118,46 @@ basic_string<uint8_t> getInavFromSFRBXMsg(std::basic_string_view<uint8_t> msg,
   return inav;
 }
 
+basic_string<uint8_t> getFnavFromSFRBXMsg(std::basic_string_view<uint8_t> msg,
+                                          basic_string<uint8_t>& crc)
+{
+  // byte order adjustment
+  std::basic_string<uint8_t> payload;
+  for(unsigned int i = 0 ; i < (msg.size() - 8) / 4; ++i)
+    for(int j=1; j <= 4; ++j)
+      payload.append(1, msg[8 + (i+1) * 4 -j]);
+
+  // 
+  
+  // 214 bitsof payload
+  // 2 bits padding, 214 bits payload, 24 bits ctc
+  // 216 bits -> 27 bytes
+  unsigned char crc_buff[27]={0};
+  unsigned int i,j;
+  for (i=0,j=  2;i<27;i++,j+=8) setbitu(crc_buff,j,8,getbitu(payload.c_str()   ,i*8,8));
+
+  if (rtk_crc24q(crc_buff,27) != getbitu(payload.c_str(), 214,24)) {
+    cerr << "CRC mismatch, " << rtk_crc24q(crc_buff, 27) << " != " << getbitu(payload.c_str(), 214,24) <<endl;
+    cerr << makeHexDump(payload) << " " << (int) getbitu(payload.c_str(), 0, 6) << endl;
+    throw CRCMismatch();
+  }
+  //  cerr << "F/NAV CRC MATCHED!!"<<endl;
+  
+  crc.clear();
+  for(i=0; i < 3; ++i)
+    crc.append(1, getbitu(payload.c_str(), 214+i*8,8));
+
+  
+  std::basic_string<uint8_t> fnav;
+
+  for (i=0,j=0; i<27; i++, j+=8)
+    fnav.append(1, (unsigned char)getbitu(payload.c_str()   ,j,8));
+  
+  return fnav;
+}
+
+
+
 // XXX this should do the parity check
 basic_string<uint8_t> getGPSFromSFRBXMsg(std::basic_string_view<uint8_t> msg)
 {
