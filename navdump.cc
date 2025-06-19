@@ -736,6 +736,12 @@ try
       if(gm.wtype == 4) {
         cout <<" dtLS "<<(int)gm.dtLS <<" wnLSF "<< (unsigned int)gm.wnLSF<<" dn " << (unsigned int)gm.dn<< " dtLSF "<<(int)gm.dtLSF;
       }
+      if(gm.wtype == 5) {
+        cout <<" iodalma "<<gm.ioda <<" svid1 "<< gm.alma1.svid << " e5ahs "<<(int)gm.alma1.e5ahs << " svid2 " <<gm.alma2.svid;
+      }
+      if(gm.wtype == 6) {
+        cout <<" iodalma "<<gm.ioda <<" svid2-e5ahs " << (int)gm.alma2.e5ahs<< " svid3 "<< gm.alma3.svid << " e5ahs "<<(int)gm.alma1.e5ahs;
+      }
 
       cout<<endl;
     }
