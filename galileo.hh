@@ -123,13 +123,13 @@ struct GalileoMessage : GPSLikeEphemeris
   {
     return iodnav;
   }
-  
+  int ioda{-1}; // iod almanac
   struct Almanac
   {
     int svid{-1};
     int t0almanac, wnalmanac;
     int af0, af1;
-    int e1bhs, e5bhs;
+    int e1bhs, e5bhs, e5ahs;
 
     uint32_t e, deltaSqrtA;
     int32_t M0, Omega0, deltai, omega, Omegadot;

@@ -110,6 +110,53 @@ int GalileoMessage::parseFnav(std::basic_string_view<uint8_t> page)
     wn0g = gbum(6);
     tow = gbum(20);
   }
+  else if(wtype == 5) {  // almanac1, containing 1.5 satellites
+    ioda = gbum(4);
+    alma1.wnalmanac = gbum(2);
+    alma1.t0almanac = gbum(10);
+    alma1.svid = gbum(6);
+    alma1.deltaSqrtA = gbsm(13);
+    alma1.e = gbum(11);
+    alma1.omega = gbum(16);
+    alma1.deltai = gbum(11);
+    alma1.Omega0 = gbum(16);
+    alma1.Omegadot = gbum(11);
+    alma1.M0 = gbum(16);
+    alma1.af0 = gbsm(16);
+    alma1.af1 = gbsm(13);
+    alma1.e5ahs = gbum(2);
+
+    alma2.svid = gbum(6);
+    alma2.deltaSqrtA = gbsm(13);
+    alma2.e = gbum(11);
+    alma2.omega = gbum(16);
+    alma2.deltai = gbum(11);
+    alma2.Omega0 = gbum(4);
+    // omega02 .. is partial
+  }
+  else if(wtype == 6) { // almanac2, containing 1.5 satellites
+    ioda = gbum(4);
+    alma2.Omega0 = gbum(12); // PARTIAL, does not really work like this
+    alma2.Omegadot = gbum(11);
+    alma2.M0 = gbum(16);
+    alma2.af0 = gbsm(16);
+    alma2.af1 = gbsm(13);
+    alma2.e5ahs = gbum(2);
+
+    alma3.svid = gbum(6);
+    alma3.deltaSqrtA = gbsm(13);
+    alma3.e = gbum(11);
+    alma3.omega = gbum(16);
+    alma3.deltai = gbum(11);
+    alma3.Omega0 = gbum(4);
+    alma3.M0 = gbum(16);
+    alma3.af0 = gbsm(16);
+    alma3.af1 = gbsm(13);
+    alma3.e5ahs = gbum(2);
+  }
+
+    
+
   return wtype;
 }
 
