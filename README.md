@@ -83,7 +83,7 @@ To build everything, including the webserver, try:
 
 ```
 apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev \
-libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev libzstd-dev g++
+libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev libzstd-dev g++ libfmt-dev
 git clone https://github.com/berthubert/galmon.git --recursive
 cd galmon
 make
@@ -181,7 +181,7 @@ to stdout, add `--stdout`.
 
 Tooling:
 
- * ubxtool: can configure a u-blox 8 chipset, parses its output & will
+ * ubxtool: can configure a u-blox 8/9/10 chipset, parses its output & will
    convert it into a protbuf stream of GNSS NAV frames + metadata
    Adds 64-bit timestamps plus origin information to each message
  * septool: ingests the Septentrio binary format (SBF) and converts it to our
