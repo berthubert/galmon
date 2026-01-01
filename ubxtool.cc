@@ -295,6 +295,7 @@ bool sendAndWaitForUBXAckNack(int fd, int seconds, basic_string_view<uint8_t> ms
 
 
 bool version9 = false;
+bool version10 = false;
 void enableUBXMessageOnPort(int fd, uint8_t ubxClass, uint8_t ubxType, uint8_t port, uint8_t rate=1)
 {
   for(int n=0 ; n < 5; ++n) {
@@ -603,6 +604,63 @@ int main(int argc, char** argv)
   string swversion;
   string mods;
   string serialno;
+
+  auto doRcvrStatPoll = [&]() {
+    //	UBX-MON-RCVRSTAT
+    auto msg = buildUbxMessage(0x0a, 0x40, {});
+    
+    auto um1=sendAndWaitForUBX(fd, 1, msg, 0x0a, 0x40); 
+    const auto rstat = um1.getPayload();
+
+    uint32_t brate =getbitu(rstat.c_str(), 40*8, 32);
+    cerr<< "baud rate " << brate << " " << htonl(brate)<< " bitu " <<getbitu((uint8_t*)&brate, 31-19, 20)<<endl;
+
+    auto isOn = [&rstat](int byte, int bit, const char* name, int width=4) {
+      int comp = 8*width - 1;
+      cerr<<name<<": ";
+      uint32_t val = getbitu((const unsigned char*)rstat.c_str(), byte*8, width*8);
+      if(getbitu((const unsigned char*)&val, comp - bit, 1))
+	cerr << "ON ";
+      else
+	cerr << "OFF ";
+      cerr << "src " << (int) getbitu((const unsigned char*)&val, comp - bit - 3, 3) << endl;
+    };
+    isOn(1,  0, "SBAS", 1);
+    isOn(1,  4, "SBAS L1 C/A", 1);
+    isOn(2,  0, "NAVIC", 1);
+    isOn(2,  4, "NAVIC L5",1);
+    
+    isOn(4, 0, "GPS");
+    isOn(4, 4, "GPS L1 C/A");
+    isOn(4, 8, "GPS L1C");
+    isOn(4, 12, "GPS L2C");
+    isOn(4, 16, "GPS L5");
+
+    isOn(8, 0, "Galileo");
+    isOn(8, 4, "Galileo E1");
+    isOn(8, 8, "Galileo E5a");
+    isOn(8, 12, "Galileo E5b");
+    isOn(8, 16, "Galileo E6");
+
+    isOn(12, 0, "QZSS");
+    isOn(12, 4, "QZSS L1 C/A");
+    isOn(12, 8, "QZSS L1C");
+    isOn(12, 12, "QZSS L1S");
+    isOn(12, 16, "QZSS L2C");
+    isOn(12, 20, "QZSS L5");
+
+    isOn(16, 0, "BeiDou");
+    isOn(16, 4, "BeiDou B1I");
+    isOn(16, 8, "BeiDou B1C");
+    isOn(16, 12, "BeiDou B2");
+    isOn(16, 16, "BeiDou B2A");
+
+
+    isOn(20, 0, "GLONASS");
+    isOn(20, 4, "GLONASS L1");
+    isOn(20, 8, "GLONASS L2");
+    isOn(20, 12, "GLONASS L3");
+  };
   
   if(!g_fromFile) {
     bool doInit = true;
@@ -635,7 +693,7 @@ int main(int argc, char** argv)
         }
       }
 
-
+      
       msg = buildUbxMessage(0x0a, 0x04, {});
 
       if (doDEBUG) { cerr<<humanTimeNow()<<" Sending version query"<<endl; }
@@ -649,8 +707,13 @@ int main(int argc, char** argv)
         string line = (const char*)um1.getPayload().c_str() + 40 +30*n;
         cerr<<humanTimeNow()<<" Extended info: "<<line <<endl;
         
-        if(line.find("F9") != string::npos)
+        if(line.find("F9") != string::npos) 
           version9=true;
+
+
+	// https://content.u-blox.com/sites/default/files/documents/u-blox-F10-SPG-6.00_InterfaceDescription_UBX-23002975.pdf?utm_content=UBX-23002975
+        if(line.find("F10") != string::npos) 
+          version10=true;
 
         if(line.find("M8T") != string::npos) {
           m8t=true;
@@ -673,26 +736,33 @@ int main(int argc, char** argv)
       if(version9)
         cerr<<humanTimeNow()<<" Detected version U-Blox 9"<<endl;
       usleep(50000);
+
+      
       if (doDEBUG) { cerr<<humanTimeNow()<<" Sending GNSS query"<<endl; }
-      msg = buildUbxMessage(0x06, 0x3e, {});
-
-      um1=sendAndWaitForUBX(fd, 1, msg, 0x06, 0x3e); // query GNSS
-      auto payload = um1.getPayload();
-      if (doDEBUG) {
-        cerr<<humanTimeNow()<<" GNSS status, got " << (int)payload[3]<<" rows:"<<endl;
-        for(uint8_t n = 0 ; n < payload[3]; ++n) {
-          cerr<<humanTimeNow()<<" GNSSID "<<(int)payload[4+8*n]<<" enabled "<<(int)payload[8+8*n]<<" minTrk "<< (int)payload[5+8*n] <<" maxTrk "<<(int)payload[6+8*n]<<" " << (int)payload[8+8*n]<<" " << (int)payload[9+8*n] << " " <<" " << (int)payload[10+8*n]<<" " << (int)payload[11+8*n]<<endl;
-        }
+      if(version10)
+	; // 
+      else {
+	msg = buildUbxMessage(0x06, 0x3e, {});
+	  
+	um1=sendAndWaitForUBX(fd, 1, msg, 0x06, 0x3e); // query GNSS
+	auto payload = um1.getPayload();
+	if (doDEBUG) {
+	  cerr<<humanTimeNow()<<" GNSS status, got " << (int)payload[3]<<" rows:"<<endl;
+	  for(uint8_t n = 0 ; n < payload[3]; ++n) {
+	    cerr<<humanTimeNow()<<" GNSSID "<<(int)payload[4+8*n]<<" enabled "<<(int)payload[8+8*n]<<" minTrk "<< (int)payload[5+8*n] <<" maxTrk "<<(int)payload[6+8*n]<<" " << (int)payload[8+8*n]<<" " << (int)payload[9+8*n] << " " <<" " << (int)payload[10+8*n]<<" " << (int)payload[11+8*n]<<endl;
+	  }
+	}
       }
-
+      
       try {
-      if(waitForUBXAckNack(fd, 2, 0x06, 0x3e)) {
-        if (doDEBUG) { cerr<<humanTimeNow()<<" Got ACK for our poll of GNSS settings"<<endl; }
-      }
+	if(waitForUBXAckNack(fd, 2, 0x06, 0x3e)) {
+	  if (doDEBUG) { cerr<<humanTimeNow()<<" Got ACK for our poll of GNSS settings"<<endl; }
+	}
       }catch(...) {
         cerr<<"Got timeout waiting for ack of poll, no problem"<<endl;
       }
-      if(!version9) {
+      
+      if(!version9 && !version10) {
         //                                  ver   RO   maxch cfgs
         msg = buildUbxMessage(0x06, 0x3e, {0x00, 0x00, 0xff, 0x06,
               //                            GPS   min  max   res   x1         x2    x3,   x4
@@ -721,7 +791,7 @@ int main(int argc, char** argv)
           exit(-1);
         }
       }
-      else { // UBX-CFG-VALSET
+      else if(version9) { // UBX-CFG-VALSET
         //                                 vers  ram   res   res    
         msg = buildUbxMessage(0x06, 0x8a, {0x00, 0x01, 0x00, 0x00,
               0x1f,0x00,0x31,0x10, doGPS,   // 
@@ -734,7 +804,8 @@ int main(int argc, char** argv)
 
               0x22,0x00,0x31,0x10, doBeidou,
               0x0d,0x00,0x31,0x10, doBeidou,
-              0x0e,0x00,0x31,0x10, doBeidou,
+              0x0f,0x00,0x31,0x10, doBeidou,
+	      0x28,0x00,0x31,0x10, doBeidou,
 
               0x25,0x00,0x31,0x10, doGlonass,
               0x18,0x00,0x31,0x10, doGlonass,
@@ -765,6 +836,57 @@ int main(int argc, char** argv)
           exit(-1);
         }
       }
+      else if(version10) {
+	//                                 vers  lay   tra   res    
+	msg = buildUbxMessage(0x06, 0x8a, {0x00, 0x01, 0x00, 0x00,
+					   0x1f,0x00,0x31,0x10, doGPS,   // 0x1031001f
+					   0x01,0x00,0x31,0x10, doGPS,
+					   0x04,0x00,0x31,0x10, doGPS,  // 0x10310004
+
+              0x21,0x00,0x31,0x10, doGalileo,
+              0x07,0x00,0x31,0x10, doGalileo,
+              0x09,0x00,0x31,0x10, doGalileo,  // e5a
+	      
+	      0x20,0x00,0x31,0x10, 0, //SBAS
+
+              0x22,0x00,0x31,0x10, doBeidou, // main
+              0x0d,0x00,0x31,0x10, 0, // B1I 
+              0x0f,0x00,0x31,0x10, doBeidou, // B1C <- F10
+	      0x28,0x00,0x31,0x10, doBeidou  // B2A <- F10
+              });
+
+        if (doDEBUG) { cerr<<humanTimeNow()<<" Sending F10 GNSS setting, GPS: "<<doGPS<<", Galileo: "<<doGalileo<<", BeiDou: "<<doBeidou<< ", GLONASS: "<<doGlonass<<", SBAS: "<<doSBAS<<endl; }
+        
+        if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, 0x8a)) { // GNSS setting, F10 stylee
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on F10 GNSS setting"<<endl; }
+        }
+        else {
+          cerr<<humanTimeNow()<<" Got nack on F10 GNSS setting"<<endl;
+          exit(-1);
+        }
+        /* VALSET
+        0x20 91 02 32 = 
+        */
+
+	// why not 0x10740001 - Flag to indicate if UBX should be an output protocol on UART1
+	
+	usleep(750000); // required according to the doc
+
+	doRcvrStatPoll();
+	
+        msg = buildUbxMessage(0x06, 0x8a, {0x00, 0x01, 0x00, 0x00,
+	   0x07, 0x00, 0x91, 0x20, 1, // Output rate of the UBX-NAV-PVT message on port UART1
+           0x32, 0x02, 0x91, 0x20, 10} // Output rate of the UBX-RXM-SFRBX message on port UART1
+	);
+        if(sendAndWaitForUBXAckNack(fd, 2, msg, 0x06, 0x8a)) { // msg cfg F10
+          if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on F10 UART1 setting"<<endl; }
+        }
+        else {
+          cerr<<humanTimeNow()<<" Got nack on F10 UART1 setting"<<endl;
+          exit(-1);
+        }
+      }
+	      
       if(m8t) {
         cerr<<humanTimeNow()<<" Sending TMODE2 status query"<<endl;
         msg = buildUbxMessage(0x06, 0x3d, {});      
@@ -906,6 +1028,7 @@ int main(int argc, char** argv)
           }
         }
       }
+      if(!version10) {
       if (doDEBUG) { cerr<<humanTimeNow()<<" Polling port settings"<<endl; } // UBX-CFG-PRT, 0x03 == USB
       msg = buildUbxMessage(0x06, 0x00, {(unsigned char)(ubxport)});
       
@@ -923,7 +1046,7 @@ int main(int argc, char** argv)
       }catch(...) {
         cerr<<"Got timeout waiting for ack of port protocol poll, no problem"<<endl;
       }
-
+      }
 
       if(mods.find("NEO-M8P") ==string::npos) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RLM"<<endl; } // SAR
@@ -943,7 +1066,7 @@ int main(int argc, char** argv)
         enableUBXMessageOnPort(fd, 0x0d, 0x04, ubxport, 2);       
       }
 
-      if(mods.find("NEO-M9N") == string::npos) {
+      if(mods.find("NEO-M9N") == string::npos && !version10) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-RXM-RAWX"<<endl; } // RF doppler
         enableUBXMessageOnPort(fd, 0x02, 0x15, ubxport, 8); // RXM-RAWX
       }
@@ -955,8 +1078,10 @@ int main(int argc, char** argv)
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling/disabling UBX-NAV-TIMEGPS"<<endl; } // GPS time solution
         enableUBXMessageOnPort(fd, 0x01, 0x20, ubxport, doGPS ? 16 : 0); // UBX-NAV-TIMEGPS
 
+	if(!version10) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling/disabling "<< doGlonass<< " UBX-NAV-TIMEGLO"<<endl; } // GLONASS time solution
         enableUBXMessageOnPort(fd, 0x01, 0x23, ubxport, doGlonass ? 16 : 0); // UBX-NAV-TIMEGLO
+	}
 	
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling/disabling UBX-NAV-TIMEBDS"<<endl; } // Beidou time solution
         enableUBXMessageOnPort(fd, 0x01, 0x24, ubxport, doBeidou ? 16 : 0); // UBX-NAV-TIMEBDS
@@ -980,7 +1105,7 @@ int main(int argc, char** argv)
       if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-POSECEF"<<endl; } // position
       enableUBXMessageOnPort(fd, 0x01, 0x01, ubxport, 8); // POSECEF
 
-      if(version9)  {
+      if(version9 || version10)  {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Enabling UBX-NAV-SIG"<<endl; }  // satellite reception details
         enableUBXMessageOnPort(fd, 0x01, 0x43, ubxport, 8); // NAV-SIG
         /*
@@ -1111,6 +1236,7 @@ int main(int argc, char** argv)
   for(;;) {
     try {
       auto [msg, timestamp] = getUBXMessage(fd, nullptr);
+      //      cerr<<"Got something "<< (unsigned int) msg.getClass() <<" " << (unsigned int)msg.getType() << endl;
       (void)timestamp;
       auto payload = msg.getPayload();
 
@@ -1321,9 +1447,10 @@ int main(int argc, char** argv)
         try {
           pair<int,int> id = make_pair(payload[0], payload[1]);
           int sigid = payload[2];
+
           static set<tuple<int,int,int>> svseen;
           static time_t lastStat;
-          svseen.insert({id.first, id.second, payload[2]});
+          svseen.insert({id.first, id.second, sigid});
 
           if(time(0)- lastStat > 30) {
             cerr<<humanTimeNow()<<" src "<<g_srcid<< " (fix: "<<g_fixtype<<") currently receiving: ";
@@ -1361,7 +1488,7 @@ int main(int argc, char** argv)
             ns.emitNMM( nmm);
             continue;
           }
-          if(id.first == 0 && sigid) { // new GPS
+          else if(id.first == 0 && sigid) { // new GPS
             auto cnav = getGPSFromSFRBXMsg(payload);
             static int wn, tow;
 
@@ -1391,7 +1518,53 @@ int main(int argc, char** argv)
           else if(id.first ==2) { // GALILEO
             basic_string<uint8_t> reserved1, reserved2, sar, spare, crc;
             uint8_t ssp;
-            auto inav = getInavFromSFRBXMsg(payload, reserved1, reserved2, sar, spare, crc, &ssp);  
+
+	    if(sigid == 3) { // F/NAV
+	      auto fnav = getFnavFromSFRBXMsg(payload, crc);
+	      GalileoMessage gm;
+	      struct Entry {
+		time_t when{-1};
+		GalileoMessage gm;
+	      };
+	      static map<int,Entry> last4;
+	      // sequence is 1, 2, 3, 4, 5/6
+	      // 5 and 6 have no WN or TOW, but will be +10 from 4 or +20 from last 3
+	      
+	      gm.parseFnav(fnav);
+	      if(gm.wtype == 4)
+		last4[id.second]={g_gnssutc.tv_sec, gm};
+	      else if(gm.wtype == 5 || gm.wtype==6) {
+		if(g_gnssutc.tv_sec - last4[id.second].when < 15) {
+		  gm.tow = last4[id.second].when + 10;
+		  //		  cerr<<"Fixed up tow for wtype "<<(int)gm.wtype<<" based on last wtype 4 from " << g_gnssutc.tv_sec - last4[id.second].when << " seconds ago\n";
+		}
+		else {
+		  // cerr<<"Could NOT fix up tow for wtype "<<(int)gm.wtype<<" based on last wtype 4 from " << g_gnssutc.tv_sec - last4[id.second].when << " seconds ago\n";
+
+		  continue;
+		}
+	      }
+	      
+	      NavMonMessage nmm;
+	      nmm.set_sourceid(g_srcid);
+	      nmm.set_type(NavMonMessage::GalileoFnavType);
+	      nmm.set_localutcseconds(g_gnssutc.tv_sec);
+	      nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
+	      
+	      nmm.mutable_gf()->set_gnsswn(g_galwn);
+            
+	      nmm.mutable_gf()->set_gnsstow(gm.tow);
+	      nmm.mutable_gf()->set_gnssid(id.first);
+	      nmm.mutable_gf()->set_gnsssv(id.second);
+	      nmm.mutable_gf()->set_sigid(6); // ubx calls it 3, but we previously picked 6 for E5a
+	      nmm.mutable_gf()->set_contents((const char*)&fnav[0], fnav.size());
+	      
+	      ns.emitNMM( nmm);
+	      continue;
+	    }
+	    // I/NAV from hereon
+	    
+	    auto inav = getInavFromSFRBXMsg(payload, reserved1, reserved2, sar, spare, crc, &ssp);  
             unsigned int wtype = getbitu(&inav[0], 0, 6);
 
             uint32_t satTOW;
@@ -1497,48 +1670,55 @@ int main(int argc, char** argv)
             ns.emitNMM( nmm);
           }
           else if(id.first==3) {
-            auto gstr = getGlonassFromSFRBXMsg(payload);
-            auto cond = getCondensedBeidouMessage(gstr);
-            static map<int, BeidouMessage> bms;
-            auto& bm = bms[id.second];
-            
-            uint8_t pageno;
-            bm.parse(cond, &pageno);
-            
-            if(bm.wn < 0) {
-              if (doDEBUG) { cerr<<humanTimeNow()<<" BeiDou C"<<id.second<<" WN not yet known, not yet emitting message"<<endl; }
-              continue;
-            }
-            NavMonMessage nmm;
-            nmm.set_localutcseconds(g_gnssutc.tv_sec);
-            nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
-            nmm.set_sourceid(g_srcid);
-            if(id.second > 5) {
-              // this **HARDCODES** that C01,02,03,04,05 emit D2 messages!            
-              nmm.set_type(NavMonMessage::BeidouInavTypeD1);
-              nmm.mutable_bid1()->set_gnsswn(bm.wn);  // only sent in word 1!!
-              nmm.mutable_bid1()->set_gnsstow(bm.sow); 
-              nmm.mutable_bid1()->set_gnssid(id.first);
-              nmm.mutable_bid1()->set_gnsssv(id.second);
-              nmm.mutable_bid1()->set_sigid(sigid);              
-              nmm.mutable_bid1()->set_contents(string((char*)gstr.c_str(), gstr.size()));
-              ns.emitNMM( nmm);
-            }
-            else {
-              // not sending this: we can't even get the week number right!
-              /*
-              nmm.set_type(NavMonMessage::BeidouInavTypeD2);
-              nmm.mutable_bid2()->set_gnsswn(bm.wn);  
-              nmm.mutable_bid2()->set_gnsstow(bm.sow); 
-              nmm.mutable_bid2()->set_gnssid(id.first);
-              nmm.mutable_bid2()->set_gnsssv(id.second);
-              nmm.mutable_bid2()->set_sigid(sigid);              
-              nmm.mutable_bid2()->set_contents(string((char*)gstr.c_str(), gstr.size()));
-              */
-              
-            }
-
-            continue;
+	    try {
+	      if(version10 && sigid==8)
+		continue;
+	      
+	      auto gstr = getGlonassFromSFRBXMsg(payload);
+	      auto cond = getCondensedBeidouMessage(gstr);
+	      static map<int, BeidouMessage> bms;
+	      auto& bm = bms[id.second];
+	      
+	      uint8_t pageno;
+	      bm.parse(cond, &pageno);
+	      
+	      if(bm.wn < 0) {
+		if (doDEBUG) { cerr<<humanTimeNow()<<" BeiDou C"<<id.second<<" WN not yet known, not yet emitting message"<<endl; }
+		continue;
+	      }
+	      NavMonMessage nmm;
+	      nmm.set_localutcseconds(g_gnssutc.tv_sec);
+	      nmm.set_localutcnanoseconds(g_gnssutc.tv_nsec);
+	      nmm.set_sourceid(g_srcid);
+	      if(id.second > 5) {
+		// this **HARDCODES** that C01,02,03,04,05 emit D2 messages!            
+		nmm.set_type(NavMonMessage::BeidouInavTypeD1);
+		nmm.mutable_bid1()->set_gnsswn(bm.wn);  // only sent in word 1!!
+		nmm.mutable_bid1()->set_gnsstow(bm.sow); 
+		nmm.mutable_bid1()->set_gnssid(id.first);
+		nmm.mutable_bid1()->set_gnsssv(id.second);
+		nmm.mutable_bid1()->set_sigid(sigid);              
+		nmm.mutable_bid1()->set_contents(string((char*)gstr.c_str(), gstr.size()));
+		ns.emitNMM( nmm);
+	      }
+	      else {
+		// not sending this: we can't even get the week number right!
+		/*
+		  nmm.set_type(NavMonMessage::BeidouInavTypeD2);
+		  nmm.mutable_bid2()->set_gnsswn(bm.wn);  
+		  nmm.mutable_bid2()->set_gnsstow(bm.sow); 
+		  nmm.mutable_bid2()->set_gnssid(id.first);
+		  nmm.mutable_bid2()->set_gnsssv(id.second);
+		  nmm.mutable_bid2()->set_sigid(sigid);              
+		  nmm.mutable_bid2()->set_contents(string((char*)gstr.c_str(), gstr.size()));
+		*/
+		
+	      }
+	    }
+	    catch(std::exception& e) {
+	      cerr<<"Failure to parse BeiDou message (sigid="<<sigid<<"): "<<e.what() << endl;
+	    }
+	    continue;
           }
           else if(id.first==6) {
             //            if (doDEBUG) { cerr<<humanTimeNow()<<" SFRBX from GLONASS "<<id.second<<" @ frequency "<<(int)payload[3]<<", msg of "<<(int)payload[4]<< " words"<<endl; }
@@ -1648,12 +1828,15 @@ int main(int argc, char** argv)
           memcpy(&sigflags, &payload[18+16*n], 2);
           int sigid = 0;
 
-          if(version9) { // we only use this on version9 right now tho
+          if(version9 || version10) { // we only use this on version9 right now tho
             sigid = payload[10+16*n];
             if(gnssid == 2 && sigid ==6)  // they separate out I and Q, but the rest of UBX doesn't
               sigid = 5;                  // so map it back
             if(gnssid == 2 && sigid ==0)  
               sigid = 1;
+	    if(gnssid == 2 && sigid == 4)  // map E5a
+              sigid = 6;
+
             if(gnssid ==0) {
               if(sigid==3)  // L2C is sent as '4' and '3', but the '4' numbers here are bogus
                 sigid=4;    // if we see 3,  use it, and change number to 4 to be consistent
