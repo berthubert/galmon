@@ -55,7 +55,7 @@ set<int> g_bsset;
 // this means each Galileo message will only get set once
 map<tuple<uint32_t, std::string, uint32_t, std::string, int16_t>, time_t> g_seen;
 
-bool g_inavdedup{false};
+bool g_inavdedup{false}, g_gpsdedup{false};
 
 /* Goal: do a number of TCP operations that have a combined timeout.
    maybe some helper:
@@ -134,20 +134,36 @@ void recvSession(ComboAddress upstream)
 	   continue;
 	
         if(g_inavdedup) {
-          if(nmm.type() == NavMonMessage::GalileoInavType) {
-            std::lock_guard<std::mutex> mut(g_mut);
-            decltype(g_seen)::key_type tup(nmm.gi().gnsssv(),
+	  if(nmm.type() == NavMonMessage::GalileoInavType) {
+	    std::lock_guard<std::mutex> mut(g_mut);
+	    decltype(g_seen)::key_type tup(nmm.gi().gnsssv(),
 					   nmm.gi().contents(),
 					   nmm.gi().sigid(),
 					   nmm.gi().reserved1(), 
 					   nmm.gi().has_ssp() ? nmm.gi().ssp() : -1);
-            
-            if(!g_seen.count(tup))
-              g_buffer.insert({{nmm.localutcseconds(), nmm.localutcnanoseconds()}, part});
-            g_seen[tup]=time(0);
-          }
-        }
-        else {
+	    
+	    if(!g_seen.count(tup))
+	      g_buffer.insert({{nmm.localutcseconds(), nmm.localutcnanoseconds()}, part});
+	    g_seen[tup]=time(0);
+	  }
+	}
+	
+	if(g_gpsdedup) {
+	  if(nmm.type() == NavMonMessage::GPSInavType) {
+	    std::lock_guard<std::mutex> mut(g_mut);
+	    decltype(g_seen)::key_type tup(nmm.gpsi().gnsssv(),
+					   nmm.gpsi().contents(),
+					   nmm.gpsi().sigid(),
+					   "", 
+					   0);
+	    
+	    if(!g_seen.count(tup))
+	      g_buffer.insert({{nmm.localutcseconds(), nmm.localutcnanoseconds()}, part});
+	    g_seen[tup]=time(0);
+	  }
+	}
+	  
+        if(!g_gpsdedup && !g_inavdedup) {
           std::lock_guard<std::mutex> mut(g_mut);
           g_buffer.insert({{nmm.localutcseconds(), nmm.localutcnanoseconds()}, part});
         }
@@ -187,7 +203,8 @@ int main(int argc, char** argv)
   app.add_option("--destination,-d", destinations, "Send output to this IPv4/v6 address");
   app.add_option("--drop-stations", badstations, "Drop these station numbers");
   app.add_option("--listener,-l", listeners, "Make data available on this IPv4/v6 address");
-  app.add_flag("--inavdedup", g_inavdedup, "Only pass on Galileo I/NAV, and dedeup");  
+  app.add_flag("--inavdedup", g_inavdedup, "Only pass on Galileo I/NAV, and dedeup");
+  app.add_flag("--gpsdedup", g_gpsdedup, "Only pass on GPS, and dedeup");  
   app.add_flag("--version", doVERSION, "show program version and copyright");
   app.add_flag("--stdout", doSTDOUT, "Emit output to stdout");
 
