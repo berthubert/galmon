@@ -738,12 +738,11 @@ int main(int argc, char** argv)
       usleep(50000);
 
       
-      if (doDEBUG) { cerr<<humanTimeNow()<<" Sending GNSS query"<<endl; }
-      if(version10)
-	; // 
-      else {
+      if(!version10) {
+	if (doDEBUG) { cerr<<humanTimeNow()<<" Sending GNSS query"<<endl; }
+
 	msg = buildUbxMessage(0x06, 0x3e, {});
-	  
+	
 	um1=sendAndWaitForUBX(fd, 1, msg, 0x06, 0x3e); // query GNSS
 	auto payload = um1.getPayload();
 	if (doDEBUG) {
@@ -752,14 +751,14 @@ int main(int argc, char** argv)
 	    cerr<<humanTimeNow()<<" GNSSID "<<(int)payload[4+8*n]<<" enabled "<<(int)payload[8+8*n]<<" minTrk "<< (int)payload[5+8*n] <<" maxTrk "<<(int)payload[6+8*n]<<" " << (int)payload[8+8*n]<<" " << (int)payload[9+8*n] << " " <<" " << (int)payload[10+8*n]<<" " << (int)payload[11+8*n]<<endl;
 	  }
 	}
-      }
-      
-      try {
-	if(waitForUBXAckNack(fd, 2, 0x06, 0x3e)) {
-	  if (doDEBUG) { cerr<<humanTimeNow()<<" Got ACK for our poll of GNSS settings"<<endl; }
+	
+	try {
+	  if(waitForUBXAckNack(fd, 2, 0x06, 0x3e)) {
+	    if (doDEBUG) { cerr<<humanTimeNow()<<" Got ACK for our poll of GNSS settings"<<endl; }
+	  }
+	}catch(...) {
+	  cerr<<"Got timeout waiting for ack of poll, no problem"<<endl;
 	}
-      }catch(...) {
-        cerr<<"Got timeout waiting for ack of poll, no problem"<<endl;
       }
       
       if(!version9 && !version10) {
