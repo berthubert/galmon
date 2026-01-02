@@ -870,7 +870,7 @@ int main(int argc, char** argv)
 	// why not 0x10740001 - Flag to indicate if UBX should be an output protocol on UART1
 	
 	usleep(750000); // required according to the doc
-
+	
 	doRcvrStatPoll();
 	
         msg = buildUbxMessage(0x06, 0x8a, {0x00, 0x01, 0x00, 0x00,
@@ -1827,7 +1827,7 @@ int main(int argc, char** argv)
           memcpy(&sigflags, &payload[18+16*n], 2);
           int sigid = 0;
 
-          if(version9 || version10) { // we only use this on version9 right now tho
+          if(version9 || version10) { // we only use this on versions 9 and 10 right now tho
             sigid = payload[10+16*n];
             if(gnssid == 2 && sigid ==6)  // they separate out I and Q, but the rest of UBX doesn't
               sigid = 5;                  // so map it back
