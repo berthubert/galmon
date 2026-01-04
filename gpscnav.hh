@@ -1,6 +1,7 @@
 #pragma once
 #include <bitset>
 #include <string>
+#include <vector>
 #include <map>
 #include "bits.hh"
 #include <iostream>
@@ -185,7 +186,7 @@ std::pair<double, double> getGPSCNavUTCOffset(int tow, int wn, const T& eph)
 
 
 template<typename T>
-int parseGPSCNavMessage(std::basic_string_view<uint8_t> msg, T& out)
+int parseGPSCNavMessage(const std::vector<uint8_t>& msg, T& out)
 {
   using namespace std;
   int type = getbitu(&msg[0], 14, 6);

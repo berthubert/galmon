@@ -6,7 +6,7 @@
 #include "navmon.hh"
 
 using namespace std;
-uint16_t calcUbxChecksum(uint8_t ubxClass, uint8_t ubxType, std::basic_string_view<uint8_t> str)
+uint16_t calcUbxChecksum(uint8_t ubxClass, uint8_t ubxType, const std::vector<uint8_t>& str)
 {
   uint8_t CK_A = 0, CK_B = 0;
 
@@ -25,33 +25,33 @@ uint16_t calcUbxChecksum(uint8_t ubxClass, uint8_t ubxType, std::basic_string_vi
   return (CK_B << 8) + CK_A;
 }
 
-std::basic_string<uint8_t> buildUbxMessage(uint8_t ubxClass, uint8_t ubxType, const std::initializer_list<uint8_t>& lst)
+std::vector<uint8_t> buildUbxMessage(uint8_t ubxClass, uint8_t ubxType, const std::initializer_list<uint8_t>& lst)
 {
-  std::basic_string<uint8_t> str;
+  std::vector<uint8_t> str;
   for(const auto& a : lst)
-    str.append(1, a);
+    str.push_back(a);
   return buildUbxMessage(ubxClass, ubxType, str);
 }
 
-std::basic_string<uint8_t> buildUbxMessage(uint8_t ubxClass, uint8_t ubxType, std::basic_string_view<uint8_t> str)
+std::vector<uint8_t> buildUbxMessage(uint8_t ubxClass, uint8_t ubxType, const std::vector<uint8_t>& str)
 {
   // 0xb5 0x62 class id len1 len2 payload cka ckb
 
-  std::basic_string<uint8_t> msg;
-  msg.append(1, 0xb5);
-  msg.append(1, 0x62);
-  msg.append(1, ubxClass); // CFG
-  msg.append(1, ubxType); // MSG
-  msg.append(1, str.size()); // len1
-  msg.append(1, str.size()/256); // len2
+  std::vector<uint8_t> msg;
+  msg.push_back(0xb5);
+  msg.push_back(0x62);
+  msg.push_back(ubxClass); // CFG
+  msg.push_back(ubxType); // MSG
+  msg.push_back(str.size()); // len1
+  msg.push_back(str.size()/256); // len2
   
   for(unsigned int n= 0 ; n < str.size(); ++n)
-    msg.append(1, str[n]); 
+    msg.push_back(str[n]); 
 
-  uint16_t csum = calcUbxChecksum(ubxClass, ubxType, msg.substr(6));
+  uint16_t csum = calcUbxChecksum(ubxClass, ubxType, {msg.cbegin() + 6, msg.cend()});
 
-  msg.append(1, csum&0xff);
-  msg.append(1, csum>>8);
+  msg.push_back(csum&0xff);
+  msg.push_back(csum>>8);
   /*
   for(const auto& c : msg) {
     fmt::fprintf(stderr, "%02x ", (int)c);
@@ -61,71 +61,71 @@ std::basic_string<uint8_t> buildUbxMessage(uint8_t ubxClass, uint8_t ubxType, st
   return msg;
 }
 
-basic_string<uint8_t> getInavFromSFRBXMsg(std::basic_string_view<uint8_t> msg,
-                                          basic_string<uint8_t>& reserved1,
-                                          basic_string<uint8_t>& reserved2,
-                                          basic_string<uint8_t>& sar,
-                                          basic_string<uint8_t>& spare,
-                                          basic_string<uint8_t>& crc, uint8_t* ssp)
+vector<uint8_t> getInavFromSFRBXMsg(const std::vector<uint8_t>& msg,
+                                          vector<uint8_t>& reserved1,
+                                          vector<uint8_t>& reserved2,
+                                          vector<uint8_t>& sar,
+                                          vector<uint8_t>& spare,
+                                          vector<uint8_t>& crc, uint8_t* ssp)
 {
   // byte order adjustment
-  std::basic_string<uint8_t> payload;
+  std::vector<uint8_t> payload;
   for(unsigned int i = 0 ; i < (msg.size() - 8) / 4; ++i)
     for(int j=1; j <= 4; ++j)
-      payload.append(1, msg[8 + (i+1) * 4 -j]);
+      payload.push_back(msg[8 + (i+1) * 4 -j]);
 
   /* test crc (4(pad) + 114 + 82 bits) */
   unsigned char crc_buff[26]={0};
   unsigned int i,j;
-  for (i=0,j=  4;i<15;i++,j+=8) setbitu(crc_buff,j,8,getbitu(payload.c_str()   ,i*8,8));
-  for (i=0,j=118;i<11;i++,j+=8) setbitu(crc_buff,j,8,getbitu(payload.c_str()+16,i*8,8));
-  if (rtk_crc24q(crc_buff,25) != getbitu(payload.c_str()+16,82,24)) {
-    cerr << "CRC mismatch, " << rtk_crc24q(crc_buff, 25) << " != " << getbitu(payload.c_str()+16,82,24) <<endl;
+  for (i=0,j=  4;i<15;i++,j+=8) setbitu(crc_buff,j,8,getbitu(&*payload.cbegin()   ,i*8,8));
+  for (i=0,j=118;i<11;i++,j+=8) setbitu(crc_buff,j,8,getbitu(&payload[0] + 16,i*8,8));
+  if (rtk_crc24q(crc_buff,25) != getbitu(&payload[0] +16,82,24)) {
+    cerr << "CRC mismatch, " << rtk_crc24q(crc_buff, 25) << " != " << getbitu(&payload[0]+16,82,24) <<endl;
     throw CRCMismatch();
   }
 
   crc.clear();
   for(i=0; i < 3; ++i)
-    crc.append(1, getbitu(payload.c_str()+16,82+i*8,8));
+    crc.push_back(getbitu(&payload[0] +16,82+i*8,8));
 
   if(ssp) {
-    *ssp=getbitu(payload.c_str()+16,82+24,8);
+    *ssp=getbitu(&payload[0]+16,82+24,8);
   }
 
   
-  std::basic_string<uint8_t> inav;
+  std::vector<uint8_t> inav;
   
   for (i=0,j=2; i<14; i++, j+=8)
-    inav.append(1, (unsigned char)getbitu(payload.c_str()   ,j,8));
+    inav.push_back((unsigned char)getbitu(&payload[0]   ,j,8));
   for (i=0,j=2; i< 2; i++, j+=8)
-    inav.append(1, (unsigned char)getbitu(payload.c_str()+16,j,8));
+    inav.push_back((unsigned char)getbitu(&payload[0]+16,j,8));
 
   reserved1.clear();
   for(i=0, j=18; i < 5 ; i++, j+=8)
-    reserved1.append(1, (unsigned char)getbitu(payload.c_str()+16, j, 8));
+    reserved1.push_back((unsigned char)getbitu(&payload[0] +16, j, 8));
   //  cerr<<"reserved1: "<<makeHexDump(reserved1)<<endl;
 
   sar.clear();
   for(i=0, j=58; i < 3 ; i++, j+=8) // you get 24 bits
-    sar.append(1, (unsigned char)getbitu(payload.c_str()+16, j, 8));
+    sar.push_back((unsigned char)getbitu(&payload[0] +16, j, 8));
 
   spare.clear();
-  spare.append(1, (unsigned char)getbitu(payload.c_str()+16, 80, 2));
+  spare.push_back((unsigned char)getbitu(&payload[0]+16, 80, 2));
 
   reserved2.clear();
-  reserved2.append(1, (unsigned char)getbitu(payload.c_str()+16, 106, 8));
+  reserved2.push_back((unsigned char)getbitu(&payload[0] +16, 106, 8));
   
   return inav;
 }
 
-basic_string<uint8_t> getFnavFromSFRBXMsg(std::basic_string_view<uint8_t> msg,
-                                          basic_string<uint8_t>& crc)
+vector<uint8_t> getFnavFromSFRBXMsg(const std::vector<uint8_t>& msg,
+                                          vector<uint8_t>& crc)
 {
   // byte order adjustment
-  std::basic_string<uint8_t> payload;
+  std::vector<uint8_t> payload;
   for(unsigned int i = 0 ; i < (msg.size() - 8) / 4; ++i)
     for(int j=1; j <= 4; ++j)
-      payload.append(1, msg[8 + (i+1) * 4 -j]);
+      payload.push_back(msg[8 + (i+1) * 4 -j]);
 
   // 
   
@@ -134,24 +134,24 @@ basic_string<uint8_t> getFnavFromSFRBXMsg(std::basic_string_view<uint8_t> msg,
   // 216 bits -> 27 bytes
   unsigned char crc_buff[27]={0};
   unsigned int i,j;
-  for (i=0,j=  2;i<27;i++,j+=8) setbitu(crc_buff,j,8,getbitu(payload.c_str()   ,i*8,8));
+  for (i=0,j=  2;i<27;i++,j+=8) setbitu(crc_buff,j,8,getbitu(&payload[0]   ,i*8,8));
 
-  if (rtk_crc24q(crc_buff,27) != getbitu(payload.c_str(), 214,24)) {
-    cerr << "CRC mismatch, " << rtk_crc24q(crc_buff, 27) << " != " << getbitu(payload.c_str(), 214,24) <<endl;
-    cerr << makeHexDump(payload) << " " << (int) getbitu(payload.c_str(), 0, 6) << endl;
+  if (rtk_crc24q(crc_buff,27) != getbitu(&payload[0], 214,24)) {
+    cerr << "CRC mismatch, " << rtk_crc24q(crc_buff, 27) << " != " << getbitu(&payload[0], 214,24) <<endl;
+    cerr << makeHexDump(payload) << " " << (int) getbitu(&payload[0], 0, 6) << endl;
     throw CRCMismatch();
   }
   //  cerr << "F/NAV CRC MATCHED!!"<<endl;
   
   crc.clear();
   for(i=0; i < 3; ++i)
-    crc.append(1, getbitu(payload.c_str(), 214+i*8,8));
+    crc.push_back(getbitu(&payload[0], 214+i*8,8));
 
   
-  std::basic_string<uint8_t> fnav;
+  std::vector<uint8_t> fnav;
 
   for (i=0,j=0; i<27; i++, j+=8)
-    fnav.append(1, (unsigned char)getbitu(payload.c_str()   ,j,8));
+    fnav.push_back((unsigned char)getbitu(&payload[0]   ,j,8));
   
   return fnav;
 }
@@ -159,51 +159,51 @@ basic_string<uint8_t> getFnavFromSFRBXMsg(std::basic_string_view<uint8_t> msg,
 
 
 // XXX this should do the parity check
-basic_string<uint8_t> getGPSFromSFRBXMsg(std::basic_string_view<uint8_t> msg)
+vector<uint8_t> getGPSFromSFRBXMsg(const std::vector<uint8_t>& msg)
 {
   // byte order adjustment
-  std::basic_string<uint8_t> payload;
+  std::vector<uint8_t> payload;
   for(unsigned int i = 0 ; i < (msg.size() - 8) / 4; ++i)
     for(int j=1; j <= 4; ++j)
-      payload.append(1, msg[8 + (i+1) * 4 -j]);
+      payload.push_back( msg[8 + (i+1) * 4 -j]);
 
 
   return payload;
 }
 
 // note, this returns the fourth UBX specific word with derived data, feel free to ignore!
-basic_string<uint8_t> getGlonassFromSFRBXMsg(std::basic_string_view<uint8_t> msg)
+vector<uint8_t> getGlonassFromSFRBXMsg(const std::vector<uint8_t>& msg)
 {
   // byte order adjustment
-  std::basic_string<uint8_t> payload;
+  std::vector<uint8_t> payload;
   for(unsigned int i = 0 ; i < (msg.size() - 8) / 4; ++i)
     for(int j=1; j <= 4; ++j)
-      payload.append(1, msg[8 + (i+1) * 4 -j]);
+      payload.push_back( msg[8 + (i+1) * 4 -j]);
 
 
   return payload;
 }
 
 // note, this returns the fourth UBX specific word with derived data, feel free to ignore!
-basic_string<uint8_t> getBeidouFromSFRBXMsg(std::basic_string_view<uint8_t> msg)
+vector<uint8_t> getBeidouFromSFRBXMsg(const std::vector<uint8_t>& msg)
 {
   // byte order adjustment
-  std::basic_string<uint8_t> payload;
+  std::vector<uint8_t> payload;
   for(unsigned int i = 0 ; i < (msg.size() - 8) / 4; ++i)
     for(int j=1; j <= 4; ++j)
-      payload.append(1, msg[8 + (i+1) * 4 -j]);
+      payload.push_back( msg[8 + (i+1) * 4 -j]);
 
 
   return payload;
 }
 
-basic_string<uint8_t> getSBASFromSFRBXMsg(std::basic_string_view<uint8_t> msg)
+vector<uint8_t> getSBASFromSFRBXMsg(const std::vector<uint8_t>& msg)
 {
   // byte order adjustment
-  std::basic_string<uint8_t> payload;
+  std::vector<uint8_t> payload;
   for(unsigned int i = 0 ; i < (msg.size() - 8) / 4; ++i)
     for(int j=1; j <= 4; ++j)
-      payload.append(1, msg[8 + (i+1) * 4 -j]);
+      payload.push_back( msg[8 + (i+1) * 4 -j]);
 
   
   return payload;

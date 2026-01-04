@@ -1,7 +1,7 @@
 #include "bits.hh"
 #include "galileo.hh"
 
-bool getTOWFromInav(std::basic_string_view<uint8_t> inav, uint32_t *satTOW, uint16_t *wn)
+bool getTOWFromInav(const std::vector<uint8_t>& inav, uint32_t *satTOW, uint16_t *wn)
 {
   unsigned int wtype = getbitu(&inav[0], 0, 6);
   if(wtype==0) {
@@ -25,7 +25,7 @@ bool getTOWFromInav(std::basic_string_view<uint8_t> inav, uint32_t *satTOW, uint
   return false;
 }
 
-int GalileoMessage::parseFnav(std::basic_string_view<uint8_t> page)
+int GalileoMessage::parseFnav(const std::vector<uint8_t>& page)
 {
   const uint8_t* ptr = &page[0];
   int offset=0;

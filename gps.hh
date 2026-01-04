@@ -6,8 +6,9 @@
 #include <iostream>
 #include <math.h>
 #include "ephemeris.hh"
+#include <vector>
 
-std::basic_string<uint8_t> getCondensedGPSMessage(std::basic_string_view<uint8_t> payload);
+std::vector<uint8_t> getCondensedGPSMessage(const std::vector<uint8_t>& payload);
 
 
 struct GPSAlmanac :  GPSLikeEphemeris
@@ -141,7 +142,7 @@ struct GPSState :  GPSLikeEphemeris
   {
     return gpsiod;
   }
-  int parseGPSMessage(std::basic_string_view<uint8_t> cond, uint8_t* pageptr=0);
+  int parseGPSMessage(const std::vector<uint8_t>& cond, uint8_t* pageptr=0);
 };
 
 template<typename T>

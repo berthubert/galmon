@@ -5,14 +5,16 @@
 #include <iostream>
 #include <math.h>
 #include <stdint.h>
+#include <vector>
+
 #include "minivec.hh"
-std::basic_string<uint8_t> getGlonassessage(std::basic_string_view<uint8_t> payload);
+std::vector<uint8_t> getGlonassessage(const std::vector<uint8_t>& payload);
 
 struct GlonassMessage
 {
   uint8_t strtype;
 
-  int parse(std::basic_string_view<uint8_t> gstr)
+  int parse(const std::vector<uint8_t>& gstr)
   {
     strtype = getbitu(&gstr[0], 1, 4);
     if(strtype == 1) {
@@ -60,7 +62,7 @@ struct GlonassMessage
   
   double getRadius() { return sqrt(getX()*getX() + getY()*getY() + getZ()*getZ()); }
    
-  void parse1(std::basic_string_view<uint8_t> gstr)
+  void parse1(const std::vector<uint8_t>& gstr)
   {
     hour = getbitu(&gstr[0], 9, 5);
     minute = getbitu(&gstr[0], 14, 6);
@@ -78,7 +80,7 @@ struct GlonassMessage
      An interval is 15 minutes long, plus a spacer of length described by P1. If P1 is zero, there is no spacer.
   */
   
-  void parse2(std::basic_string_view<uint8_t> gstr)
+  void parse2(const std::vector<uint8_t>& gstr)
   {
     Bn = getbitu(&gstr[0], 85-80, 3); // Health bit, only look at MSB, ignore the rest. 0 is ok.
     Tb = getbitu(&gstr[0], 85-76, 7); 
@@ -93,7 +95,7 @@ struct GlonassMessage
   bool l_n;
   bool P, P3;
   uint16_t gamman;
-  void parse3(std::basic_string_view<uint8_t> gstr)
+  void parse3(const std::vector<uint8_t>& gstr)
   {
     z   = getbitsglonass(&gstr[0], 85-35, 27); // 2^-11
     dz  = getbitsglonass(&gstr[0], 85-64, 24); // 2^-20
@@ -121,7 +123,7 @@ struct GlonassMessage
     return 1000*ldexp(1000000.0*taun, -30); 
   }
   
-  void parse4(std::basic_string_view<uint8_t> gstr)
+  void parse4(const std::vector<uint8_t>& gstr)
   {
     NT = getbitu(&gstr[0], 85-26, 11);
     FT = getbitu(&gstr[0], 85-33, 4);
@@ -157,7 +159,7 @@ struct GlonassMessage
   int32_t taugps;
   int32_t tauc;
   
-  void parse5(std::basic_string_view<uint8_t> gstr)
+  void parse5(const std::vector<uint8_t>& gstr)
   {
     n4=getbitu(&gstr[0], 85-36, 5);
     taugps = getbitsglonass(&gstr[0], 85-31, 22);
@@ -175,7 +177,7 @@ struct GlonassMessage
     return ldexp(tlambdana, -5);
   }
   
-  void parse7_9_11_13_15(std::basic_string_view<uint8_t> gstr)
+  void parse7_9_11_13_15(const std::vector<uint8_t>& gstr)
   {
     l_n = getbitu(&gstr[0], 85 - 9, 1);
     omegana = getbitsglonass(&gstr[0], 85-80, 16);
@@ -207,7 +209,7 @@ struct GlonassMessage
     return M_PI*63.0/180  + ldexp(M_PI* deltaina, -20);
   }
   
-  void parse6_8_10_12_14(std::basic_string_view<uint8_t> gstr)
+  void parse6_8_10_12_14(const std::vector<uint8_t>& gstr)
   {
     CnA = getbitu(&gstr[0], 85-80, 1);
     nA = getbitu(&gstr[0], 85-77, 5);

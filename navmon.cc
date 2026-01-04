@@ -347,7 +347,7 @@ string makeHexDump(const string& str)
   return ret;
 }
 
-string makeHexDump(const basic_string<uint8_t>& str)
+string makeHexDump(const vector<uint8_t>& str)
 {
   char tmp[5];
   string ret;

@@ -49,7 +49,7 @@ static int sepsig2ubx(int sep)
 
 struct SEPMessage
 {
-  SEPMessage(const std::basic_string<uint8_t>& str) : d_store(str) {}
+  SEPMessage(const std::vector<uint8_t>& str) : d_store(str) {}
 
   uint16_t getID() // includes revision
   {
@@ -62,11 +62,11 @@ struct SEPMessage
   }
 
   
-  std::basic_string<uint8_t> getPayload()
+  std::vector<uint8_t> getPayload()
   {
-    return d_store.substr(8);
+    return makeVec(&d_store[0], 8);
   }
-  std::basic_string<uint8_t> d_store;
+  std::vector<uint8_t> d_store;
 };
 
 /* format:
@@ -98,11 +98,12 @@ std::pair<SEPMessage, struct timeval> getSEPMessage(int fd, double* timeout)
       }
       struct timeval tv;
       gettimeofday(&tv, 0);
-      basic_string<uint8_t> msg;
-      msg.append(marker, 2);  // 0,1
+      vector <uint8_t> msg= makeVec(marker, 2);
+
       uint8_t b[6];
       readn2Timeout(fd, b, 6, timeout);
-      msg.append(b, 6); // crc id len
+      for(int n=0; n < 6; ++n)
+	msg.push_back(b[n]);
 
       // 0,1 = crc, 2-3 = marker, 4, 5
       //      uint16_t blkid = htons(b[2] + 256*b[3]);
@@ -112,8 +113,8 @@ std::pair<SEPMessage, struct timeval> getSEPMessage(int fd, double* timeout)
       
       uint8_t buffer[len-8];
       res=readn2Timeout(fd, buffer, len-8, timeout);
-
-      msg.append(buffer, len - 8); // checksum
+      for(int n=0; n < len-8; ++n)
+	msg.push_back(buffer[n]);
       return make_pair(SEPMessage(msg), tv);
     }
     else if(marker[1] != '$') {
@@ -207,7 +208,7 @@ try
         uint8_t navBits[32];
       } __attribute__((packed));
       SEPInav si;
-      memcpy(&si, str.c_str(), sizeof(si));
+      memcpy(&si, &str[0], sizeof(si));
       //      cerr<<"tow "<<si.towMsec /1000<<" wn "<<si.wn <<" sv " << (int) si.sv - 70<<" ";
       int sigid = si.src & 31;
       int pbsigid=sepsig2ubx(sigid);
@@ -223,13 +224,13 @@ try
 
 
       // byte order adjustment
-      std::basic_string<uint8_t> payload;
+      std::vector<uint8_t> payload;
       
       for(unsigned int i = 0 ; i < 8; ++i) {
-        payload.append(1, si.navBits[4 * i + 3]);
-        payload.append(1, si.navBits[4 * i + 2]);
-        payload.append(1, si.navBits[4 * i + 1]);
-        payload.append(1, si.navBits[4 * i + 0]);
+        payload.push_back(si.navBits[4 * i + 3]);
+        payload.push_back(si.navBits[4 * i + 2]);
+        payload.push_back(si.navBits[4 * i + 1]);
+        payload.push_back(si.navBits[4 * i + 0]);
       }
 
       /*
@@ -249,26 +250,26 @@ by the decoding software.
 
       /* so we find EVEN_PAGE ODD_PAGE */
       
-      basic_string<uint8_t> inav2;
+      vector<uint8_t> inav2;
       // copy in the payload bits of the even page
       for(int n = 0 ; n < 14; ++n)
-        inav2.append(1, getbitu(payload.c_str(), 2 + n*8, 8));
+        inav2.push_back(getbitu(&payload[0], 2 + n*8, 8));
       // odd page payload bits
       for(int n = 0 ; n < 2; ++n)
-        inav2.append(1, getbitu(payload.c_str(), 116 + n*8, 8));
+        inav2.push_back(getbitu(&payload[0], 116 + n*8, 8));
       //      cerr<<makeHexDump(inav2) << endl;
 
       
-      basic_string<uint8_t> reserved1;
+      vector<uint8_t> reserved1;
       for(int n=0; n < 5 ; ++n)
-	reserved1.append(1, getbitu(payload.c_str(), 116 + 16 + n*8, 8));
+	reserved1.push_back(getbitu(&payload[0], 116 + 16 + n*8, 8));
 
-      basic_string<uint8_t> crc;
+      vector<uint8_t> crc;
       for(int n=0; n < 3 ; ++n)
-	crc.append(1, getbitu(payload.c_str(), 116 + 16 + 40 +22 + 2 + n*8, 8));
+	crc.push_back(getbitu(&payload[0], 116 + 16 + 40 +22 + 2 + n*8, 8));
 
       
-      uint8_t ssp = getbitu(payload.c_str(), 116 + 16 + 40 + 22 + 2 + 24, 8);
+      uint8_t ssp = getbitu(&payload[0], 116 + 16 + 40 + 22 + 2 + 24, 8);
       
       // xxx add reserved2
       // xxx add sar
@@ -315,7 +316,7 @@ by the decoding software.
         uint8_t synclevel;
       } __attribute__((packed));
       TimeMsg tmsg;
-      memcpy(&tmsg, str.c_str(), sizeof(tmsg));
+      memcpy(&tmsg, &str[0], sizeof(tmsg));
       if(!quiet)
         cerr<< fmt::sprintf("UTC Time: %04d%02d%02d %02d:%02d:%02d\n",
                           2000+tmsg.utcyear,
@@ -344,7 +345,7 @@ by the decoding software.
         uint8_t navBits[40];
       } __attribute__((packed));
       GPSCA ga;
-      memcpy(&ga, str.c_str(), sizeof(ga));
+      memcpy(&ga, &str[0], sizeof(ga));
       int sigid = ga.src & 31;
       //      cerr<<"tow "<<sf.towMsec /1000<<" wn "<<sf.wn <<" sv " << (int) sf.sv - 70<<" sigid " << sigid <<" ";
       if(!ga.crcPassed) {
@@ -365,7 +366,7 @@ by the decoding software.
         setbitu(tmp, i*32, 30, getbitu((uint8_t*)&rev, 0, 30));
       }
 
-      std::basic_string<uint8_t> payload(tmp, 40);
+      auto payload = makeVec(tmp, 40);
       
       auto cond = getCondensedGPSMessage(payload);
       //      cerr<<makeHexDump(cond)<<"   ";
@@ -389,7 +390,7 @@ by the decoding software.
       nmm.mutable_gpsi()->set_gnsstow(ga.towMsec/1000 - 6); // needs to be adjusted to beginning of message
       nmm.mutable_gpsi()->set_gnssid(0);
       nmm.mutable_gpsi()->set_gnsssv(ga.sv);
-      nmm.mutable_gpsi()->set_contents(string((char*)payload.c_str(), payload.size()));
+      nmm.mutable_gpsi()->set_contents(string((char*)&payload[0], payload.size()));
       ns.emitNMM( nmm);
     }
     else if(res.first.getID() == 4018) { // GPS-L2C
@@ -416,7 +417,7 @@ by the decoding software.
         uint8_t navBits[32];
       } __attribute__((packed));
       SEPFnav sf;
-      memcpy(&sf, str.c_str(), sizeof(sf));
+      memcpy(&sf, &str[0], sizeof(sf));
       int sigid = sf.src & 31;
       //      cerr<<"tow "<<sf.towMsec /1000<<" wn "<<sf.wn <<" sv " << (int) sf.sv - 70<<" sigid " << sigid <<" ";
       if(!sf.crcPassed) {
@@ -426,13 +427,13 @@ by the decoding software.
 
       std::string fnav((char*)sf.navBits, 32);
       // byte order adjustment
-      std::basic_string<uint8_t> payload;
+      std::vector<uint8_t> payload;
       
       for(unsigned int i = 0 ; i < 8; ++i) {
-        payload.append(1, sf.navBits[4 * i + 3]);
-        payload.append(1, sf.navBits[4 * i + 2]);
-        payload.append(1, sf.navBits[4 * i + 1]);
-        payload.append(1, sf.navBits[4 * i + 0]);
+        payload.push_back(sf.navBits[4 * i + 3]);
+        payload.push_back(sf.navBits[4 * i + 2]);
+        payload.push_back(sf.navBits[4 * i + 1]);
+        payload.push_back(sf.navBits[4 * i + 0]);
       }
 
       NavMonMessage nmm;
@@ -485,7 +486,7 @@ by the decoding software.
         uint8_t misc;
       } __attribute__((packed));
       PVTCartesian pc;
-      memcpy(&pc, str.c_str(), sizeof(pc));
+      memcpy(&pc, &str[0], sizeof(pc));
 
       NavMonMessage nmm;
       nmm.set_type(NavMonMessage::ObserverPositionType);
@@ -544,7 +545,7 @@ by the decoding software.
       SEPCnav sc;
       
       auto str = res.first.getPayload();
-      memcpy(&sc, str.c_str(), sizeof(sc));
+      memcpy(&sc, &str[0], sizeof(sc));
       int sigid = sc.src & 31;
       //      cerr<<"C/NAV tow "<<sc.towMsec /1000<<" wn "<<sc.wn <<" sv " << (int) sc.sv - 70<<" sigid " << sigid <<" ";
       if(!sc.crcPassed) {
@@ -554,22 +555,22 @@ by the decoding software.
 
       std::string cnav((char*)sc.navBits, 64);
       // byte order adjustment
-      std::basic_string<uint8_t> payload;    
+      std::vector<uint8_t> payload;    
       
       for(unsigned int i = 0 ; i < 16; ++i) {
-        payload.append(1, sc.navBits[4 * i + 3]);
-        payload.append(1, sc.navBits[4 * i + 2]);
-        payload.append(1, sc.navBits[4 * i + 1]);
-        payload.append(1, sc.navBits[4 * i + 0]);
+        payload.push_back( sc.navBits[4 * i + 3]);
+	payload.push_back( sc.navBits[4 * i + 2]);
+	payload.push_back( sc.navBits[4 * i + 1]);
+	payload.push_back( sc.navBits[4 * i + 0]);
       }
 
       unsigned char crc_buff[58]={0};
       unsigned int i;
       for (i=0; i< 462;i++)
-	setbitu(crc_buff, 2+i, 1,getbitu(payload.c_str(),i, 1));
+	setbitu(crc_buff, 2+i, 1,getbitu(&payload[0],i, 1));
 
       int calccrc=rtk_crc24q(crc_buff,58);
-      int realcrc= getbitu(payload.c_str(), 14+448, 24);
+      int realcrc= getbitu(&payload[0], 14+448, 24);
       if (calccrc !=  realcrc) {
 	cerr << "CRC mismatch, " << calccrc << " != " << realcrc <<endl;
       }
@@ -610,7 +611,7 @@ by the decoding software.
         uint8_t res1;
       } __attribute__((packed));
       MeasEpoch me;
-      memcpy(&me, str.c_str(), sizeof(me));
+      memcpy(&me, &str[0], sizeof(me));
       //      cerr<<"Got "<<(int)me.n1<<" signal statuses, block1 "<<(int)me.sb1len<<", block2 "<<(int)me.sb2len<<endl;
 
       struct Block1
@@ -638,7 +639,7 @@ by the decoding software.
       int pos = sizeof(me);
       for(int n = 0 ; n < me.n1; ++n) {
         Block1 b1;
-        memcpy(&b1, str.c_str() + pos, sizeof(b1));
+        memcpy(&b1, &str[0] + pos, sizeof(b1));
         uint8_t sigid = b1.type & 31;
         //        cerr<<"sv "<<(int)b1.sv<<" sigid "<< (int)sigid <<" cn0 ";
         double db;
@@ -683,7 +684,7 @@ by the decoding software.
         
         for(int m = 0 ; m < b1.n2; ++m) {
           Block2 b2;
-          memcpy(&b2, str.c_str() + pos, sizeof(b2));
+          memcpy(&b2, &str[0] + pos, sizeof(b2));
           pos += me.sb2len;
           sigid = b2.type & 31;
           //          cerr<<"\t sigid  "<<(int)sigid<<" cn0 ";

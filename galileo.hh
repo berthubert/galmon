@@ -7,13 +7,13 @@
 #include "ephemeris.hh"
 #include "bits.hh"
 
-bool getTOWFromInav(std::basic_string_view<uint8_t> inav, uint32_t *satTOW, uint16_t *wn);
+bool getTOWFromInav(const std::vector<uint8_t>& inav, uint32_t *satTOW, uint16_t *wn);
 
 struct GalileoMessage : GPSLikeEphemeris
 {
   uint8_t wtype;
 
-  typedef void (GalileoMessage::*func_t)(std::basic_string_view<uint8_t> page);
+  typedef void (GalileoMessage::*func_t)(const std::vector<uint8_t>& page);
   std::map<int, func_t> parsers{
     {0, &GalileoMessage::parse0},
     {1, &GalileoMessage::parse1},
@@ -34,7 +34,7 @@ struct GalileoMessage : GPSLikeEphemeris
   };
 
   
-  int parse(std::basic_string_view<uint8_t> page)
+  int parse(const std::vector<uint8_t>& page)
   {
     wtype = getbitu(&page[0], 0, 6);
     if(!parsers.count(wtype)) {
@@ -46,7 +46,7 @@ struct GalileoMessage : GPSLikeEphemeris
     return wtype;
   }
 
-  int parseFnav(std::basic_string_view<uint8_t> page);
+  int parseFnav(const std::vector<uint8_t>& page);
   
   uint8_t sparetime{0};
   uint16_t wn{0};  
@@ -58,7 +58,7 @@ struct GalileoMessage : GPSLikeEphemeris
 
   
   // spare word, only contains a WN and a TOW, but only if the 'time' field is set to 2
-  void parse0(std::basic_string_view<uint8_t> page)
+  void parse0(const std::vector<uint8_t>& page)
   {
     sparetime = getbitu(&page[0], 6, 2);
     if(sparetime == 2) {
@@ -164,7 +164,7 @@ struct GalileoMessage : GPSLikeEphemeris
 
   
   // an ephemeris word
-  void parse1(std::basic_string_view<uint8_t> page)
+  void parse1(const std::vector<uint8_t>& page)
   {
     iodnav = getbitu(&page[0], 6, 10);
     t0e = getbitu(&page[0],   16, 14); 
@@ -174,7 +174,7 @@ struct GalileoMessage : GPSLikeEphemeris
   }
 
   // another ephemeris word
-  void parse2(std::basic_string_view<uint8_t> page)
+  void parse2(const std::vector<uint8_t>& page)
   {
     iodnav = getbitu(&page[0], 6, 10);
     omega0 = getbits(&page[0], 16, 32);
@@ -184,7 +184,7 @@ struct GalileoMessage : GPSLikeEphemeris
   }
 
   // yet another ephemeris word
-  void parse3(std::basic_string_view<uint8_t> page)
+  void parse3(const std::vector<uint8_t>& page)
   {
     iodnav = getbitu(&page[0], 6, 10);
     omegadot = getbits(&page[0], 16, 24);
@@ -264,7 +264,7 @@ struct GalileoMessage : GPSLikeEphemeris
 
   
   // can't get enough of that ephemeris
-  void parse4(std::basic_string_view<uint8_t> page)
+  void parse4(const std::vector<uint8_t>& page)
   {
     iodnav = getbitu(&page[0], 6, 10);
     cic = getbits(&page[0], 22, 16);
@@ -277,7 +277,7 @@ struct GalileoMessage : GPSLikeEphemeris
   }
 
   // ionospheric disturbance, health, group delay, time
-  void parse5(std::basic_string_view<uint8_t> page)
+  void parse5(const std::vector<uint8_t>& page)
   {
     ai0 = getbitu(&page[0], 6, 11);
     ai1 = getbits(&page[0], 17, 11); // ai1 & 2 are signed, 0 not
@@ -300,7 +300,7 @@ struct GalileoMessage : GPSLikeEphemeris
   }
 
   // time stuff
-  void parse6(std::basic_string_view<uint8_t> page)
+  void parse6(const std::vector<uint8_t>& page)
   {
     a0 = getbits(&page[0], 6, 32);
     a1 = getbits(&page[0], 38, 24);
@@ -315,7 +315,7 @@ struct GalileoMessage : GPSLikeEphemeris
   }
 
   // almanac
-  void parse7(std::basic_string_view<uint8_t> page)
+  void parse7(const std::vector<uint8_t>& page)
   {
     iodalmanac = getbitu(&page[0], 6, 4);
     alma1.wnalmanac = wnalmanac = getbitu(&page[0], 10, 2);
@@ -331,7 +331,7 @@ struct GalileoMessage : GPSLikeEphemeris
     
   }
   // almanac
-  void parse8(std::basic_string_view<uint8_t> page)
+  void parse8(const std::vector<uint8_t>& page)
   {
     iodalmanac = getbitu(&page[0], 6, 4);
     alma1.af0 = getbits(&page[0], 10, 16);
@@ -350,7 +350,7 @@ struct GalileoMessage : GPSLikeEphemeris
   }
 
   // almanac
-  void parse9(std::basic_string_view<uint8_t> page)
+  void parse9(const std::vector<uint8_t>& page)
   {
     iodalmanac = getbitu(&page[0], 6, 4);
     alma2.wnalmanac = wnalmanac = getbitu(&page[0], 10, 2);
@@ -371,7 +371,7 @@ struct GalileoMessage : GPSLikeEphemeris
   }
 
   // almanac + more time stuff (GPS)
-  void parse10(std::basic_string_view<uint8_t> page)
+  void parse10(const std::vector<uint8_t>& page)
   {
     iodalmanac = getbitu(&page[0], 6, 4);
     alma3.Omega0 = getbits(&page[0], 10, 16);
@@ -391,7 +391,7 @@ struct GalileoMessage : GPSLikeEphemeris
 
 
   // reduced clock and ephemeris data (redced)
-  void parse16(std::basic_string_view<uint8_t> page)
+  void parse16(const std::vector<uint8_t>& page)
   {
     deltaAred = getbits(&page[0], 6,    5);
     exred = getbits(&page[0], 11,      13);
@@ -404,7 +404,7 @@ struct GalileoMessage : GPSLikeEphemeris
   }
 
   // reed-solomon data
-  void parseRS(std::basic_string_view<uint8_t> page)
+  void parseRS(const std::vector<uint8_t>& page)
   {
     // see 5.1.13.2 of the Galileo SIS ICD 2.0
     rs2bitiod = getbitu(&page[0], 6+8, 2);

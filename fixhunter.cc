@@ -6,7 +6,7 @@
 #include "galileo.hh"
 using namespace std;
 
-void FixHunter::reportInav(const basic_string<uint8_t>& inav, int32_t gst)
+void FixHunter::reportInav(const vector<uint8_t>& inav, int32_t gst)
 {
   int wtype = getbitu(&inav[0], 0, 6);
 
@@ -181,7 +181,7 @@ void FixHunter::tryFix(int32_t gst)
 struct GalileoMessage FixHunter::fillGMFromRS(const std::string& out)
 {
   // we need to reconstruct words 1, 2, 3 and 4 and feed them to the parser
-  basic_string<uint8_t> inav[5];
+  vector<uint8_t> inav[5];
   string inavraw[5];
   inavraw[4] = out.substr(0, 14); 
   inavraw[3] = out.substr(14, 14);
@@ -198,7 +198,7 @@ struct GalileoMessage FixHunter::fillGMFromRS(const std::string& out)
   for(int n=0; n < 14; ++n)
     setbitu(tmp, 16 + n*8, 8, getbitu((unsigned char*) inavraw[1].c_str(), 16 + n*8, 8));
 
-  inav[1].assign(tmp, 16);
+  inav[1]= makeVec(tmp, 16);
 
   struct GalileoMessage gm={};
   gm.parse(inav[1]);
@@ -210,7 +210,7 @@ struct GalileoMessage FixHunter::fillGMFromRS(const std::string& out)
     setbitu(tmp, 6, 10, getbitu((unsigned char*) inav[1].c_str(), 6, 10)); // fake in IOD from inav1
     for(int n=0; n < 14; ++n)
       setbitu(tmp, 16 + n*8, 8, getbitu((unsigned char*) inavraw[i].c_str(), n*8, 8));
-    inav[i].assign(tmp, 16);
+    inav[i]= makeVec(tmp, 16);
     gm.parse(inav[i]);
     cout<<"wtype: "<<(int)gm.wtype<<", iod "<<gm.iodnav<<endl;
   }

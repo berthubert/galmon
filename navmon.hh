@@ -6,6 +6,8 @@
 #include <tuple>
 #include <mutex>
 #include <limits.h>
+#include <vector>
+
 extern const char* g_gitHash;
 
 
@@ -83,9 +85,13 @@ void getGalDateFromUTC(time_t t, int& wn, int& tow);
 void getBeiDouDateFromUTC(time_t t, int&wn, int& sow);
 
 std::string makeHexDump(const std::string& str);
-std::string makeHexDump(const std::basic_string<uint8_t>& str);
+std::string makeHexDump(const std::vector<uint8_t>& str);
 size_t writen2(int fd, const void *buf, size_t count);
 void unixDie(const std::string& reason);
 time_t parseTime(std::string_view in);
 std::string string_replace(const std::string& str, const std::string& match, 
                            const std::string& replacement, unsigned int max_replacements = UINT_MAX);
+inline const std::vector<uint8_t> makeVec(const uint8_t* ptr, size_t len)
+{
+  return std::vector(ptr, ptr+len);
+}

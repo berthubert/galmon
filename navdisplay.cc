@@ -188,7 +188,7 @@ int main(int argc, char** argv)
       static map<int, GalileoMessage> gms;
       GalileoMessage& gm = gms[nmm.gi().gnsssv()];
       
-      basic_string<uint8_t> inav((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
+      auto inav = makeVec((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
       int wtype =gm.parse(inav);
       wk.emitLine(sv, "src "+to_string(nmm.sourceid())+" wtype " + to_string(wtype));
       //        wk.setStatus(sv, "Hlth: "+std::to_string(getbitu(&inav[0], 67, 2)) +", el="+to_string(g_svstats[sv].el)+", db="+to_string(g_svstats[sv].db) );

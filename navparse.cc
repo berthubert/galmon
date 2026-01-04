@@ -1985,7 +1985,7 @@ try
 
     }
     else if(nmm.type() == NavMonMessage::GalileoInavType) {
-      basic_string<uint8_t> inav((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
+      auto inav = makeVec((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
       int sv = nmm.gi().gnsssv();
       int sigid;
       if(nmm.gi().has_sigid())
@@ -2174,7 +2174,7 @@ try
       // ... no idea what this contains
     }
     else if(nmm.type() == NavMonMessage::GalileoFnavType) {
-      basic_string<uint8_t> fnav((uint8_t*)nmm.gf().contents().c_str(), nmm.gf().contents().size());
+      auto fnav = makeVec((uint8_t*)nmm.gf().contents().c_str(), nmm.gf().contents().size());
       int sv = nmm.gf().gnsssv();
       SatID id={2,(uint32_t)sv,6}; // E5a
       
@@ -2508,7 +2508,7 @@ try
       if(doGalileoReportSpeedup)
         continue; // speedup
       
-      auto ret =  parseTrkMeas(basic_string<uint8_t>((const uint8_t*)nmm.dm().payload().c_str(), nmm.dm().payload().size()));
+      auto ret =  parseTrkMeas(makeVec((const uint8_t*)nmm.dm().payload().c_str(), nmm.dm().payload().size()));
       for(const auto& tss : ret) {
         SatID id{static_cast<uint32_t>(tss.gnss), static_cast<uint32_t>(tss.sv), tss.gnss == 2 ? 1u : 0u};
         if(g_svstats[id].completeIOD()) {
@@ -2561,7 +2561,7 @@ try
         cout<<"ignoring sigid "<<nmm.gpsi().sigid()<<" for legacy GPS "<<nmm.gpsi().gnsssv()<<endl;
         continue;
       }
-      auto cond = getCondensedGPSMessage(std::basic_string<uint8_t>((uint8_t*)nmm.gpsi().contents().c_str(), nmm.gpsi().contents().size()));
+      auto cond = getCondensedGPSMessage(makeVec((uint8_t*)nmm.gpsi().contents().c_str(), nmm.gpsi().contents().size()));
       SatID id{nmm.gpsi().gnssid(), nmm.gpsi().gnsssv(), nmm.gpsi().sigid()};
 
       g_svstats[id].perrecv[nmm.sourceid()].t = nmm.localutcseconds();
@@ -2818,7 +2818,7 @@ try
 
       GPSCNavState gcns;
       parseGPSCNavMessage(
-                           std::basic_string<uint8_t>((uint8_t*)nmm.gpsc().contents().c_str(),
+                           makeVec((uint8_t*)nmm.gpsc().contents().c_str(),
                                                       nmm.gpsc().contents().size()),
                            gcns);
       //      cout<<"Got a message from "<<makeSatIDName(id)<<endl;
@@ -2840,7 +2840,7 @@ try
       auto& svstat = g_svstats[id];
       svstat.gnss = id.gnss;
       uint8_t pageno;
-      auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid1().contents().c_str(), nmm.bid1().contents().size()));
+      auto cond = getCondensedBeidouMessage(makeVec((uint8_t*)nmm.bid1().contents().c_str(), nmm.bid1().contents().size()));
       auto& bm = svstat.beidoumsg;
       auto oldbm = bm;
       int fraid=bm.parse(cond, &pageno);
@@ -2916,7 +2916,7 @@ try
       }
     }
     else if(nmm.type()== NavMonMessage::BeidouInavTypeD2) {
-      auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid2().contents().c_str(), nmm.bid2().contents().size()));
+      auto cond = getCondensedBeidouMessage(makeVec((uint8_t*)nmm.bid2().contents().c_str(), nmm.bid2().contents().size()));
       /*
       int fraid = getbitu(&cond[0], beidouBitconv(16), 3);
       int sow = getbitu(&cond[0], beidouBitconv(19), 20);
@@ -2938,7 +2938,7 @@ try
       svstat.gnss = id.gnss;
       auto& gm = svstat.glonassMessage;
       auto oldgm = gm;
-      int strno = gm.parse(std::basic_string<uint8_t>((uint8_t*)nmm.gloi().contents().c_str(), nmm.gloi().contents().size()));
+      int strno = gm.parse(makeVec((uint8_t*)nmm.gloi().contents().c_str(), nmm.gloi().contents().size()));
       g_svstats[id].perrecv[nmm.sourceid()].t = nmm.localutcseconds();
       if(strno == 1 && gm.n4 != 0 && gm.NT !=0) {
         //        uint32_t glotime = gm.getGloTime(); // this starts GLONASS time at 31st of december 1995, 00:00 UTC
@@ -3006,7 +3006,7 @@ try
 
       sb.perrecv[nmm.sourceid()].last_seen = nmm.localutcseconds();
 
-      basic_string<uint8_t> sbas((uint8_t*)nmm.sbm().contents().c_str(), nmm.sbm().contents().length());
+      auto sbas = makeVec((uint8_t*)nmm.sbm().contents().c_str(), nmm.sbm().contents().length());
       auto delta = sb.status.parse(sbas, nmm.localutcseconds());
       // fast correction - clogs the database, so dropping that for now
       /*

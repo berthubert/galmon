@@ -4,9 +4,10 @@
 #include "bits.hh"
 #include <math.h>
 #include <stdexcept>
+#include <vector>
 #include "ephemeris.hh"
 
-std::basic_string<uint8_t> getCondensedBeidouMessage(std::basic_string_view<uint8_t> payload);
+std::vector<uint8_t> getCondensedBeidouMessage(const std::vector<uint8_t>& payload);
 int beidouBitconv(int their);
 
 /* Geostationary, so D2, so not to be parsed by this parser:
@@ -21,7 +22,7 @@ struct BeidouMessage : GPSLikeEphemeris
 {
   uint8_t strtype;
 
-  std::basic_string_view<uint8_t> g_cond;
+  std::vector<uint8_t> g_cond;
   int bbitu(int bit, int len)
   {
     return getbitu(&g_cond[0], beidouBitconv(bit), len);
@@ -34,7 +35,7 @@ struct BeidouMessage : GPSLikeEphemeris
   
   int fraid{-1}, sow{-1}; // part of every message (thanks!)
   
-  int parse(std::basic_string_view<uint8_t> cond, uint8_t* pageno)
+  int parse(const std::vector<uint8_t>& cond, uint8_t* pageno)
   {
     g_cond = cond;
     if(pageno)
@@ -89,7 +90,7 @@ struct BeidouMessage : GPSLikeEphemeris
     return {factor * cur, factor * trend};
   }
   
-  void parse1(std::basic_string_view<uint8_t> cond)
+  void parse1(const std::vector<uint8_t>& cond)
   {
     sath1 = bbitu(43,1);
     aodc = bbitu(31+13, 5);
@@ -124,7 +125,7 @@ struct BeidouMessage : GPSLikeEphemeris
     return -1;
   }
   
-  void parse2(std::basic_string_view<uint8_t> cond)
+  void parse2(const std::vector<uint8_t>& cond)
   {
     deltan = bbits(43, 16);
     cuc = bbits(67, 18);
@@ -151,7 +152,7 @@ struct BeidouMessage : GPSLikeEphemeris
   double getOmega0()    const { return ldexp(Omega0 * M_PI,   -31);   } // radians
   double getIdot()      const { return ldexp(idot * M_PI,     -43);   } // radians/s
   double getOmega()     const { return ldexp(omega * M_PI,    -31);   } // radians
-  void parse3(std::basic_string_view<uint8_t> cond)
+  void parse3(const std::vector<uint8_t>& cond)
   {
     t0eLSB = bbitu(43, 15);
     i0 = bbits(66, 32);
@@ -207,7 +208,7 @@ struct BeidouMessage : GPSLikeEphemeris
   } alma;
   
   // 4 is all almanac
-  int parse4(std::basic_string_view<uint8_t> cond)
+  int parse4(const std::vector<uint8_t>& cond)
   {
     alma.sqrtA = bbitu(51, 24);
     alma.a1 = bbits(91, 11);
@@ -254,7 +255,7 @@ struct BeidouMessage : GPSLikeEphemeris
   }
 
   
-  int parse5(std::basic_string_view<uint8_t> cond)
+  int parse5(const std::vector<uint8_t>& cond)
   {
     alma.pageno = bbitu(44, 7);
     if(alma.pageno == 9) {

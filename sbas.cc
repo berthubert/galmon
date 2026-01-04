@@ -4,14 +4,14 @@ using namespace std;
 #include "bits.hh"
 #include <math.h>
 
-void SBASState::parse0(const basic_string<uint8_t>& sbas, time_t now)
+void SBASState::parse0(const vector<uint8_t>& sbas, time_t now)
 {
   d_lastDNU = now;
   d_lastSeen = now;
 }
 
 
-void SBASState::parse1(const basic_string<uint8_t>& sbas, time_t now)
+void SBASState::parse1(const vector<uint8_t>& sbas, time_t now)
 {
   d_lastSeen = now;
   int slot=1;
@@ -25,7 +25,7 @@ void SBASState::parse1(const basic_string<uint8_t>& sbas, time_t now)
   }
 }
 
-vector<SBASState::FastCorrection> SBASState::parse2_5(const basic_string<uint8_t>&sbas, time_t now)
+vector<SBASState::FastCorrection> SBASState::parse2_5(const vector<uint8_t>&sbas, time_t now)
 {
   d_lastSeen = now;
   int type = getbitu(&sbas[0], 8, 6);
@@ -47,7 +47,7 @@ vector<SBASState::FastCorrection> SBASState::parse2_5(const basic_string<uint8_t
   return ret;
 }
 
-vector<SBASState::FastCorrection> SBASState::parse6(const basic_string<uint8_t>&sbas, time_t now)
+vector<SBASState::FastCorrection> SBASState::parse6(const vector<uint8_t>&sbas, time_t now)
 {
   d_lastSeen = now;
   vector<SBASState::FastCorrection> ret;
@@ -68,7 +68,7 @@ vector<SBASState::FastCorrection> SBASState::parse6(const basic_string<uint8_t>&
   return ret;
 }
 
-void SBASState::parse7(const basic_string<uint8_t>&sbas, time_t now)
+void SBASState::parse7(const vector<uint8_t>&sbas, time_t now)
 {
   d_lastSeen = now;
   d_latency = getbitu(&sbas[0], 14+4, 4);
@@ -101,7 +101,7 @@ SatID SBASState::getSBASSatID(int slot) const
   return ret;
 }
 
-vector<SBASState::LongTermCorrection> SBASState::parse25(const basic_string<uint8_t>& sbas, time_t t)
+vector<SBASState::LongTermCorrection> SBASState::parse25(const vector<uint8_t>& sbas, time_t t)
 {
   d_lastSeen = t;
   vector<LongTermCorrection> ret;
@@ -111,7 +111,7 @@ vector<SBASState::LongTermCorrection> SBASState::parse25(const basic_string<uint
   return ret;
 }
 
-pair<vector<SBASState::FastCorrection>, vector<SBASState::LongTermCorrection>> SBASState::parse24(const basic_string<uint8_t>& sbas, time_t t)
+pair<vector<SBASState::FastCorrection>, vector<SBASState::LongTermCorrection>> SBASState::parse24(const vector<uint8_t>& sbas, time_t t)
 {
   d_lastSeen = t;
   pair<vector<FastCorrection>, vector<LongTermCorrection>> ret;
@@ -135,7 +135,7 @@ pair<vector<SBASState::FastCorrection>, vector<SBASState::LongTermCorrection>> S
   return ret;
 }
 
-pair<vector<SBASState::FastCorrection>, vector<SBASState::LongTermCorrection>> SBASState::parse(const std::basic_string<uint8_t>& sbas, time_t now)
+pair<vector<SBASState::FastCorrection>, vector<SBASState::LongTermCorrection>> SBASState::parse(const std::vector<uint8_t>& sbas, time_t now)
 {
   pair<vector<SBASState::FastCorrection>, vector<SBASState::LongTermCorrection>> ret;
   int type = getbitu(&sbas[0], 8, 6);
@@ -164,7 +164,7 @@ pair<vector<SBASState::FastCorrection>, vector<SBASState::LongTermCorrection>> S
   return ret;
 }
 
-void SBASState::parse25H(const basic_string<uint8_t>& sbas, time_t t, int offset, vector<LongTermCorrection>& ret)
+void SBASState::parse25H(const vector<uint8_t>& sbas, time_t t, int offset, vector<LongTermCorrection>& ret)
 {
   LongTermCorrection ltc;
   ltc.velocity = getbitu(&sbas[0], offset, 1);
@@ -217,7 +217,7 @@ void SBASState::parse25H(const basic_string<uint8_t>& sbas, time_t t, int offset
 
 // old version with ephemeris parsing
 #if 0
-void parseSBAS25H(int sv, const basic_string<uint8_t>& sbas, time_t t, ofstream& sbascsv, int offset, map<int, GPSState>* gpseph, const Point& src)
+void parseSBAS25H(int sv, const vector<uint8_t>& sbas, time_t t, ofstream& sbascsv, int offset, map<int, GPSState>* gpseph, const Point& src)
 {
   bool velocity = getbitu(&sbas[0], offset, 1);
         
