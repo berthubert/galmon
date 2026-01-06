@@ -3,6 +3,7 @@
 #include <string.h>
 #include <chrono>
 #include <iostream>
+#include "navmon.hh"
 using std::cout;
 using std::endl;
 
@@ -12,7 +13,7 @@ static const double J2 = 1082625.75E-9;                 // IERS: 1.0826359
 static const double oe = 7.2921151467E-5; // rad/s	// IERS: 7.292115
 
 // this strips out spare bits + parity, and leaves 10 clean 24 bit words
-std::basic_string<uint8_t> getGlonassMessage(std::basic_string_view<uint8_t> payload)
+std::vector<uint8_t> getGlonassMessage(const std::vector<uint8_t>& payload)
 {
   uint8_t buffer[4*4];
 
@@ -20,7 +21,7 @@ std::basic_string<uint8_t> getGlonassMessage(std::basic_string_view<uint8_t> pay
     setbitu(buffer, 32*w, 32, getbitu(&payload[0],  w*32, 32));
   }
 
-  return std::basic_string<uint8_t>(buffer, 16);
+  return makeVec(buffer, 16);
   
 }
 

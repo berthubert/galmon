@@ -1,7 +1,7 @@
 #include "gps.hh"
 
 // this strips out spare bits + parity, and leaves 10 clean 24 bit words
-std::basic_string<uint8_t> getCondensedGPSMessage(std::basic_string_view<uint8_t> payload)
+std::vector<uint8_t> getCondensedGPSMessage(const std::vector<uint8_t>& payload)
 {
   uint8_t buffer[10*24/8];
 
@@ -10,12 +10,11 @@ std::basic_string<uint8_t> getCondensedGPSMessage(std::basic_string_view<uint8_t
     setbitu(buffer, 24*w, 24, getbitu(&payload[0], 2 + w*32, 24));
   }
 
-  return std::basic_string<uint8_t>(buffer, 30);
-  
+  return std::vector<uint8_t>(buffer, buffer+30);
 }
 
 // expects input as 24 bit read to to use messages, returns frame number
-int GPSState::parseGPSMessage(std::basic_string_view<uint8_t> cond, uint8_t* pageptr)
+int GPSState::parseGPSMessage(const std::vector<uint8_t>& cond, uint8_t* pageptr)
 {
   using namespace std;
   int frame = getbitu(&cond[0], 24+19, 3);

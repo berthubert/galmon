@@ -135,13 +135,13 @@ class UBXMessage
 {
 public:
   struct BadChecksum{};
-  explicit UBXMessage(basic_string_view<uint8_t> src)
+  explicit UBXMessage(const std::vector<uint8_t>& src)
   {
     d_raw = src;
     if(d_raw.size() < 6)
       throw std::runtime_error("Partial UBX message");
 
-    uint16_t csum = calcUbxChecksum(getClass(), getType(), d_raw.substr(6, d_raw.size()-8));
+    uint16_t csum = calcUbxChecksum(getClass(), getType(), {d_raw.cbegin() + 6, d_raw.cend()-2});
     if(csum != d_raw.at(d_raw.size()-2) + 256*d_raw.at(d_raw.size()-1))
       throw BadChecksum();
     
@@ -154,11 +154,11 @@ public:
   {
     return d_raw.at(3);
   }
-  std::basic_string<uint8_t> getPayload() const
+  std::vector<uint8_t> getPayload() const
   {
-    return d_raw.substr(6, d_raw.size()-8);
+    return {d_raw.cbegin() +6, d_raw.cend()-2};
   }
-  std::basic_string<uint8_t> d_raw;
+  std::vector<uint8_t> d_raw;
 };
 
 bool g_fromFile{false};
@@ -191,21 +191,24 @@ std::pair<UBXMessage, struct timeval> getUBXMessage(int fd, double* timeout)
     if(marker[0]==0xb5 && marker[1]==0x62) { // bingo
       struct timeval tv;
       gettimeofday(&tv, 0);
-      basic_string<uint8_t> msg;
-      msg.append(marker, 2);  // 0,1
+      vector<uint8_t> msg;
+      msg.push_back(marker[0]);
+      msg.push_back(marker[1]);
       uint8_t b[4];
       readn2Timeout(fd, b, 4, timeout);
-      msg.append(b, 4); // class, type, len1, len2
+      for(int n=0; n <4 ;++n)
+	msg.push_back(b[n]);
 
       uint16_t len = b[2] + 256*b[3];
       //      if (doDEBUG) { cerr<<humanTimeNow()<<" Got class "<<(int)msg[2]<<" type "<<(int)msg[3]<<", len = "<<len<<endl; }
       uint8_t buffer[len+2];
       res=readn2Timeout(fd, buffer, len+2, timeout);
 
-      msg.append(buffer, len+2); // checksum
+      for(auto ptr = buffer ; ptr < buffer+len+2; ++ptr)
+	msg.push_back(*ptr); // checksum
       if (doLOGFILE) {
         if(!g_fromFile)
-          writen2(logfile, msg.c_str(), msg.size());      
+          writen2(logfile, &msg[0], msg.size());      
       }
       return make_pair(UBXMessage(msg), tv);
     }
@@ -228,7 +231,7 @@ UBXMessage waitForUBX(int fd, int seconds, uint8_t ubxClass, uint8_t ubxType)
   throw std::runtime_error("Did not get response on time");
 }
 
-UBXMessage sendAndWaitForUBX(int fd, int seconds, basic_string_view<uint8_t> msg, uint8_t ubxClass, uint8_t ubxType)
+UBXMessage sendAndWaitForUBX(int fd, int seconds, const vector<uint8_t>& msg, uint8_t ubxClass, uint8_t ubxType)
 {
   for(int n=3; n; --n) {
     writen2(fd, &msg[0], msg.size());
@@ -276,7 +279,7 @@ bool waitForUBXAckNack(int fd, int seconds, int ubxClass, int ubxType)
   throw std::runtime_error("Did not get ACK/NACK response for class "+to_string(ubxClass)+" type "+to_string(ubxType)+" on time");
 }
 
-bool sendAndWaitForUBXAckNack(int fd, int seconds, basic_string_view<uint8_t> msg, uint8_t ubxClass, uint8_t ubxType)
+bool sendAndWaitForUBXAckNack(int fd, int seconds, const vector<uint8_t>& msg, uint8_t ubxClass, uint8_t ubxType)
 {
   for(int n=3; n; --n) {
     writen2(fd, &msg[0], msg.size());
@@ -300,15 +303,15 @@ void enableUBXMessageOnPort(int fd, uint8_t ubxClass, uint8_t ubxType, uint8_t p
 {
   for(int n=0 ; n < 5; ++n) {
     try {
-      basic_string<uint8_t> payload;
+      vector<uint8_t> payload;
       if(version9) {
-        payload= basic_string<uint8_t>({ubxClass, ubxType, rate});
+        payload= vector<uint8_t>({ubxClass, ubxType, rate});
       }
       else {
         if(port > 6)
           throw std::runtime_error("Port number out of range (>6)");
 
-        payload.assign({ubxClass, ubxType, 0, 0, 0, 0, 0, 0});
+        payload = vector<uint8_t>({ubxClass, ubxType, 0, 0, 0, 0, 0, 0});
         payload[2+ port]=rate;
       }
 
@@ -354,7 +357,7 @@ void readSome(int fd)
       (void)timestamp;
       if (doDEBUG) { cerr<<humanTimeNow()<<" Read some init: "<<(int)msg.getClass() << " " <<(int)msg.getType() <<endl; }
       if(msg.getClass() == 0x4)
-        if (doDEBUG) { cerr<<humanTimeNow()<<" "<<string((char*)msg.getPayload().c_str(), msg.getPayload().size()) <<endl; }
+        if (doDEBUG) { cerr<<humanTimeNow()<<" "<<string((char*)&msg.getPayload()[0], msg.getPayload().size()) <<endl; }
     }
     catch(TimeoutError& te) {
       cerr<<"Timeout"<<endl;
@@ -442,7 +445,7 @@ int initFD(const char* fname, bool doRTSCTS)
 
 }
 
-static string format_serial(basic_string<uint8_t> payload)
+static string format_serial(const vector<uint8_t>& payload)
 {
 	return fmt::sprintf("%02x%02x%02x%02x%02x",
                             payload[4], payload[5],
@@ -612,13 +615,13 @@ int main(int argc, char** argv)
     auto um1=sendAndWaitForUBX(fd, 1, msg, 0x0a, 0x40); 
     const auto rstat = um1.getPayload();
 
-    uint32_t brate =getbitu(rstat.c_str(), 40*8, 32);
+    uint32_t brate =getbitu(&rstat[0], 40*8, 32);
     cerr<< "baud rate " << brate << " " << htonl(brate)<< " bitu " <<getbitu((uint8_t*)&brate, 31-19, 20)<<endl;
 
     auto isOn = [&rstat](int byte, int bit, const char* name, int width=4) {
       int comp = 8*width - 1;
       cerr<<name<<": ";
-      uint32_t val = getbitu((const unsigned char*)rstat.c_str(), byte*8, width*8);
+      uint32_t val = getbitu((const unsigned char*)&rstat[0], byte*8, width*8);
       if(getbitu((const unsigned char*)&val, comp - bit, 1))
 	cerr << "ON ";
       else
@@ -670,11 +673,11 @@ int main(int argc, char** argv)
       else
         readSome(fd);
       
-      std::basic_string<uint8_t> msg;
+      std::vector<uint8_t> msg;
       if(doReset) {
         if (doDEBUG) { cerr<<humanTimeNow()<<" Sending a soft reset"<<endl; }
         msg = buildUbxMessage(0x06, 0x04, {0x00, 0x00, 0x01, 0x00}); // soft reset
-        writen2(fd, msg.c_str(), msg.size());
+        writen2(fd, &msg[0], msg.size());
         usleep(100000);
         close(fd);
         for(int n=0 ; n< 20; ++n) {
@@ -698,13 +701,13 @@ int main(int argc, char** argv)
 
       if (doDEBUG) { cerr<<humanTimeNow()<<" Sending version query"<<endl; }
       UBXMessage um1=sendAndWaitForUBX(fd, 1, msg, 0x0a, 0x04); // ask for version
-      swversion = (const char*)um1.getPayload().c_str();
-      hwversion = (const char*)um1.getPayload().c_str()+30;
+      swversion = (char*)&um1.getPayload()[0];
+      hwversion = (char*)&um1.getPayload().at(30);
       cerr<<humanTimeNow()<<" swVersion: "<<swversion<<endl;
       cerr<<humanTimeNow()<<" hwVersion: "<<hwversion<<endl;
 
       for(unsigned int n=0; 40+30*n < um1.getPayload().size(); ++n) {
-        string line = (const char*)um1.getPayload().c_str() + 40 +30*n;
+        string line = (const char*)&um1.getPayload()[0] + 40 +30*n;
         cerr<<humanTimeNow()<<" Extended info: "<<line <<endl;
         
         if(line.find("F9") != string::npos) 
@@ -932,7 +935,7 @@ int main(int argc, char** argv)
           minCentimetersVal = surveyMinCM * 100;
         uint8_t* ptrSeconds = (uint8_t*)&minSecondsVal, *ptrCent= (uint8_t*)&minCentimetersVal;
         uint8_t cmd;
-        std::basic_string<uint8_t> msg;
+        std::vector<uint8_t> msg;
         if(version9) {        
           cmd = 0x8a;
           msg = buildUbxMessage(0x06, cmd, {0x00, 0x01, 0x00, 0x00,
@@ -1405,7 +1408,7 @@ int main(int argc, char** argv)
           uint32_t pAcc;
         };
         pos p;
-        memcpy(&p, payload.c_str(), sizeof(pos));
+        memcpy(&p, &payload[0], sizeof(pos));
         if(fuzzPositionMeters) {
           p.ecefX -= (p.ecefX % (fuzzPositionMeters*100));
           p.ecefY -= (p.ecefY % (fuzzPositionMeters*100));
@@ -1483,7 +1486,7 @@ int main(int argc, char** argv)
             nmm.mutable_gpsi()->set_gnsstow(tow); // "with 6 second increments" -- needs to be adjusted
             nmm.mutable_gpsi()->set_gnssid(id.first);
             nmm.mutable_gpsi()->set_gnsssv(id.second);
-            nmm.mutable_gpsi()->set_contents(string((char*)gpsframe.c_str(), gpsframe.size()));
+            nmm.mutable_gpsi()->set_contents(string((char*)&gpsframe[0], gpsframe.size()));
             ns.emitNMM( nmm);
             continue;
           }
@@ -1511,11 +1514,11 @@ int main(int argc, char** argv)
             nmm.mutable_gpsc()->set_gnsstow(tow); // "with 6 second increments" -- needs to be adjusted
             nmm.mutable_gpsc()->set_gnssid(id.first);
             nmm.mutable_gpsc()->set_gnsssv(id.second);
-            nmm.mutable_gpsc()->set_contents(string((char*)cnav.c_str(), cnav.size()));
+            nmm.mutable_gpsc()->set_contents(string((char*)&cnav[0], cnav.size()));
             ns.emitNMM( nmm);            
           }
           else if(id.first ==2) { // GALILEO
-            basic_string<uint8_t> reserved1, reserved2, sar, spare, crc;
+            vector<uint8_t> reserved1, reserved2, sar, spare, crc;
             uint8_t ssp;
 
 	    if(sigid == 3) { // F/NAV
@@ -1697,7 +1700,7 @@ int main(int argc, char** argv)
 		nmm.mutable_bid1()->set_gnssid(id.first);
 		nmm.mutable_bid1()->set_gnsssv(id.second);
 		nmm.mutable_bid1()->set_sigid(sigid);              
-		nmm.mutable_bid1()->set_contents(string((char*)gstr.c_str(), gstr.size()));
+		nmm.mutable_bid1()->set_contents(string((char*)&gstr[0], gstr.size()));
 		ns.emitNMM( nmm);
 	      }
 	      else {
@@ -1737,7 +1740,7 @@ int main(int argc, char** argv)
               nmm.mutable_gloi()->set_gnssid(id.first);
               nmm.mutable_gloi()->set_gnsssv(id.second);
               nmm.mutable_gloi()->set_sigid(sigid);              
-              nmm.mutable_gloi()->set_contents(string((char*)gstr.c_str(), gstr.size()));
+              nmm.mutable_gloi()->set_contents(string((char*)&gstr[0], gstr.size()));
               
               ns.emitNMM( nmm);
             }
@@ -1757,7 +1760,7 @@ int main(int argc, char** argv)
             nmm.set_type(NavMonMessage::SBASMessageType);
             nmm.mutable_sbm()->set_gnssid(id.first);
             nmm.mutable_sbm()->set_gnsssv(id.second);
-            nmm.mutable_sbm()->set_contents(string((char*)sbas.c_str(), sbas.size()));
+            nmm.mutable_sbm()->set_contents(string((char*)&sbas[0], sbas.size()));
             
             ns.emitNMM( nmm);
           }
@@ -1793,7 +1796,7 @@ int main(int argc, char** argv)
           nmm.mutable_rd()->set_db(db);
           nmm.mutable_rd()->set_el(el);
           nmm.mutable_rd()->set_azi(azi);
-          nmm.mutable_rd()->set_prres(*((int16_t*)(payload.c_str()+ 14 +12*n)) *0.1);
+          nmm.mutable_rd()->set_prres(*((int16_t*)(&payload[0] + 14 +12*n)) *0.1);
 
           uint32_t status;
           memcpy(&status, &payload[16+12*n], 4);
@@ -1858,7 +1861,7 @@ int main(int argc, char** argv)
           nmm.mutable_rd()->set_gnssid(gnssid);
           nmm.mutable_rd()->set_gnsssv(sv);
           nmm.mutable_rd()->set_db(db);
-          nmm.mutable_rd()->set_prres(*((int16_t*)(payload.c_str()+ 12 +16*n)) *0.1); // ENDIANISM
+          nmm.mutable_rd()->set_prres(*((int16_t*)(&payload[0] + 12 +16*n)) *0.1); // ENDIANISM
           nmm.mutable_rd()->set_sigid(sigid);
           nmm.mutable_rd()->set_el(0);
           nmm.mutable_rd()->set_azi(0);
@@ -1948,14 +1951,14 @@ int main(int argc, char** argv)
         nmm.mutable_sr()->set_gnsssv(payload[2]);
         nmm.mutable_sr()->set_sigid(1); // 
         nmm.mutable_sr()->set_type(payload[1]);
-        nmm.mutable_sr()->set_identifier(string((char*)payload.c_str()+4, 8));
+        nmm.mutable_sr()->set_identifier(string((char*)&payload[0] +4, 8));
         nmm.mutable_sr()->set_code(payload[12]);
-        nmm.mutable_sr()->set_params(string((char*)payload.c_str()+13, payload.size()-14));
+        nmm.mutable_sr()->set_params(string((char*)&payload[0] + 13, payload.size()-14));
 
         
         string hexstring;
         for(int n = 0; n < 15; ++n)                                   
-          hexstring+=fmt::sprintf("%x", (int)getbitu(payload.c_str(), 36 + 4*n, 4));
+          hexstring+=fmt::sprintf("%x", (int)getbitu(&payload[0], 36 + 4*n, 4));
 
         ns.emitNMM(nmm);
       }
@@ -1993,7 +1996,7 @@ int main(int argc, char** argv)
           cerr<<"Wrong NAV-SVIN message size, skipping"<<endl;
           continue;
         }
-        memcpy(&NS, payload.c_str(), sizeof(NS));
+        memcpy(&NS, &payload[0], sizeof(NS));
         NS.res[0] = NS.res[1] = NS.res[2] = 0;
         NS.res2=0;
         NS.res3[0] = NS.res3[1] = 0;
@@ -2027,7 +2030,7 @@ int main(int argc, char** argv)
           cerr<<"Wrong NAV-SVIN message size, skipping"<<endl;
           continue;
         }
-        memcpy(&TS, payload.c_str(), sizeof(TS));
+        memcpy(&TS, &payload[0], sizeof(TS));
         TS.res3[0] = TS.res3[1] = 0;
         if(memcmp(&TS, &lastTS, sizeof(TS))) {
           cerr<<humanTimeNow()<<" TIM-SVIN valid "<< (int)TS.valid<<" active " << (int)TS.active<<" duration "<<TS.dur<<"s meanAcc " <<sqrt(TS.meanVar)/10<< "cm obs "<<TS.obs<<" ";
@@ -2055,7 +2058,7 @@ int main(int argc, char** argv)
           uint32_t pinIrq, pullH, pullL;
         } __attribute__((packed));
         MonHW mhw;
-        memcpy(&mhw, payload.c_str(), sizeof(MonHW));
+        memcpy(&mhw, &payload[0], sizeof(MonHW));
         //        cerr << "agcCnt "<< mhw.agcCnt <<" jamind " << (unsigned int) mhw.jamInd <<" flags "<< (unsigned int)mhw.flags << endl;
         NavMonMessage nmm;
         nmm.set_sourceid(g_srcid);

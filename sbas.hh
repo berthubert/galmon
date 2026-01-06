@@ -45,22 +45,22 @@ struct SBASState
     time_t lastUpdate{-1};
   };
 
-  std::pair<std::vector<SBASState::FastCorrection>, std::vector<SBASState::LongTermCorrection>> parse(const std::basic_string<uint8_t>& sbas, time_t now);
+  std::pair<std::vector<SBASState::FastCorrection>, std::vector<SBASState::LongTermCorrection>> parse(const std::vector<uint8_t>& sbas, time_t now);
   
-  void parse0(const std::basic_string<uint8_t>& message, time_t now);
+  void parse0(const std::vector<uint8_t>& message, time_t now);
 
   // updates slot2prn mapping
-  void parse1(const std::basic_string<uint8_t>& message, time_t now);
+  void parse1(const std::vector<uint8_t>& message, time_t now);
 
 
-  std::vector<FastCorrection> parse2_5(const std::basic_string<uint8_t>& message, time_t now);
+  std::vector<FastCorrection> parse2_5(const std::vector<uint8_t>& message, time_t now);
 
-  std::vector<FastCorrection> parse6(const std::basic_string<uint8_t>& message, time_t now);
-  void parse7(const std::basic_string<uint8_t>& message, time_t now);
+  std::vector<FastCorrection> parse6(const std::vector<uint8_t>& message, time_t now);
+  void parse7(const std::vector<uint8_t>& message, time_t now);
 
-  std::pair<std::vector<FastCorrection>, std::vector<LongTermCorrection>> parse24(const std::basic_string<uint8_t>& message, time_t now);
+  std::pair<std::vector<FastCorrection>, std::vector<LongTermCorrection>> parse24(const std::vector<uint8_t>& message, time_t now);
 
-  std::vector<LongTermCorrection> parse25(const std::basic_string<uint8_t>& message, time_t now);
+  std::vector<LongTermCorrection> parse25(const std::vector<uint8_t>& message, time_t now);
 
   int getSBASNumber(int slot) const;
   SatID getSBASSatID(int slot) const;
@@ -72,7 +72,7 @@ struct SBASState
   std::map<int,int> d_slot2prn;
   int d_latency = -1;
   time_t d_lastSeen{-1};
-  void parse25H(const std::basic_string<uint8_t>& sbas, time_t t, int offset, std::vector<LongTermCorrection>& ret);
+  void parse25H(const std::vector<uint8_t>& sbas, time_t t, int offset, std::vector<LongTermCorrection>& ret);
 
 };
 

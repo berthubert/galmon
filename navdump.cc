@@ -387,7 +387,7 @@ try
       }
     }
     else if(nmm.type() == NavMonMessage::GalileoInavType) {
-      basic_string<uint8_t> inav((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
+      auto inav = makeVec((uint8_t*)nmm.gi().contents().c_str(), nmm.gi().contents().size());
       static map<int, GalileoMessage> gms;
       static map<pair<int, int>, GalileoMessage> gmwtypes;
 
@@ -714,7 +714,7 @@ try
 
     }
     else if(nmm.type() == NavMonMessage::GalileoFnavType) {
-      basic_string<uint8_t> fnav((uint8_t*)nmm.gf().contents().c_str(), nmm.gf().contents().size());
+      auto fnav = makeVec((uint8_t*)nmm.gf().contents().c_str(), nmm.gf().contents().size());
       int sv = nmm.gf().gnsssv();
       if(!svfilter.check(2, sv, nmm.gf().sigid()))
         continue;
@@ -752,7 +752,7 @@ try
         continue;
       etstamp();
       
-      auto cond = getCondensedGPSMessage(std::basic_string<uint8_t>((uint8_t*)nmm.gpsi().contents().c_str(), nmm.gpsi().contents().size()));
+      auto cond = getCondensedGPSMessage(makeVec((uint8_t*)nmm.gpsi().contents().c_str(), nmm.gpsi().contents().size()));
       struct GPSState gs;
       static map<int, GPSState> eph;
 
@@ -951,7 +951,7 @@ try
       static map<int, GPSCNavState> states;
       auto& state = states[sv];
       int type = parseGPSCNavMessage(
-                                     std::basic_string<uint8_t>((uint8_t*)nmm.gpsc().contents().c_str(),
+                                     makeVec((uint8_t*)nmm.gpsc().contents().c_str(),
                                                                 nmm.gpsc().contents().size()),
         state);
     
@@ -969,9 +969,9 @@ try
         continue;
       etstamp();
 
-      std::basic_string<uint8_t> cond;
+      std::vector<uint8_t> cond;
       try {
-        cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid1().contents().c_str(), nmm.bid1().contents().size()));
+        cond = getCondensedBeidouMessage(makeVec((uint8_t*)nmm.bid1().contents().c_str(), nmm.bid1().contents().size()));
       }
       catch(std::exception& e) {
         cout<<"Parsing error"<<endl;
@@ -1050,7 +1050,7 @@ try
         continue;
       etstamp();
       
-      auto cond = getCondensedBeidouMessage(std::basic_string<uint8_t>((uint8_t*)nmm.bid2().contents().c_str(), nmm.bid2().contents().size()));
+      auto cond = getCondensedBeidouMessage(makeVec((uint8_t*)nmm.bid2().contents().c_str(), nmm.bid2().contents().size()));
       BeidouMessage bm;
       uint8_t pageno;
       int fraid = bm.parse(cond, &pageno);
@@ -1065,7 +1065,7 @@ try
       static map<int, GlonassMessage> gms;
       auto& gm = gms[nmm.gloi().gnsssv()];
       
-      int strno = gm.parse(std::basic_string<uint8_t>((uint8_t*)nmm.gloi().contents().c_str(), nmm.gloi().contents().size()));
+      int strno = gm.parse(makeVec((uint8_t*)nmm.gloi().contents().c_str(), nmm.gloi().contents().size()));
 
       cout<<"Glonass R"<<nmm.gloi().gnsssv()<<" @ "<< ((int)nmm.gloi().freq()-7) <<" strno "<<strno;
       if(strno == 1) {
@@ -1261,7 +1261,7 @@ try
         continue;
 
       etstamp();
-      basic_string<uint8_t> sbas((uint8_t*)nmm.sbm().contents().c_str(), nmm.sbm().contents().size());
+      auto sbas = makeVec((uint8_t*)nmm.sbm().contents().c_str(), nmm.sbm().contents().size());
       cout<<" PRN "<<nmm.sbm().gnsssv()<<" SBAS message type ";
 
       // Preamble sequence: 
@@ -1315,7 +1315,7 @@ try
     }
     else if(nmm.type() == NavMonMessage::DebuggingType) {
 
-      auto res = parseTrkMeas(basic_string<uint8_t>((const uint8_t*)nmm.dm().payload().c_str(), nmm.dm().payload().size()));
+      auto res = parseTrkMeas(makeVec((const uint8_t*)nmm.dm().payload().c_str(), nmm.dm().payload().size()));
       if(res.empty())
         continue;
       etstamp();

@@ -45,7 +45,7 @@ extern "C" {
   }
 }
 
-vector<TrkSatStat> parseTrkMeas(std::basic_string_view<uint8_t> payload)
+vector<TrkSatStat> parseTrkMeas(const std::vector<uint8_t>& payload)
 {
   uint8_t plainchunk[16];
   std::basic_string<uint8_t> plaintext;

@@ -1,6 +1,8 @@
 #include "beidou.hh"
 #include "bits.hh"
 #include <iostream>
+#include <vector>
+#include "navmon.hh"
 
 using namespace std;
 
@@ -29,7 +31,7 @@ static int checkbds(int bits)
   return 1;
 }
 
-std::basic_string<uint8_t> getCondensedBeidouMessage(std::basic_string_view<uint8_t> payload)
+std::vector<uint8_t> getCondensedBeidouMessage(const std::vector<uint8_t>& payload)
 {
 
   // payload consists of 32 bit words where we have to ignore the first 2 bits of every word
@@ -56,7 +58,7 @@ std::basic_string<uint8_t> getCondensedBeidouMessage(std::basic_string_view<uint
     setbitu(buffer, 26+22*(w-1), 22, getbitu(&payload[0], 2 + w*32, 22));
   }
 
-  return std::basic_string<uint8_t>(buffer, 28);
+  return makeVec(buffer, 28);
 }
 
 
