@@ -328,7 +328,7 @@ Documents
  * [GLONASS CDMA](http://russianspacesystems.ru/wp-content/uploads/2016/08/ICD-GLONASS-CDMA-General.-Edition-1.0-2016.pdf)
    not actually relevant for the CDMA aspects, but has appendices on more
    precise orbit determinations.
- * [GPS](https://www.gps.gov/technical/icwg/IS-GPS-200K.pdf)
+ * [GPS](https://www.navcen.uscg.gov/sites/default/files/pdf/gps/IS-GPS-200N.pdf)
  * [U-blox 8 interface specification](https://www.u-blox.com/sites/default/files/products/documents/u-blox8-M8_ReceiverDescrProtSpec_%28UBX-13003221%29_Public.pdf)
  * [U-blox 9 interface specification](https://www.u-blox.com/sites/default/files/u-blox_ZED-F9P_InterfaceDescription_%28UBX-18010854%29.pdf)
  * [U-blox 10 interface  specification](https://content.u-blox.com/sites/default/files/documents/u-blox-F10-SPG-6.00_InterfaceDescription_UBX-23002975.pdf)
