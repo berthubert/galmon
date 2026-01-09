@@ -38,6 +38,8 @@ int GPSState::parseGPSMessage(const std::vector<uint8_t>& cond, uint8_t* pageptr
     wn = 2048 + getbitu(&cond[0], 2*24, 10);
     ura = getbitu(&cond[0], 2*24+12, 4);
     gpshealth = getbitu(&cond[0], 2*24+16, 6);
+    iodc = getbitu(&cond[0], 2*24 +22, 2) * 256;
+    iodc += getbitu(&cond[0], 7*24, 8);
     
     //    cerr<<"GPS Week Number: "<< wn <<", URA: "<< (int)ura<<", health: "<<
     //      (int)gpshealth <<endl;

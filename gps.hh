@@ -134,8 +134,10 @@ struct GPSState :  GPSLikeEphemeris
   uint16_t wnLSF{0};
   uint8_t dn; // leap second day number
   //   1  2^-31 2^-43 2^-55   16 second
+  int iodc;
   int ura;
 
+  
   int gpsiod{-1};
 
   int getIOD() const
