@@ -42,6 +42,7 @@ static char program[]="ubxtool";
 bool doDEBUG{false};
 bool doLOGFILE{false};
 bool doVERSION{false};
+bool doSILENT{false};
 
 struct timespec g_gnssutc;
 uint16_t g_galwn;
@@ -241,7 +242,7 @@ UBXMessage sendAndWaitForUBX(int fd, int seconds, const vector<uint8_t>& msg, ui
     catch(...) {
       if(n==1)
         throw;
-      cerr<<"Retransmit"<<endl;
+      if (!doSILENT) { cerr<<"Retransmit"<<endl; }
     }
   }
   // we actually never get here, but if you remove this line, we get a warning
@@ -289,7 +290,7 @@ bool sendAndWaitForUBXAckNack(int fd, int seconds, const vector<uint8_t>& msg, u
     catch(...) {
       if(n==1)
         throw;
-      cerr<<"Retransmit"<<endl;
+      if (!doSILENT) { cerr<<"Retransmit"<<endl; }
     }
   }
   return false;
@@ -360,7 +361,7 @@ void readSome(int fd)
         if (doDEBUG) { cerr<<humanTimeNow()<<" "<<string((char*)&msg.getPayload()[0], msg.getPayload().size()) <<endl; }
     }
     catch(TimeoutError& te) {
-      cerr<<"Timeout"<<endl;
+      if (!doSILENT) { cerr<<"Timeout"<<endl; }
     }
   }
   
@@ -556,6 +557,7 @@ int main(int argc, char** argv)
   app.add_flag("--survey-reset", doSurveyReset, "Reset the Surveyed-in state");
   app.add_flag("--debug", doDEBUG, "Display debug information");  
   app.add_flag("--logfile", doLOGFILE, "Create logfile");  
+  app.add_flag("--silent", doSILENT, "Supress non essential logging");  
   app.add_flag("--version", doVERSION, "show program version and copyright");
   try {
     app.parse(argc, argv);
@@ -569,7 +571,7 @@ int main(int argc, char** argv)
   }
 
   if(! *pn) {
-    cerr<<"you must provide the --port"<<endl;
+    cerr<<"Error: you must provide the --port"<<endl;
     exit(1);
   }
 
@@ -577,7 +579,12 @@ int main(int argc, char** argv)
     g_baudval = getBaudrate(baudrate);
 
   if(!(doGPS || doGalileo || doGlonass || doBeidou)) {
-    cerr<<"Enable at least one of --gps, --galileo, --glonass, --beidou"<<endl;
+    cerr<<"Error: Enable at least one of --gps, --galileo, --glonass, --beidou"<<endl;
+    return EXIT_FAILURE;
+  }
+
+  if(doDEBUG && doSILENT) {
+    cerr<<"--silent and --debug are mutually exclusive."<<endl;
     return EXIT_FAILURE;
   }
 
@@ -587,7 +594,7 @@ int main(int argc, char** argv)
   for(const auto& s : destinations) {
     auto res=resolveName(s, true, true);
     if(res.empty()) {
-      cerr<<"Unable to resolve '"<<s<<"' as destination for data, exiting"<<endl;
+      cerr<<"Error: Unable to resolve '"<<s<<"' as destination for data, exiting"<<endl;
       exit(EXIT_FAILURE);
     }
     ns.addDestination(s); // ComboAddress(s, 29603));
@@ -789,7 +796,7 @@ int main(int argc, char** argv)
           if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on GNSS setting"<<endl; }
         }
         else {
-          cerr<<humanTimeNow()<<" Got nack on GNSS setting"<<endl;
+          cerr<<humanTimeNow()<<" Error: Got nack on GNSS setting"<<endl;
           exit(-1);
         }
       }
@@ -820,7 +827,7 @@ int main(int argc, char** argv)
           if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on F9P GNSS setting"<<endl; }
         }
         else {
-          cerr<<humanTimeNow()<<" Got nack on F9P GNSS setting"<<endl;
+          cerr<<humanTimeNow()<<" Error: Got nack on F9P GNSS setting"<<endl;
           exit(-1);
         }
         /* VALSET
@@ -834,7 +841,7 @@ int main(int argc, char** argv)
           if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on F9P UART1 setting"<<endl; }
         }
         else {
-          cerr<<humanTimeNow()<<" Got nack on F9P UART1 setting"<<endl;
+          cerr<<humanTimeNow()<<" Error: Got nack on F9P UART1 setting"<<endl;
           exit(-1);
         }
       }
@@ -921,7 +928,7 @@ int main(int argc, char** argv)
           if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on survey-reset"<<endl; }
         }
         else {
-          cerr<<humanTimeNow()<<" Got nack on survey-reset"<<endl;
+          cerr<<humanTimeNow()<<" Error: Got nack on survey-reset"<<endl;
           exit(-1);
         }     
         exit(0);
@@ -965,7 +972,7 @@ int main(int argc, char** argv)
           if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on survey-in"<<endl; }
         }
         else {
-          cerr<<humanTimeNow()<<" Got nack on survey-in"<<endl;
+          cerr<<humanTimeNow()<<" Error: Got nack on survey-in"<<endl;
           exit(-1);
         }
       }
@@ -977,7 +984,7 @@ int main(int argc, char** argv)
           if (doDEBUG) { cerr<<humanTimeNow()<<" Got ack on SBAS setting"<<endl; }
         }
         else {
-          cerr<<humanTimeNow()<<" Got nack on SBAS setting"<<endl;
+          cerr<<humanTimeNow()<<" Error: Got nack on SBAS setting"<<endl;
           exit(-1);
         }
       }
@@ -1455,11 +1462,13 @@ int main(int argc, char** argv)
           svseen.insert({id.first, id.second, sigid});
 
           if(time(0)- lastStat > 30) {
-            cerr<<humanTimeNow()<<" src "<<g_srcid<< " (fix: "<<g_fixtype<<") currently receiving: ";
-            for(auto& s : svseen) {
-              cerr<<get<0>(s)<<","<<get<1>(s)<<"@"<<get<2>(s)<<" ";
+            if (!doSILENT) { 
+              cerr<<humanTimeNow()<<" src "<<g_srcid<< " (fix: "<<g_fixtype<<") currently receiving: ";
+              for(auto& s : svseen) {
+                cerr<<get<0>(s)<<","<<get<1>(s)<<"@"<<get<2>(s)<<" ";
+              }
+              cerr<<endl;
             }
-            cerr<<endl;
             lastStat = time(0);
             svseen.clear();
           }
