@@ -1,7 +1,5 @@
 var repeat;
 
-moment.relativeTimeThreshold('m', 120);
-
 function maketable(str, arr)
 {
     var table=d3.select(str);
@@ -104,8 +102,7 @@ function maketable(str, arr)
 
                     
                     if(row[column] != null) {
-                        var b = moment.duration(-row[column], 'm');
-                        ret.value = b.humanize(true);
+                        ret.value = row[column].toFixed(0) + " minutes ago";
                     }
                     else
                         ret.value="";
@@ -153,8 +150,11 @@ function maketable(str, arr)
                 }
 
                 else if(column == "last-seen-s") {
-                    var b = moment.duration(row[column], 's');
-                    ret.value = b.humanize();
+		    var seconds = row[column].toFixed(0);
+		    if(seconds < 30) 
+			ret.value = "a few seconds ago";
+		    else
+			ret.value = (seconds/60) + " minutes ago";
                 }
                 else if(column == "best-tle") {
                     ret.value = "<small>"+row[column]+"</small>";
@@ -351,9 +351,14 @@ function update()
         str += ", "+d["leap-seconds"]+"</b> leap seconds (GPS/Galileo)";
         
         d3.select('#facts').html(str);
-        lastseen = moment(1000*d["last-seen"]);
-        d3.select("#freshness").html(lastseen.fromNow());
-
+        var ageSeconds = (Date.now() - 1000*d["last-seen"])/1000;
+	var ageString;
+	if(ageSeconds < 60)
+	    ageString = "a few seconds ago";
+	else
+	    ageString = (ageSeconds/60).toFixed(0) +" minutes ago";
+	
+        d3.select("#freshness").html(ageString);
 
         str = d["total-live-receivers"]+" receivers active, tracking ";
         str += d["total-live-svs"] + " satellites via " ;
