@@ -11,7 +11,6 @@
 #include <thread>
 #include <signal.h>
 #include <mutex>
-#include "ext/powerblog/h2o-pp.hh"
 #include "minicurl.hh"
 #include <time.h>
 #include "ubx.hh"
@@ -23,6 +22,7 @@
 #include "glonass.hh"
 #include "beidou.hh"
 #include "galileo.hh"
+#include "httplib.h"
 #include "tle.hh"
 #include <optional>
 #include "navmon.hh" 
@@ -32,7 +32,7 @@
 #include "influxpush.hh"
 #include "sbas.hh"
 #include <sys/resource.h>
-
+#include <nlohmann/json.hpp>
 #include "CLI/CLI.hpp"
 #include "gpscnav.hh"
 #include "rtcm.hh"
@@ -448,15 +448,10 @@ std::string humanBhs(int bhs)
   return options.at(bhs);
 }
 
-void addHeaders(h2o_req_t* req)
+void addHeaders(httplib::Response& res)
 {
-  h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_CACHE_CONTROL, 
-                     NULL, H2O_STRLIT("max-age=3"));
-  
-  // Access-Control-Allow-Origin
-  h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_ACCESS_CONTROL_ALLOW_ORIGIN, 
-                 NULL, H2O_STRLIT("*"));
-
+  res.set_header("Cache-Control", "max-age=3");
+  res.set_header("Access-Control-Allow-Origin", "*");
 }
 
 time_t getSatelliteUTC(svstats_t& svstats)
@@ -678,10 +673,16 @@ try
   InfluxPusher idb(influxDBName);
   MiniCurl::init();
   
-  H2OWebserver h2s("galmon");
+  httplib::Server svr;
+  svr.set_socket_options([](socket_t sock) {
+    int yes = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
+	       reinterpret_cast<const void *>(&yes), sizeof(yes));
+  });
+
   
-  h2s.addHandler("/global.json", [](auto handler, auto req) {
-      addHeaders(req);
+  svr.Get("/global.json", [](const auto& req, auto& res) {
+    addHeaders(res);
       
       nlohmann::json ret = nlohmann::json::object();
       auto svstats = g_statskeeper.get();
@@ -743,12 +744,11 @@ try
       ret["galileo-sigs"] = siggnsscount[2];
       ret["beidou-sigs"] = siggnsscount[3];
       ret["glonass-sigs"] = siggnsscount[6];
+      res.set_content(ret.dump(), "application/json");
+  });
 
-      return ret;
-    });
-
-  h2s.addHandler("/almanac.json", [](auto handler, auto req) {
-      addHeaders(req);
+  svr.Get("/almanac.json", [](const auto& req, auto& res) {
+      addHeaders(res);
       
       auto beidoualma = g_beidoualmakeeper.get();
       auto svstats = g_statskeeper.get();
@@ -972,12 +972,11 @@ try
         item["name"]=name;
         ret[name] = item;
       }
-      
-      return ret;
+      res.set_content(ret.dump(), "application/json");
     });
 
-  h2s.addHandler("/observers.json", [](auto handler, auto req) {
-      addHeaders(req);
+  svr.Get("/observers.json", [](const auto& req, auto& res) {
+      addHeaders(res);
       
       nlohmann::json ret = nlohmann::json::array();
       for(const auto& src : g_srcfacts) {
@@ -1069,32 +1068,22 @@ try
         
         ret.push_back(obj);
       }
-      return ret;
+      res.set_content(ret.dump(), "application/json");
     });
 
-  h2s.addHandler("/sv.json", [](auto handler, auto req) {
-      addHeaders(req);
-      string_view path = convert(req->path);
+  svr.Get("/sv.json", [](const auto& req, auto& res) {
+      addHeaders(res);
       nlohmann::json ret = nlohmann::json::object();
 
       SatID id;
-      auto pos = path.find("sv=");
-      if(pos == string::npos) {
-        return ret;
-      }
-      id.sv = atoi(&path[0] + pos+3);
-
-      pos = path.find("gnssid=");
-      if(pos == string::npos) {
-        return ret;
-      }
-      id.gnss = atoi(&path[0]+pos+7);
+      id.sv = atoi(req.get_param_value("sv").c_str());
+      id.gnss = atoi(req.get_param_value("gnssid").c_str());
+      string psigid = req.get_param_value("sigid");
+      if(!psigid.empty())
+	id.sigid = atoi(psigid.c_str());
+      else 
+	id.sigid =1 ;
       
-      id.sigid = 1;
-      pos = path.find("sigid=");
-      if(pos != string::npos) {
-        id.sigid = atoi(&path[0]+pos+6);
-      }
       
       auto svstats = g_statskeeper.get();
 
@@ -1102,8 +1091,10 @@ try
       ret["gnssid"] =id.gnss;
       ret["sigid"] = id.sigid;
       auto iter = svstats.find(id);
-      if(iter == svstats.end())
-        return ret;
+      if(iter == svstats.end()) {
+	res.set_content(ret.dump(), "application/json");
+        return;
+      }
       const auto& s= iter->second;
       // XXX CONVERSION
       /*
@@ -1234,37 +1225,24 @@ try
                 
       }
       ret["recvs"]=recvs;
-      return ret;
+      res.set_content(ret.dump(), "application/json");
     }
     );
 
-  h2s.addHandler("/cov.json", [](auto handler, auto req) {
-      addHeaders(req);
+  svr.Get("/cov.json", [](const auto& req, auto& res) {
+      addHeaders(res);
       vector<Point> sats;
       auto galileoalma = g_galileoalmakeeper.get();
       auto gpsalma = g_gpsalmakeeper.get();
       auto beidoualma = g_beidoualmakeeper.get();
       auto svstats = g_statskeeper.get();
       //  cout<<"pseudoTow "<<pseudoTow<<endl;
-      string_view path = convert(req->path);
 
       bool doGalileo{true}, doGPS{false}, doBeidou{false}, doGlonass{false};
-      auto pos = path.find("gps=");
-      if(pos != string::npos) {
-        doGPS = (path[pos+4]=='1');
-      }
-      pos = path.find("galileo=");
-      if(pos != string::npos) {
-        doGalileo = (path[pos+8]=='1');
-      }
-      pos = path.find("beidou=");
-      if(pos != string::npos) {
-        doBeidou = (path[pos+7]=='1');
-      }
-      pos = path.find("glonass=");
-      if(pos != string::npos) {
-        doGlonass = (path[pos+8]=='1');
-      }
+      doGPS = req.get_param_value("gps") == "1";
+      doGalileo = req.get_param_value("galileo") == "1";
+      doBeidou = req.get_param_value("beidou") == "1";
+      doGlonass = req.get_param_value("glonass") == "1";
       
       if(doGalileo)
       for(const auto &g : galileoalma) {
@@ -1371,21 +1349,14 @@ try
         
         ret.push_back(jslatvect);
       }
-      return ret;
+      res.set_content(ret.dump(), "application/json");
     });
 
-  h2s.addHandler("/sbas.json", [](auto handler, auto req) {
-      addHeaders(req);
+  svr.Get("/sbas.json", [](const auto& req, auto& res) {
+      addHeaders(res);
       auto svstats = g_statskeeper.get();
       auto sbas = g_sbaskeeper.get();
       nlohmann::json ret = nlohmann::json::object();
-      h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_CACHE_CONTROL, 
-                     NULL, H2O_STRLIT("max-age=3"));
-
-      // Access-Control-Allow-Origin
-      h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_ACCESS_CONTROL_ALLOW_ORIGIN, 
-                     NULL, H2O_STRLIT("*"));
-
       
       for(const auto& s: sbas) {
         nlohmann::json item  = nlohmann::json::object();
@@ -1410,21 +1381,13 @@ try
         
         ret[to_string(s.first)]=item;
       }
-      return ret;
+      res.set_content(ret.dump(), "application/json");
     });
   
-  h2s.addHandler("/svs.json", [](auto handler, auto req) {
-      addHeaders(req);
+  svr.Get("/svs.json", [](const auto& req, auto& res) {
+      addHeaders(res);
       auto svstats = g_statskeeper.get();
       nlohmann::json ret = nlohmann::json::object();
-      h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_CACHE_CONTROL, 
-                     NULL, H2O_STRLIT("max-age=3"));
-
-      // Access-Control-Allow-Origin
-      h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_ACCESS_CONTROL_ALLOW_ORIGIN, 
-                     NULL, H2O_STRLIT("*"));
-
-      
       for(const auto& s: svstats) {
         nlohmann::json item  = nlohmann::json::object();
         if(!s.second.tow()) // I know, I know, will suck briefly
@@ -1711,19 +1674,12 @@ try
         item["name"] = makeSatPartialName(s.first);
         ret[makeSatIDName(s.first)] = item;
       }
-      return ret;
+      res.set_content(ret.dump(), "application/json");      
     });
 
-  h2s.addHandler("/sbstatus.json", [](auto handler, auto req) {
-      addHeaders(req);
+  svr.Get("/sbstatus.json", [](const auto& req, auto& res) {
+      addHeaders(res);
       auto svstats = g_statskeeper.get();
-      h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_CACHE_CONTROL, 
-                     NULL, H2O_STRLIT("max-age=3"));
-
-      // Access-Control-Allow-Origin
-      h2o_add_header(&req->pool, &req->res.headers, H2O_TOKEN_ACCESS_CONTROL_ALLOW_ORIGIN, 
-                     NULL, H2O_STRLIT("*"));
-
       auto ret = nlohmann::json::array();
 
       time_t now = time(0);
@@ -1800,20 +1756,19 @@ try
           ret.push_back(obj);
         }
       }
-      return ret;
-    });
+      res.set_content(ret.dump(), "application/json");      
+  });
 
-  
-  h2s.addDirectory("/", htmlDir);
+
+  svr.set_mount_point("/", htmlDir);
 
   const char *address = localAddress.c_str();
-  std::thread ws([&h2s, address]() {
-      auto actx = h2s.addContext();
-      ComboAddress listenOn(address);
-      h2s.addListener(listenOn, actx);
-      cout<<"Listening on "<< listenOn.toStringWithPort() <<endl;
-      h2s.runLoop();
-    });
+  std::thread ws([&svr, address]() {
+    ComboAddress listenOn(address, 29599);
+    fmt::print("Launching webserver on {}..\n", listenOn.toStringWithPort());
+    svr.listen(listenOn.toString(), ntohs(listenOn.sin4.sin_port));
+    fmt::print("Exiting - {}\n", strerror(errno));
+  });
   ws.detach();
 
   try {

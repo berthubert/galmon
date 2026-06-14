@@ -82,18 +82,11 @@ receiver-only tools.
 To build everything, including the webserver, try:
 
 ```
-apt-get install protobuf-compiler libh2o-dev libcurl4-openssl-dev libssl-dev libprotobuf-dev \
-libh2o-evloop-dev libwslay-dev libncurses5-dev libeigen3-dev libzstd-dev g++ libfmt-dev
+apt-get install protobuf-compiler libcurl4-openssl-dev libssl-dev libprotobuf-dev \
+libncurses5-dev libeigen3-dev libzstd-dev g++ libfmt-dev
 git clone https://github.com/berthubert/galmon.git --recursive
 cd galmon
 make
-```
-
-If this doesn't succeed with an error about h2o, make sure you have this
-library installed. If you get an error about 'wslay', do the following, and run make again:
-
-```
-echo WSLAY=-lwslay > Makefile.local
 ```
 
 Building on OSX
@@ -102,7 +95,7 @@ With thanks to a contributor from Prague.  First make sure you've installed
 brew, which you can get [here](https://brew.sh/). Then do:
 
 ```
-brew install protobuf lzlib zstd h2o eigen
+brew install protobuf lzlib zstd eigen
 ```
 
 And then:
