@@ -56,11 +56,11 @@ function maketable(str, arr)
                     var img="";
                     var sv = row["sv"];
                     var sbas="";
-                    if(sv == 138 || sv == 131 || sv == 133) {
+                    if(sv == 138 || sv == 131 || sv == 133 || sv == 135) {
                         img = 'ext/gps.png';
                         sbas = "WAAS";
                     }
-                    else if(sv== 126 || sv == 136 || sv == 123 ) {
+                    else if(sv == 136 || sv == 123 || sv == 121 || sv == 150) {
                         img='ext/gal.png';
                         sbas = "EGNOS";
                     }
@@ -68,9 +68,40 @@ function maketable(str, arr)
                         img='ext/glo.png';
                         sbas = "SDCM";
                     }
-                    else if(sv == 127 || sv == 128 || sv == 138) {
+                    else if(sv == 127 || sv == 128 || sv == 132) {
                         img='ext/gagan.png';
                         sbas ="GAGAN";
+                    }
+          	    else if(sv == 129 || sv == 137 || sv == 139) {
+                        img='ext/msas.png';
+                        sbas ="MSAS";
+                    }
+		    else if(sv == 130 || sv == 143 || sv == 144) {
+                        img='ext/bei.png';
+                        sbas ="BDSBAS";
+                    }
+	       	    else if(sv == 120 || sv == 147) {
+                        img='ext/asecna.png';
+                        sbas ="ASECNA";
+                     }
+	       	    else if(sv == 122 || sv == 124) {
+                        img='ext/span.png';
+                        sbas ="SPAN";
+                    }
+		        else if(sv == 134 || sv == 142) {
+                        img='ext/kass.png';
+                        sbas ="KASS";
+                    }
+	       	    else if(sv == 148) {
+                        img='ext/asbas.png';
+                        sbas ="A-SBAS";
+                    }
+		    else if(sv == 158) {
+                        img='ext/uksbas.png';
+                        sbas ="UK SBAS";
+                    }
+		    else if(sv == 145) {
+                        sbas ="Pak-SBAS";
                     }
 
                     ret.value = sbas + "&nbsp;";
