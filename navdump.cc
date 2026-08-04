@@ -3,7 +3,6 @@
 #include <iostream>
 #include <arpa/inet.h>
 #include "fmt/format.h"
-#include "fmt/os.h"
 #include "fmt/printf.h"
 #include "CLI/CLI.hpp"
 #include <fstream>

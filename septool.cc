@@ -14,7 +14,6 @@
 #include "sclasses.hh"
 #include "version.hh"
 #include "fmt/format.h"
-#include "fmt/os.h"
 #include "fmt/printf.h"
 #include "gps.hh"
 using namespace std;

@@ -3,18 +3,18 @@
 #
 FROM debian:10-slim AS builder
 
-ENV DEBIAN_FRONTEND noninteractive
-ENV LC_ALL C.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LC_ALL=C.UTF-8
 
 # This allows you to use a local Debian mirror
-ARG APT_URL=http://deb.debian.org/debian/
+ARG APT_URL=http://archive.debian.org/debian
 ARG MAKE_FLAGS=-j2
 
-RUN sed -i "s%http://deb.debian.org/debian/%${APT_URL}%" /etc/apt/sources.list \
-    && apt-get update && apt-get -y upgrade \
+RUN sed -i "s%http://deb.debian.org/debian%${APT_URL}%" /etc/apt/sources.list
+RUN apt-get update && apt-get -y upgrade \
     && apt-get install -y protobuf-compiler libh2o-dev libcurl4-openssl-dev \
            libssl-dev libprotobuf-dev libh2o-evloop-dev libwslay-dev \
-           libeigen3-dev libzstd-dev libfmt-dev libncurses-dev \
+           libeigen3-dev libzstd-dev libfmt-dev libncurses-dev libfmt-dev \
            make gcc g++ git build-essential curl autoconf automake help2man
 
 # Build
@@ -27,6 +27,9 @@ RUN cd /galmon-src/ \
 # Second stage - contains just the binaries
 #
 FROM debian:10-slim
+
+COPY --from=builder /etc/apt/sources.list /etc/apt/sources.list
+
 RUN apt-get update && apt-get -y upgrade \
     && apt-get install -y libcurl4 libssl1.1 libprotobuf17 libh2o-evloop0.13 \
            libncurses6 \
@@ -34,5 +37,5 @@ RUN apt-get update && apt-get -y upgrade \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /galmon/ /galmon/
 ENV PATH=/galmon/bin:${PATH}
-ENV LC_ALL C.UTF-8
+ENV LC_ALL=C.UTF-8
 WORKDIR /galmon/bin
