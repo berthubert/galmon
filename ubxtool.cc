@@ -794,24 +794,27 @@ int main(int argc, char** argv)
         }
       }
       else if(version9) { // UBX-CFG-VALSET
-        //                                 vers  ram   res   res    
-        msg = buildUbxMessage(0x06, 0x8a, {0x00, 0x01, 0x00, 0x00,
-              0x1f,0x00,0x31,0x10, doGPS,   // 
+        // NEO-F9P is L1/L5 and NAKs the ZED-F9P's L2/E5b/B2I keys
+        bool l5 = mods.find("NEO-F9P") != string::npos;
+        //                          vers  ram   res   res
+        vector<uint8_t> cfg = {0x00, 0x01, 0x00, 0x00,
+              0x1f,0x00,0x31,0x10, doGPS,
               0x01,0x00,0x31,0x10, doGPS,
-              0x03,0x00,0x31,0x10, doGPS,
+              (uint8_t)(l5 ? 0x04 : 0x03),0x00,0x31,0x10, doGPS,
 
               0x21,0x00,0x31,0x10, doGalileo,
               0x07,0x00,0x31,0x10, doGalileo,
-              0x0a,0x00,0x31,0x10, doGalileo,
+              (uint8_t)(l5 ? 0x09 : 0x0a),0x00,0x31,0x10, doGalileo,
 
               0x22,0x00,0x31,0x10, doBeidou,
               0x0d,0x00,0x31,0x10, doBeidou,
-	      0x0e,0x00,0x31,0x10, doBeidou,
+              (uint8_t)(l5 ? 0x28 : 0x0e),0x00,0x31,0x10, doBeidou,
 
               0x25,0x00,0x31,0x10, doGlonass,
-              0x18,0x00,0x31,0x10, doGlonass,
-              0x1a,0x00,0x31,0x10, doGlonass
-              });
+              0x18,0x00,0x31,0x10, doGlonass};
+        if(!l5) // GLONASS L2
+          cfg.insert(cfg.end(), {0x1a,0x00,0x31,0x10, doGlonass});
+        msg = buildUbxMessage(0x06, 0x8a, cfg);
 
         if (doDEBUG) { cerr<<humanTimeNow()<<" Sending F9P GNSS setting, GPS: "<<doGPS<<", Galileo: "<<doGalileo<<", BeiDou: "<<doBeidou<<", GLONASS: "<<doGlonass<<", SBAS: "<<doSBAS<<endl; }
         
@@ -1672,7 +1675,7 @@ int main(int argc, char** argv)
           }
           else if(id.first==3) {
 	    try {
-	      if(version10 && sigid==8)
+	      if(sigid==8) // B2a, from F10 or NEO-F9P
 		continue;
 	      
 	      auto gstr = getGlonassFromSFRBXMsg(payload);
