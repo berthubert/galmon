@@ -456,6 +456,7 @@ In alphabetical order:
    * Alaska (Anchorage)
    * California (Santa Cruz, Los Angeles area, etc)
    * Massachusetts (Boston area)
+   * Missouri (St. Louis area)
  * Uruguay
  
 Additional sites are welcome (and encouraged) as the more data receiving sites that exist, then more accurate data and absolute coverage of each constellation can be had.
